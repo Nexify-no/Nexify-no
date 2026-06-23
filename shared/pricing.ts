@@ -77,7 +77,6 @@ export const PLANS: Plan[] = [
     features: [
       "30 innlegg per måned",
       "Alt i Pro inkludert",
-      "Multi-bruker tilgang",
       "Avansert stemmetrening",
       "Automatisering og planlegging",
       "Månedlige rapporter",
