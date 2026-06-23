@@ -11,6 +11,7 @@ import { CheckCircle2, Sparkles, ArrowRight, Zap } from "lucide-react";
 import { useLocation } from "wouter";
 import { useEffect, useState } from "react";
 import confetti from "canvas-confetti";
+import { trpc } from "@/lib/trpc";
 
 export default function SubscriptionSuccess() {
   const { loading: authLoading } = useAuth();
@@ -29,6 +30,23 @@ export default function SubscriptionSuccess() {
       });
     }
   }, [showConfetti]);
+
+  // Activate the subscription directly from the checkout session (fallback to
+  // the Stripe webhook, so Pro is unlocked even if the webhook is delayed).
+  const utils = trpc.useUtils();
+  const verifyMutation = trpc.stripe.verifyCheckoutSession.useMutation({
+    onSuccess: () => {
+      utils.user.getSubscription.invalidate();
+      utils.auth.me.invalidate();
+    },
+  });
+  useEffect(() => {
+    const sessionId = new URLSearchParams(window.location.search).get("session_id");
+    if (sessionId) {
+      verifyMutation.mutate({ sessionId });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (authLoading) {
     return (

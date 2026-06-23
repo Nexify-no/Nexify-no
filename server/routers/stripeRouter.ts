@@ -30,6 +30,58 @@ export const stripeRouter = router({
         return result;
       }),
 
+    /**
+     * Verify a completed Checkout Session and activate the subscription.
+     * Fallback to the Stripe webhook: the success page calls this so activation
+     * works even if the webhook is delayed or misconfigured. Idempotent.
+     */
+    verifyCheckoutSession: protectedProcedure
+      .input(z.object({ sessionId: z.string().min(1).max(200) }))
+      .mutation(async ({ ctx, input }) => {
+        const { getCheckoutSession } = await import("../stripe/stripeService");
+        const { getSubscriptionTier } = await import("../stripe/products");
+        const { getPlanIdByTier, updateSubscriptionFromStripe } = await import("../db");
+
+        const session = await getCheckoutSession(input.sessionId);
+
+        // Security: the session must belong to the current user.
+        const sessionUserId = parseInt(
+          (session.metadata?.user_id as string) ||
+            (session.client_reference_id as string) ||
+            ""
+        );
+        if (!sessionUserId || sessionUserId !== ctx.user.id) {
+          throw new Error("Denne betalingsøkten tilhører ikke din konto.");
+        }
+
+        const paid = session.payment_status === "paid" || session.status === "complete";
+        if (!paid) {
+          return { activated: false as const, status: "pending" as const };
+        }
+
+        const productKey = session.metadata?.product_key as string | undefined;
+        const planId = productKey
+          ? await getPlanIdByTier(getSubscriptionTier(productKey as any))
+          : undefined;
+        const customer =
+          typeof session.customer === "string"
+            ? session.customer
+            : (session.customer as any)?.id;
+        const subscriptionId =
+          typeof session.subscription === "string"
+            ? session.subscription
+            : (session.subscription as any)?.id;
+
+        await updateSubscriptionFromStripe(ctx.user.id, {
+          status: "active",
+          planId: planId ?? undefined,
+          stripeCustomerId: customer,
+          stripeSubscriptionId: subscriptionId,
+        });
+
+        return { activated: true as const, status: "active" as const };
+      }),
+
     getPortalUrl: protectedProcedure.mutation(async ({ ctx }) => {
       const { getUserSubscription } = await import("../db");
       const { createCustomerPortalSession } = await import("../stripe/stripeService");
