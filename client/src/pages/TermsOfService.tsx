@@ -109,7 +109,7 @@ export default function TermsOfService() {
             <div>
               <h4 className="font-semibold mb-2">4.1 Gratis prøveperiode</h4>
               <p className="text-muted-foreground">
-                Nye brukere får 5 gratis innlegg uten kredittkort. Etter det må du oppgradere til et betalt abonnement for å fortsette å bruke tjenesten.
+                Nye brukere får 2 gratis innlegg uten kredittkort. Etter det må du oppgradere til et betalt abonnement for å fortsette å bruke tjenesten.
               </p>
             </div>
             <div>

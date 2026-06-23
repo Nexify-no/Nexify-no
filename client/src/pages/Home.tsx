@@ -323,7 +323,7 @@ export default function Home() {
               >
                 <a href={getLoginUrl()}>
                   <Zap className="mr-2 h-5 w-5" />
-                  Prøv 5 innlegg gratis
+                  Prøv 2 innlegg gratis
                   <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
                 </a>
               </Button>
@@ -596,7 +596,7 @@ export default function Home() {
               {[
                 {
                   q: "Hva koster Nexify?",
-                  a: "Du starter gratis med 5 innlegg – ingen kredittkort. Vil du ha mer, gir Pro-abonnementet ubegrenset generering, AI-bilder og planlegging til en fast månedspris.",
+                  a: "Du starter gratis med 2 innlegg – ingen kredittkort. Vil du ha mer, gir Pro-abonnementet ubegrenset generering, AI-bilder og planlegging til en fast månedspris.",
                 },
                 {
                   q: "Trenger jeg kredittkort for å prøve?",
@@ -645,7 +645,7 @@ export default function Home() {
             Klar til å spare 10+ timer hver uke?
           </h2>
           <p className="text-lg mb-8 max-w-xl mx-auto opacity-90 leading-relaxed">
-            Prøv 5 innlegg gratis. Ingen kredittkort. Klar på 30 sekunder.
+            Prøv 2 innlegg gratis. Ingen kredittkort. Klar på 30 sekunder.
           </p>
           <Button 
             size="lg" 

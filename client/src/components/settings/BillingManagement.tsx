@@ -36,7 +36,7 @@ export default function BillingManagement() {
       period: "alltid",
       description: "Perfekt for å komme i gang",
       features: [
-        "5 gratis innlegg",
+        "2 gratis innlegg",
         "Alle plattformer",
         "AI Content Coach",
         "Ingen kredittkort påkrevd",

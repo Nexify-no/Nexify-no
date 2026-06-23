@@ -29,7 +29,7 @@ export default function Terms() {
         icon: CreditCard,
         title: "2. Abonnement og betaling",
         content: [
-          "**Gratis prøveperiode**: Nye brukere får 14 dagers gratis prøveperiode med 5 innlegg",
+          "**Gratis prøveperiode**: Nye brukere får 14 dagers gratis prøveperiode med 2 innlegg",
           "**Pro-abonnement**: 199 NOK/måned for ubegrenset innholdsgenerering",
           "**Årsabonnement**: 1910 NOK/år (spar 2 måneder)",
           "**Fakturering**: Abonnementer fornyes automatisk hver måned/år",
@@ -105,7 +105,7 @@ export default function Terms() {
         icon: CreditCard,
         title: "2. Subscription and Payment",
         content: [
-          "**Free Trial**: New users get a 14-day free trial with 5 posts",
+          "**Free Trial**: New users get a 14-day free trial with 2 posts",
           "**Pro Subscription**: 199 NOK/month for unlimited content generation",
           "**Annual Subscription**: 1910 NOK/year (save 2 months)",
           "**Billing**: Subscriptions renew automatically every month/year",
