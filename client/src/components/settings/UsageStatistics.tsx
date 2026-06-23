@@ -10,15 +10,11 @@ import { Progress } from "@/components/ui/progress";
 import { trpc } from "@/lib/trpc";
 import { Loader2 } from "lucide-react";
 import {
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  LineChart,
-  Line,
   PieChart,
   Pie,
   Cell,
@@ -41,28 +37,11 @@ export default function UsageStatistics() {
     );
   }
 
-  // Mock data for charts (in production, this would come from database)
-  const monthlyUsage = [
-    { month: "Jan", posts: 12, limit: 100 },
-    { month: "Feb", posts: 28, limit: 100 },
-    { month: "Mar", posts: 45, limit: 100 },
-    { month: "Apr", posts: 38, limit: 100 },
-    { month: "May", posts: 52, limit: 100 },
-    { month: "Jun", posts: stats?.monthlyPosts || 61, limit: 100 },
-  ];
-
   const platformUsage = stats?.platformDistribution?.map((p) => ({
     name: p.platform.charAt(0).toUpperCase() + p.platform.slice(1),
     value: p.count,
     percentage: Math.round((p.count / (stats?.totalPosts || 1)) * 100),
   })) || [];
-
-  const engagementTrend = [
-    { week: "Uke 1", engagement: 120 },
-    { week: "Uke 2", engagement: 145 },
-    { week: "Uke 3", engagement: 168 },
-    { week: "Uke 4", engagement: 192 },
-  ];
 
   const COLORS = ["#3b82f6", "#8b5cf6", "#ec4899", "#f59e0b"];
 
@@ -78,7 +57,7 @@ export default function UsageStatistics() {
                   Innlegg denne måneden
                 </p>
                 <p className="text-3xl font-bold">{stats?.monthlyPosts || 0}</p>
-                <p className="text-xs text-green-600 mt-1">av {stats?.subscription?.trialPostsLimit || 100}</p>
+                <p className="text-xs text-green-600 mt-1">av {stats?.subscription?.trialPostsLimit || 2}</p>
               </div>
               <FileText className="h-10 w-10 text-primary opacity-20" />
             </div>
@@ -131,25 +110,6 @@ export default function UsageStatistics() {
         </Card>
       </div>
 
-      {/* Monthly Usage */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Innlegg per måned</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={monthlyUsage}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="posts" fill="#3b82f6" name="Innlegg" />
-              <Bar dataKey="limit" fill="#e5e7eb" name="Grense" />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
       {/* Current Month Usage */}
       <Card>
         <CardHeader>
@@ -161,11 +121,11 @@ export default function UsageStatistics() {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium">Innlegg</span>
                 <span className="text-sm text-muted-foreground">
-                  {stats?.monthlyPosts || 0} / {stats?.subscription?.trialPostsLimit || 100}
+                  {stats?.monthlyPosts || 0} / {stats?.subscription?.trialPostsLimit || 2}
                 </span>
               </div>
               <Progress 
-                value={(stats?.monthlyPosts || 0) / (stats?.subscription?.trialPostsLimit || 100) * 100} 
+                value={(stats?.monthlyPosts || 0) / (stats?.subscription?.trialPostsLimit || 2) * 100} 
                 className="h-2" 
               />
             </div>
@@ -246,29 +206,6 @@ export default function UsageStatistics() {
         </div>
       )}
 
-      {/* Engagement Trend */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Engasjementstrender (siste 4 uker)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={engagementTrend}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="week" />
-              <YAxis />
-              <Tooltip />
-              <Line
-                type="monotone"
-                dataKey="engagement"
-                stroke="#3b82f6"
-                strokeWidth={2}
-                dot={{ fill: "#3b82f6", r: 5 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
     </div>
   );
 }

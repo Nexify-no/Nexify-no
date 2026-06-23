@@ -139,17 +139,11 @@ export function SecuritySettings({ language }: SecuritySettingsProps) {
       toast.error(language === 'no' ? 'Passord er for svakt' : 'Password is too weak');
       return;
     }
-    toast.success(t.success);
-    setShowPasswordChange(false);
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
+    toast.info(language === 'no' ? 'Endre passord kommer snart' : 'Change password coming soon');
   };
 
   const handleEnable2FA = () => {
-    setQrCodeUrl('https://via.placeholder.com/200?text=QR+Code');
-    setBackupCodes(['XXXX-XXXX-XXXX', 'YYYY-YYYY-YYYY', 'ZZZZ-ZZZZ-ZZZZ']);
-    setShowQRCode(true);
+    toast.info(language === 'no' ? '2FA kommer snart' : '2FA coming soon');
   };
 
   const handleDisable2FA = () => {
@@ -213,48 +207,9 @@ export function SecuritySettings({ language }: SecuritySettingsProps) {
               </Button>
             </div>
           ) : (
-            <Dialog open={showQRCode} onOpenChange={setShowQRCode}>
-              <DialogTrigger asChild>
-                <Button onClick={handleEnable2FA}>{t.enable2FA}</Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>{t.setup2FA}</DialogTitle>
-                  <DialogDescription>{t.scanQR}</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="flex justify-center">
-                    <img src={qrCodeUrl} alt="QR Code" className="h-48 w-48" />
-                  </div>
-                  <div>
-                    <Label className="mb-2 block text-sm font-medium">{t.backupCodes}</Label>
-                    <div className="space-y-2">
-                      {backupCodes.map((code, index) => (
-                        <div key={index} className="flex items-center justify-between rounded-md bg-gray-100 p-2">
-                          <code className="text-sm font-mono">{code}</code>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => copyBackupCode(code)}
-                          >
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <Alert className="border-yellow-200 bg-yellow-50">
-                    <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                    <AlertDescription className="text-yellow-800">
-                      {t.saveBackupCodes}
-                    </AlertDescription>
-                  </Alert>
-                </div>
-                <DialogFooter>
-                  <Button onClick={() => setShowQRCode(false)}>{t.done}</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <Button disabled>
+              {t.enable2FA}{language === 'no' ? ' (kommer snart)' : ' (coming soon)'}
+            </Button>
           )}
         </CardContent>
       </Card>
@@ -274,7 +229,9 @@ export function SecuritySettings({ language }: SecuritySettingsProps) {
         <CardContent>
           <Dialog open={showPasswordChange} onOpenChange={setShowPasswordChange}>
             <DialogTrigger asChild>
-              <Button variant="outline">{t.changePassword}</Button>
+              <Button variant="outline" disabled>
+                {t.changePassword}{language === 'no' ? ' (kommer snart)' : ' (coming soon)'}
+              </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>

@@ -583,7 +583,7 @@ export default function Settings() {
               <div className="space-y-2">
                 <Label>{t("name")}</Label>
                 <div className="text-sm text-muted-foreground">
-                  {user?.name || language === "no" ? "Ikke angitt" : "Not set"}
+                  {user?.name || (language === "no" ? "Ikke angitt" : "Not set")}
                 </div>
               </div>
               <div className="space-y-2">
@@ -814,8 +814,8 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button variant="outline" className="w-full">
-                {language === "no" ? "Koble til Twitter" : "Connect Twitter"}
+              <Button variant="outline" className="w-full" disabled>
+                {language === "no" ? "Koble til Twitter (kommer snart)" : "Connect Twitter (coming soon)"}
               </Button>
             </CardContent>
           </Card>
@@ -831,8 +831,8 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button variant="outline" className="w-full">
-                {language === "no" ? "Koble til Instagram" : "Connect Instagram"}
+              <Button variant="outline" className="w-full" disabled>
+                {language === "no" ? "Koble til Instagram (kommer snart)" : "Connect Instagram (coming soon)"}
               </Button>
             </CardContent>
           </Card>
@@ -848,8 +848,8 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button variant="outline" className="w-full">
-                {language === "no" ? "Koble til Facebook" : "Connect Facebook"}
+              <Button variant="outline" className="w-full" disabled>
+                {language === "no" ? "Koble til Facebook (kommer snart)" : "Connect Facebook (coming soon)"}
               </Button>
             </CardContent>
           </Card>

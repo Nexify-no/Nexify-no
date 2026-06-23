@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { CreditCard, Download, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function BillingManagement() {
@@ -26,6 +26,15 @@ export default function BillingManagement() {
     onError: (error) => {
       toast.error(error.message || "Kunne ikke starte betaling");
     },
+  });
+
+  const utils = trpc.useUtils();
+  const cancelMutation = trpc.stripe.cancelSubscription.useMutation({
+    onSuccess: () => {
+      toast.success("Abonnement avbrutt");
+      utils.user.getSubscription.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
   });
 
   const plans = [
@@ -184,27 +193,6 @@ export default function BillingManagement() {
         </div>
       </div>
 
-      {/* Payment Methods */}
-      <div>
-        <h3 className="text-lg font-semibold mb-4">Betalingsmåter</h3>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between p-4 border rounded-lg bg-gray-50">
-              <div className="flex items-center gap-3">
-                <CreditCard className="h-6 w-6 text-primary" />
-                <div>
-                  <p className="font-semibold">Visa ending in 4242</p>
-                  <p className="text-sm text-muted-foreground">Utløper 12/{new Date().getFullYear() + 2}</p>
-                </div>
-              </div>
-              <Button variant="outline" size="sm">
-                Endre
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Invoice History */}
       <div>
         <h3 className="text-lg font-semibold mb-4">Fakturahistorikk</h3>
@@ -240,9 +228,6 @@ export default function BillingManagement() {
                            "Mislyktes"}
                         </Badge>
                       </div>
-                      <Button variant="ghost" size="sm">
-                        <Download className="h-4 w-4" />
-                      </Button>
                     </div>
                   </div>
                 ))}
@@ -278,7 +263,12 @@ export default function BillingManagement() {
       {/* Cancel Subscription */}
       {isPro && (
         <div className="pt-4">
-          <Button variant="outline" className="text-red-600 hover:text-red-700">
+          <Button
+            variant="outline"
+            className="text-red-600 hover:text-red-700"
+            onClick={() => { if (confirm("Er du sikker på at du vil avbryte abonnementet?")) cancelMutation.mutate(); }}
+            disabled={cancelMutation.isPending}
+          >
             Avbryt abonnement
           </Button>
         </div>

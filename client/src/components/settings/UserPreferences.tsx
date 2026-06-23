@@ -38,6 +38,22 @@ export default function UserPreferences() {
     },
   });
 
+  const exportDataMutation = trpc.user.exportData.useMutation({
+    onSuccess: (data) => {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `nexify-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Dataene dine er lastet ned");
+    },
+    onError: (e) => toast.error(e.message || "Kunne ikke laste ned data"),
+  });
+
   const [preferences, setPreferences] = useState({
     emailNotifications: true,
     pushNotifications: false,
@@ -271,12 +287,20 @@ export default function UserPreferences() {
             </p>
           </div>
 
-          <Button variant="outline" className="w-full">
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => exportDataMutation.mutate()}
+            disabled={exportDataMutation.isPending}
+          >
+            {exportDataMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : null}
             Last ned dine data
           </Button>
 
-          <Button variant="outline" className="w-full text-red-600 hover:text-red-700">
-            Slett all personlig data
+          <Button variant="outline" className="w-full text-red-600 hover:text-red-700" disabled>
+            Slett all personlig data (kommer snart)
           </Button>
         </CardContent>
       </Card>
@@ -293,7 +317,7 @@ export default function UserPreferences() {
           ) : null}
           Lagre innstillinger
         </Button>
-        <Button variant="outline">Avbryt</Button>
+        <Button variant="outline" disabled>Avbryt (kommer snart)</Button>
       </div>
     </div>
   );
