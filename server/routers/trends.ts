@@ -16,6 +16,25 @@ import { z } from "zod";
 
 export const trendsRouter = router({
   /**
+   * Aggregated trends from multiple trusted sources (Google Trends, NRK,
+   * Wikipedia), each item carrying its source and a real date.
+   */
+  getAggregatedTrends: publicProcedure
+    .input(z.object({ force: z.boolean().optional() }).optional())
+    .query(async ({ input }) => {
+      const { getAggregatedTrends } = await import("../services/trendSources");
+      const result = await getAggregatedTrends(input?.force ?? false);
+      return {
+        success: true,
+        data: result.trends,
+        sources: result.sources,
+        count: result.trends.length,
+        updatedAt: result.updatedAt,
+        timestamp: new Date(),
+      };
+    }),
+
+  /**
    * Get current trending keywords
    * Supports caching with 1-hour expiry
    */

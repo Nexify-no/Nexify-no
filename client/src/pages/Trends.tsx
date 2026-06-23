@@ -60,48 +60,32 @@ export default function Trends() {
   const { data: subscription } = trpc.user.getSubscription.useQuery(undefined, {
     enabled: isAuthenticated,
   });
-  const { data: trendsData, isLoading: trendsLoading, error: trendsError, refetch } = trpc.trends.getTrendingKeywords.useQuery({}, {
+  const { data: trendsData, isLoading: trendsLoading, error: trendsError, refetch } = trpc.trends.getAggregatedTrends.useQuery({}, {
     enabled: isAuthenticated,
   });
 
   const isPro = subscription?.status === "active";
 
-  // Parse Google Trends data
+  // Parse aggregated multi-source trends
   const trendingTopics = useMemo(() => {
     if (!trendsData) return [];
-    
     try {
-      // New format: trendsData is an array of trends or has a data property
-      const trends = Array.isArray(trendsData) ? trendsData : (trendsData.data || []);
-      
-      return trends.filter((trend: any) => trend).map((trend: any, index: number) => {
-        const title = trend.keyword || trend.title || "Ukjent trend";
-        const traffic = trend.traffic ? `${(trend.traffic / 1000).toFixed(0)}K+` : "N/A";
-        const description = (trend.relatedKeywords && Array.isArray(trend.relatedKeywords)) ? trend.relatedKeywords.slice(0, 3).join(", ") : (trend.description || "Ingen beskrivelse tilgjengelig");
-        
-        // Calculate trend score from traffic and growth rate
-        let trendScore = 70;
-        if (trend.trafficGrowthRate >= 200) trendScore = 95;
-        else if (trend.trafficGrowthRate >= 150) trendScore = 90;
-        else if (trend.trafficGrowthRate >= 100) trendScore = 85;
-        else if (trend.trafficGrowthRate >= 50) trendScore = 80;
-        
-        return {
-          id: index + 1,
-          title,
-          description: `Relaterte emner: ${description}`,
-          category: "all",
-          source: "Google Trends",
-          trendScore,
-          traffic,
-          growthRate: trend.trafficGrowthRate || 0,
-          // A trending topic can inspire content on any platform — don't lock it to
-          // two, or the Facebook/Instagram platform filter excludes every trend.
-          suggestedPlatforms: ["linkedin", "twitter", "instagram", "facebook"],
-          tags: (Array.isArray(trend.relatedKeywords) ? trend.relatedKeywords : []) || (Array.isArray(trend.tags) ? trend.tags : []) || [],
-          activeTime: trend.activeTime,
-        };
-      });
+      const trends = Array.isArray(trendsData) ? trendsData : ((trendsData as any).data || []);
+      return trends.filter((t: any) => t && (t.keyword || t.title)).map((trend: any, index: number) => ({
+        id: index + 1,
+        title: trend.keyword || trend.title || "Ukjent trend",
+        description: trend.traffic || (trend.category ? `Kategori: ${trend.category}` : "Aktuelt emne"),
+        category: "all",
+        source: trend.source || "Ukjent kilde",
+        sourceUrl: trend.sourceUrl as string | undefined,
+        date: trend.date as string | undefined,
+        trendScore: Math.max(60, 96 - index * 3),
+        traffic: trend.traffic || "",
+        growthRate: 0,
+        suggestedPlatforms: ["linkedin", "twitter", "instagram", "facebook"],
+        tags: [] as string[],
+        activeTime: undefined,
+      }));
     } catch (error) {
       console.error("Error parsing trends data:", error);
       return [];
@@ -257,8 +241,12 @@ export default function Trends() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Kilde</p>
-                  <p className="text-2xl font-bold">Google Trends</p>
+                  <p className="text-sm text-muted-foreground">Kilder</p>
+                  <p className="text-lg font-bold">
+                    {((trendsData as any)?.sources && (trendsData as any).sources.length)
+                      ? (trendsData as any).sources.join(", ")
+                      : "Google Trends, NRK, Wikipedia"}
+                  </p>
                 </div>
                 <Globe className="h-8 w-8 text-green-500" />
               </div>
@@ -366,7 +354,18 @@ export default function Trends() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Sparkles className="h-4 w-4" />
-                        <span>{topic.source}</span>
+                        {topic.sourceUrl ? (
+                          <a href={topic.sourceUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
+                            {topic.source}
+                          </a>
+                        ) : (
+                          <span className="font-medium">{topic.source}</span>
+                        )}
+                        {topic.date && (
+                          <span className="text-xs">
+                            · {new Date(topic.date).toLocaleDateString("no-NO", { day: "2-digit", month: "2-digit" })}
+                          </span>
+                        )}
                       </div>
                       
                       <div className="flex gap-2">
