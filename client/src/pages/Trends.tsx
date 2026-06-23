@@ -104,6 +104,17 @@ export default function Trends() {
     return matchesSearch && matchesCategory && matchesPlatform;
   }), [trendingTopics, searchQuery, selectedCategory, selectedPlatform]);
 
+  // Group by source so every source (Google Trends, NRK, Wikipedia, Reddit,
+  // Mastodon, Social Media Today) is clearly visible and comprehensive.
+  const groupedTopics = useMemo(() => {
+    const groups: Record<string, any[]> = {};
+    for (const t of filteredTopics) {
+      const key = t.source || "Annet";
+      (groups[key] = groups[key] || []).push(t);
+    }
+    return Object.entries(groups) as [string, any[]][];
+  }, [filteredTopics]);
+
   if (authLoading || !isAuthenticated) {
     if (!authLoading && !isAuthenticated) {
       window.location.href = getLoginUrl();
@@ -294,28 +305,36 @@ export default function Trends() {
           </Card>
         )}
 
-        {/* Trending Topics Grid */}
+        {/* Trending Topics — grouped by source */}
         {!trendsLoading && !trendsError && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {filteredTopics.length === 0 ? (
-              <Card className="col-span-full">
-                <CardContent className="pt-6 text-center space-y-4">
-                  <p className="text-muted-foreground">
-                    {searchQuery.trim()
-                      ? `Ingen av dagens topp-trender matchet «${searchQuery.trim()}». Du kan lage innhold om det likevel:`
-                      : "Ingen trender funnet akkurat nå. Prøv å oppdatere."}
-                  </p>
-                  {searchQuery.trim() && (
-                    <Button onClick={() => setLocation(`/generate?topic=${encodeURIComponent(searchQuery.trim())}`)}>
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      Lag innhold om «{searchQuery.trim()}»
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            ) : (
-              filteredTopics.map((topic: any) => (
-                <Card key={topic.id} className="group hover:shadow-lg transition-all duration-300 hover:border-primary/50">
+          filteredTopics.length === 0 ? (
+            <Card>
+              <CardContent className="pt-6 text-center space-y-4">
+                <p className="text-muted-foreground">
+                  {searchQuery.trim()
+                    ? `Ingen av dagens topp-trender matchet «${searchQuery.trim()}». Du kan lage innhold om det likevel:`
+                    : "Ingen trender funnet akkurat nå. Prøv å oppdatere."}
+                </p>
+                {searchQuery.trim() && (
+                  <Button onClick={() => setLocation(`/generate?topic=${encodeURIComponent(searchQuery.trim())}`)}>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Lag innhold om «{searchQuery.trim()}»
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-8">
+              {groupedTopics.map(([source, items]) => (
+                <div key={source}>
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b">
+                    <Globe className="h-5 w-5 text-primary" />
+                    <h2 className="text-lg font-bold">{source}</h2>
+                    <Badge variant="secondary">{items.length}</Badge>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {items.map((topic: any) => (
+                      <Card key={topic.id} className="group hover:shadow-lg transition-all duration-300 hover:border-primary/50">
                   <CardHeader>
                     <div className="flex items-start justify-between gap-4 mb-2">
                       <div className="flex-1">
@@ -391,9 +410,12 @@ export default function Trends() {
                     </div>
                   </CardContent>
                 </Card>
-              ))
-            )}
-          </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
         )}
       </main>
     </div>
