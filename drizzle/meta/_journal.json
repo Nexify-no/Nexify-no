@@ -211,6 +211,13 @@
 			"when": 1782237510289,
 			"tag": "0029_email_verify_reset",
 			"breakpoints": true
+		},
+		{
+			"idx": 30,
+			"version": "5",
+			"when": 1782243240549,
+			"tag": "0030_add_posts_tags",
+			"breakpoints": true
 		}
 	]
 }
