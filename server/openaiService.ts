@@ -6,12 +6,21 @@
 
 import OpenAI from "openai";
 
-const forgeApiUrl = process.env.BUILT_IN_FORGE_API_URL || "https://api.openai.com";
-const forgeApiKey = process.env.BUILT_IN_FORGE_API_KEY || process.env.OPENAI_API_KEY || "";
+// Text LLM endpoint. Override order: LLM_API_URL (e.g. a local Ollama / any
+// OpenAI-compatible server) → BUILT_IN_FORGE_API_URL → OpenAI default.
+const textApiUrl = process.env.LLM_API_URL || process.env.BUILT_IN_FORGE_API_URL || "https://api.openai.com";
+const textApiKey = process.env.LLM_API_KEY || process.env.BUILT_IN_FORGE_API_KEY || process.env.OPENAI_API_KEY || "";
 
 const openai = new OpenAI({
-  apiKey: forgeApiKey,
-  baseURL: `${forgeApiUrl.replace(/\/$/, "")}/v1`,
+  apiKey: textApiKey,
+  baseURL: `${textApiUrl.replace(/\/$/, "")}/v1`,
+});
+
+// Image generation (DALL-E) must always hit OpenAI — local/text providers like
+// Ollama cannot generate images. Kept on OPENAI_API_KEY regardless of LLM_API_URL.
+const imageOpenai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || textApiKey,
+  baseURL: "https://api.openai.com/v1",
 });
 
 import { buildContentPrompt, type ContentOptions } from "./promptBuilder";
@@ -131,7 +140,7 @@ Return ONLY the improved content, no explanations or meta-commentary.`,
  */
 export async function generateImageWithDallE(prompt: string): Promise<string> {
   try {
-    const response = await openai.images.generate({
+    const response = await imageOpenai.images.generate({
       model: "dall-e-3",
       prompt: prompt,
       n: 1,

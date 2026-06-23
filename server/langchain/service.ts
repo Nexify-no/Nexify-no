@@ -84,8 +84,8 @@ export class LangChainService {
 
   constructor() {
     // Initialize OpenAI LLM
-    const forgeApiUrl = process.env.BUILT_IN_FORGE_API_URL || "https://api.openai.com";
-    const forgeApiKey = process.env.BUILT_IN_FORGE_API_KEY || process.env.OPENAI_API_KEY || "";
+    const forgeApiUrl = process.env.LLM_API_URL || process.env.BUILT_IN_FORGE_API_URL || "https://api.openai.com";
+    const forgeApiKey = process.env.LLM_API_KEY || process.env.BUILT_IN_FORGE_API_KEY || process.env.OPENAI_API_KEY || "";
     
     this.llm = new ChatOpenAI({
       openAIApiKey: forgeApiKey,
