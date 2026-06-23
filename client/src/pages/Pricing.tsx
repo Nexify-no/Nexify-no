@@ -188,7 +188,6 @@ export function Pricing() {
               { feature: "AI-genererte bilder", free: "Nei", pro: "Ja", premium: "Ja" },
               { feature: "Stemmetrening", free: "Nei", pro: "Ja", premium: "Avansert" },
               { feature: "Innholdskalender", free: "Nei", pro: "Ja", premium: "Ja" },
-              { feature: "Multi-bruker / team", free: "Nei", pro: "Nei", premium: "Ja" },
               { feature: "Support", free: "Grunnleggende", pro: "Prioritert", premium: "Dedikert" },
             ].map((row, idx) => (
               <div key={idx} className="grid grid-cols-4 gap-4 py-3 border-b last:border-b-0">
