@@ -67,12 +67,28 @@ export default function BillingManagement() {
         "Personlig stemmetrening",
         "Prioritert support",
       ],
-      current: subscription?.status === "active",
+      current: subscription?.status === "active" && (((subscription as any)?.planName ?? "Pro") === "Pro"),
+    },
+    {
+      id: "premium",
+      name: "Premium",
+      price: "399 kr",
+      period: "per måned",
+      description: "For byråer og team",
+      features: [
+        "30 innlegg per måned",
+        "Alt i Pro inkludert",
+        "Avansert stemmetrening",
+        "Automatisering og planlegging",
+        "Månedlige rapporter",
+        "Dedikert support",
+      ],
+      current: subscription?.status === "active" && (subscription as any)?.planName === "Premium",
     },
   ];
 
-  const handleUpgrade = (plan: "PRO_MONTHLY" | "PRO_YEARLY") => {
-    createCheckoutMutation.mutate({ productKey: plan });
+  const handleUpgrade = (productKey: "PRO_MONTHLY" | "PRO_YEARLY" | "ENTERPRISE_MONTHLY" | "ENTERPRISE_YEARLY") => {
+    createCheckoutMutation.mutate({ productKey });
   };
 
   if (subscriptionLoading) {
@@ -98,13 +114,13 @@ export default function BillingManagement() {
             <div className="flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <h4 className="text-2xl font-bold">{isPro ? "Pro" : "Gratis"}</h4>
+                  <h4 className="text-2xl font-bold">{isPro ? ((subscription as any)?.planName || "Pro") : "Gratis"}</h4>
                   <Badge>{subscription?.status === "active" ? "Aktiv" : "Prøveperiode"}</Badge>
                 </div>
                 <p className="text-muted-foreground mb-4">
                   {isTrial 
                     ? `Du bruker ${subscription?.postsGenerated || 0} av ${subscription?.trialPostsLimit ?? 2} gratis innlegg`
-                    : `Du har ubegrenset antall innlegg`
+                    : `Du har ${(subscription as any)?.postsLimit ?? 15} innlegg per måned`
                   }
                 </p>
                 {isTrial && (
@@ -141,7 +157,7 @@ export default function BillingManagement() {
       {/* Plan Comparison */}
       <div>
         <h3 className="text-lg font-semibold mb-4">Velg din plan</h3>
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid md:grid-cols-3 gap-6">
           {plans.map((plan) => (
             <Card
               key={plan.id}
@@ -175,10 +191,10 @@ export default function BillingManagement() {
                     </li>
                   ))}
                 </ul>
-                {!plan.current && (
+                {!plan.current && plan.id !== "free" && (
                   <Button 
                     className="w-full bg-gradient-to-r from-primary to-purple-600 hover:opacity-90"
-                    onClick={() => handleUpgrade(plan.id === "pro" ? "PRO_MONTHLY" : "PRO_YEARLY")}
+                    onClick={() => handleUpgrade(plan.id === "premium" ? "ENTERPRISE_MONTHLY" : "PRO_MONTHLY")}
                     disabled={createCheckoutMutation.isPending}
                   >
                     {createCheckoutMutation.isPending ? (

@@ -11,7 +11,7 @@ import { z } from "zod";
 export const stripeRouter = router({
     createCheckoutSession: protectedProcedure
       .input(z.object({
-        productKey: z.enum(["PRO_MONTHLY", "PRO_YEARLY"]),
+        productKey: z.enum(["PRO_MONTHLY", "PRO_YEARLY", "ENTERPRISE_MONTHLY", "ENTERPRISE_YEARLY"]),
       }))
       .mutation(async ({ ctx, input }) => {
         const { createCheckoutSession } = await import("../stripe/stripeService");

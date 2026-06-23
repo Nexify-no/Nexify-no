@@ -74,7 +74,6 @@ export const STRIPE_PRODUCTS = {
     features: [
       `${PREMIUM.postsPerMonth} AI-genererte innlegg per måned`,
       "Alt i Pro inkludert",
-      "Multi-bruker tilgang",
       "Avansert stemmetrening",
       "Automatisering og planlegging",
       "Månedlige rapporter",
