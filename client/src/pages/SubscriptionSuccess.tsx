@@ -63,7 +63,7 @@ export default function SubscriptionSuccess() {
             <ul className="space-y-2 text-sm text-green-700">
               <li className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-green-500" />
-                100 AI-genererte innlegg per måned
+                15 AI-genererte innlegg per måned
               </li>
               <li className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-green-500" />
