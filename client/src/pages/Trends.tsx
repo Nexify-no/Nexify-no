@@ -245,7 +245,7 @@ export default function Trends() {
                   <p className="text-lg font-bold">
                     {((trendsData as any)?.sources && (trendsData as any).sources.length)
                       ? (trendsData as any).sources.join(", ")
-                      : "Google Trends, NRK, Wikipedia"}
+                      : "Google Trends, NRK, Wikipedia, Reddit, Social Media Today"}
                   </p>
                 </div>
                 <Globe className="h-8 w-8 text-green-500" />

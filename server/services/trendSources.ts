@@ -34,15 +34,12 @@ async function withTimeout(url: string, opts: any = {}, ms = 8000): Promise<Resp
   }
 }
 
-/** NRK top stories RSS — trusted Norwegian news. Lightweight regex parse. */
-async function fetchNRK(): Promise<AggregatedTrend[]> {
-  const res = await withTimeout("https://www.nrk.no/toppsaker.rss");
-  if (!res.ok) throw new Error(`NRK ${res.status}`);
-  const xml = await res.text();
+/** Generic lightweight RSS parser (title/link/pubDate). */
+function parseRss(xml: string, source: string, category: string, limit = 8): AggregatedTrend[] {
   const items: AggregatedTrend[] = [];
   const itemRe = /<item>([\s\S]*?)<\/item>/g;
   let m: RegExpExecArray | null;
-  while ((m = itemRe.exec(xml)) && items.length < 8) {
+  while ((m = itemRe.exec(xml)) && items.length < limit) {
     const block = m[1];
     const title = (block.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/) || [])[1]?.trim();
     const link = (block.match(/<link>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/link>/) || [])[1]?.trim();
@@ -50,14 +47,22 @@ async function fetchNRK(): Promise<AggregatedTrend[]> {
     if (title) {
       items.push({
         keyword: title,
-        source: "NRK",
+        source,
         sourceUrl: link,
         date: pub ? new Date(pub).toISOString() : new Date().toISOString(),
-        category: "nyheter",
+        category,
       });
     }
   }
   return items;
+}
+
+/** NRK top stories RSS — trusted Norwegian news. Lightweight regex parse. */
+async function fetchNRK(): Promise<AggregatedTrend[]> {
+  const res = await withTimeout("https://www.nrk.no/toppsaker.rss");
+  if (!res.ok) throw new Error(`NRK ${res.status}`);
+  const xml = await res.text();
+  return parseRss(xml, "NRK", "nyheter", 8);
 }
 
 /** Wikipedia (Norwegian) most-read articles for yesterday — Wikimedia pageviews API. */
@@ -85,6 +90,34 @@ async function fetchWikipedia(): Promise<AggregatedTrend[]> {
     }));
 }
 
+/** Reddit r/norge — top posts of the day (social/community trends). */
+async function fetchReddit(): Promise<AggregatedTrend[]> {
+  const res = await withTimeout("https://www.reddit.com/r/norge/top.json?t=day&limit=8");
+  if (!res.ok) throw new Error(`Reddit ${res.status}`);
+  const json: any = await res.json();
+  const posts: any[] = json?.data?.children || [];
+  return posts
+    .map((p) => p.data)
+    .filter((d) => d && d.title && !d.stickied)
+    .slice(0, 6)
+    .map((d) => ({
+      keyword: d.title as string,
+      source: "Reddit r/norge",
+      sourceUrl: `https://www.reddit.com${d.permalink}`,
+      date: new Date((d.created_utc || Date.now() / 1000) * 1000).toISOString(),
+      traffic: `${Number(d.score || 0).toLocaleString("no-NO")} stemmer`,
+      category: "sosiale medier",
+    }));
+}
+
+/** Social Media Today — continuous news about social media platforms (RSS). */
+async function fetchSocialMediaNews(): Promise<AggregatedTrend[]> {
+  const res = await withTimeout("https://www.socialmediatoday.com/feeds/news/");
+  if (!res.ok) throw new Error(`SocialMediaToday ${res.status}`);
+  const xml = await res.text();
+  return parseRss(xml, "Social Media Today", "sosiale medier", 8);
+}
+
 /** Google Trends (existing service), normalized. */
 async function fetchGoogle(): Promise<AggregatedTrend[]> {
   const trends = await getTrendingKeywords("NO");
@@ -103,7 +136,7 @@ export async function getAggregatedTrends(force = false): Promise<{ trends: Aggr
   if (!force && cache && Date.now() - cache.at < CACHE_MS) {
     return { trends: cache.data, sources: uniqueSources(cache.data), updatedAt: new Date(cache.at).toISOString() };
   }
-  const results = await Promise.allSettled([fetchGoogle(), fetchNRK(), fetchWikipedia()]);
+  const results = await Promise.allSettled([fetchGoogle(), fetchNRK(), fetchWikipedia(), fetchReddit(), fetchSocialMediaNews()]);
   const merged: AggregatedTrend[] = [];
   for (const r of results) {
     if (r.status === "fulfilled") merged.push(...r.value);
