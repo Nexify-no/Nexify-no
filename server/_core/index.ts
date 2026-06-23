@@ -16,6 +16,7 @@ import helmet from "helmet";
 import { logger } from "./logger";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { validateEnv } from "./validateEnv";
+import { initializeSendGrid } from "./email";
 import { registerTelegramWebhook } from "./telegramWebhookRoute";
 import { registerLinkedInCallback } from "./linkedinCallback";
 import { registerGoogleOAuthRoutes } from "../routes/googleOAuthRoutes";
@@ -59,6 +60,7 @@ async function startServer() {
   // and — in production — payment/security keys). One clear error beats confusing
   // runtime failures later.
   validateEnv();
+  initializeSendGrid();
 
   // Request correlation id + structured access log. Assigns/propagates
   // x-request-id so a single request can be traced across logs (and echoed to the

@@ -59,6 +59,7 @@ const PaymentSuccess = lazy(() => import("./pages/PaymentSuccess").then(m => ({ 
 const PaymentFailure = lazy(() => import("./pages/PaymentFailure"));
 const PaymentCancel = lazy(() => import("./pages/PaymentCancel").then(m => ({ default: m.PaymentCancel })));
 const LoginPage = lazy(() => import("./pages/Login").then(m => ({ default: m.LoginPage })));
+const ResetPassword = lazy(() => import("./pages/ResetPassword").then(m => ({ default: m.ResetPassword })));
 const Analytics = lazy(() => import("./pages/Analytics").then(m => ({ default: m.Analytics })));
 const AdminSettings = lazy(() => import("./pages/AdminSettings"));
 const MemberMonitoring = lazy(() => import("./pages/MemberMonitoring"));
@@ -93,6 +94,7 @@ function Router() {
     <Suspense fallback={<RouteLoader />}>
       <Switch>
         <Route path={"/login"} component={LoginPage} />
+        <Route path={"/reset-password"} component={ResetPassword} />
         <Route path={"/"} component={Home} />
         <Route path={"/landing"} component={Landing} />
         <Route path={"/aurora"} component={AuroraDemo} />

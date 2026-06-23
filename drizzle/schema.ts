@@ -29,6 +29,23 @@ export const users = mysqlTable("users", {
   avatarUrl: text("avatarUrl"),
   /** bcrypt hash for email/password login. NULL for OAuth-only users (Google/Vipps). */
   passwordHash: varchar("passwordHash", { length: 255 }),
+  /** Timestamp when the user verified their email; NULL = unverified. */
+  emailVerified: timestamp("emailVerified"),
+});
+
+/**
+ * Single-use tokens for email verification and password reset.
+ * Only the SHA-256 hash of the token is stored; the raw token lives only in
+ * the emailed link. Tokens expire and are marked used after redemption.
+ */
+export const authTokens = mysqlTable("auth_tokens", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  type: varchar("type", { length: 32 }).notNull(),
+  tokenHash: varchar("tokenHash", { length: 64 }).notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  usedAt: timestamp("usedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
 export type User = typeof users.$inferSelect;

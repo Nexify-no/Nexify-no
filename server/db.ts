@@ -60,6 +60,7 @@ import {
   InsertGenerationPreset
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
+import { authTokens } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -187,6 +188,55 @@ export async function createEmailUser(input: {
   const created = await getUserByOpenId(input.openId);
   if (!created) throw new Error("Failed to load newly created user");
   return created;
+}
+
+/** Mark a user's email as verified (idempotent). */
+export async function markEmailVerified(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(users).set({ emailVerified: new Date() }).where(eq(users.id, userId));
+}
+
+/** Replace a user's password hash (used by password reset). */
+export async function updateUserPassword(userId: number, passwordHash: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
+}
+
+/** Store a single-use auth token (caller passes the SHA-256 hash, never the raw token). */
+export async function createAuthToken(input: {
+  userId: number;
+  type: string;
+  tokenHash: string;
+  expiresAt: Date;
+}): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(authTokens).values(input);
+}
+
+/** Return a token row only if it exists, matches the type, is unused and not expired. */
+export async function getValidAuthToken(tokenHash: string, type: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db
+    .select()
+    .from(authTokens)
+    .where(and(eq(authTokens.tokenHash, tokenHash), eq(authTokens.type, type)))
+    .limit(1);
+  const t = rows[0];
+  if (!t) return undefined;
+  if (t.usedAt) return undefined;
+  if (new Date(t.expiresAt).getTime() < Date.now()) return undefined;
+  return t;
+}
+
+/** Mark a token as used so it cannot be redeemed twice. */
+export async function markAuthTokenUsed(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(authTokens).set({ usedAt: new Date() }).where(eq(authTokens.id, id));
 }
 
 /**

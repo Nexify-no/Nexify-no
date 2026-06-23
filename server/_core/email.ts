@@ -161,6 +161,31 @@ export async function sendSupportTicketReplyEmail(
 }
 
 /**
+ * Send email verification link
+ */
+export async function sendVerificationEmail(
+  email: string,
+  name: string,
+  verifyLink: string
+): Promise<boolean> {
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h1 style="color: #333;">Bekreft e-postadressen din</h1>
+      <p>Hei ${name},</p>
+      <p>Takk for at du registrerte deg på Innlegg. Bekreft e-postadressen din for å fullføre oppsettet.</p>
+      <a href="${verifyLink}" style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px;">
+        Bekreft e-post
+      </a>
+      <p style="margin-top: 20px; color: #666;">Lenken utløper om 24 timer.</p>
+      <p style="margin-top: 20px; color: #666; font-size: 12px;">
+        Hvis du ikke opprettet en konto, kan du ignorere denne e-posten.
+      </p>
+    </div>
+  `;
+  return sendEmail(email, "Bekreft e-postadressen din", htmlContent);
+}
+
+/**
  * Send password reset email
  */
 export async function sendPasswordResetEmail(
