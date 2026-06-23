@@ -39,7 +39,7 @@ export const stripeRouter = router({
       .input(z.object({ sessionId: z.string().min(1).max(200) }))
       .mutation(async ({ ctx, input }) => {
         const { getCheckoutSession } = await import("../stripe/stripeService");
-        const { getSubscriptionTier } = await import("../stripe/products");
+        const { getSubscriptionTier, STRIPE_PRODUCTS } = await import("../stripe/products");
         const { getPlanIdByTier, updateSubscriptionFromStripe } = await import("../db");
 
         const session = await getCheckoutSession(input.sessionId);
@@ -63,6 +63,21 @@ export const stripeRouter = router({
         const planId = productKey
           ? await getPlanIdByTier(getSubscriptionTier(productKey as any))
           : undefined;
+
+        // Correct subscription end date: prefer Stripe's authoritative
+        // current_period_end (subscription is expanded), else derive from the
+        // plan interval (yearly = +1 year, monthly = +30 days).
+        let subscriptionEndDate: Date | undefined;
+        const sub = session.subscription as any;
+        if (sub && typeof sub === "object" && sub.current_period_end) {
+          subscriptionEndDate = new Date(sub.current_period_end * 1000);
+        } else {
+          const product = productKey ? (STRIPE_PRODUCTS as any)[productKey] : undefined;
+          const d = new Date();
+          if (product?.interval === "year") d.setFullYear(d.getFullYear() + 1);
+          else d.setDate(d.getDate() + 30);
+          subscriptionEndDate = d;
+        }
         const customer =
           typeof session.customer === "string"
             ? session.customer
@@ -77,6 +92,7 @@ export const stripeRouter = router({
           planId: planId ?? undefined,
           stripeCustomerId: customer,
           stripeSubscriptionId: subscriptionId,
+          subscriptionEndDate,
         });
 
         return { activated: true as const, status: "active" as const };

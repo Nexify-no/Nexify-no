@@ -360,9 +360,14 @@ async function startServer() {
           // Attach the plan so the monthly quota is actually enforced (without a
           // planId, enforcePostQuota treats the active subscription as unlimited).
           const planId = await getPlanIdByTier(getSubscriptionTier(productKey as any));
+          // Correct period end from the plan interval (yearly = +1 year).
+          const _end = new Date();
+          if (product?.interval === "year") _end.setFullYear(_end.getFullYear() + 1);
+          else _end.setDate(_end.getDate() + 30);
           await updateSubscriptionFromStripe(userId, {
             status: "active",
             planId: planId ?? undefined,
+            subscriptionEndDate: _end,
             stripeCustomerId: typeof session.customer === "string" ? session.customer : undefined,
             stripeSubscriptionId: typeof session.subscription === "string" ? session.subscription : undefined,
           });

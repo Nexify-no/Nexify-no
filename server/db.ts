@@ -523,6 +523,7 @@ export async function updateSubscriptionFromStripe(
     stripePriceId?: string;
     status?: "trial" | "active" | "cancelled" | "expired";
     planId?: number;
+    subscriptionEndDate?: Date;
   }
 ): Promise<void> {
   const db = await getDb();
@@ -542,10 +543,15 @@ export async function updateSubscriptionFromStripe(
     updates.status = stripeData.status;
     if (stripeData.status === "active") {
       updates.subscriptionStartDate = new Date();
-      // Set end date to 30 days from now for monthly
-      const endDate = new Date();
-      endDate.setDate(endDate.getDate() + 30);
-      updates.subscriptionEndDate = endDate;
+      // Use the caller-provided period end (derived from the plan interval or
+      // Stripe's current_period_end). Fall back to +30 days for monthly.
+      if (stripeData.subscriptionEndDate) {
+        updates.subscriptionEndDate = stripeData.subscriptionEndDate;
+      } else {
+        const endDate = new Date();
+        endDate.setDate(endDate.getDate() + 30);
+        updates.subscriptionEndDate = endDate;
+      }
     }
   }
   
