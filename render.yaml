@@ -19,7 +19,7 @@ services:
     plan: starter            # do NOT use "free": cron scheduler needs always-on
     region: frankfurt        # closest EU region (Norway)
     branch: main
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    buildCommand: pnpm install --frozen-lockfile && pnpm build
     preDeployCommand: pnpm db:migrate   # apply Drizzle migrations before going live
     startCommand: pnpm start
     healthCheckPath: /health
