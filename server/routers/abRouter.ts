@@ -216,14 +216,17 @@ export const abRouter = router({
       let timeline: Array<{ hour: string; clicks: number }> = [];
       try {
       if (variantIds.length > 0) {
+        // Use ONE shared expression in both SELECT and GROUP BY so the rendered
+        // SQL is byte-identical — required by TiDB's only_full_group_by mode.
+        const hourExpr = sql<string>`date_format(${abClickEvents.ts}, '%Y-%m-%d %H:00')`;
         const rows: any = await db
           .select({
-            hour: sql<string>`date_format(${abClickEvents.ts}, '%Y-%m-%d %H:00')`,
+            hour: hourExpr,
             clicks: sql<number>`count(*)`,
           })
           .from(abClickEvents)
           .where(inArray(abClickEvents.variantId, variantIds))
-          .groupBy(sql`date_format(${abClickEvents.ts}, '%Y-%m-%d %H:00')`);
+          .groupBy(hourExpr);
         timeline = (rows ?? []).map((r: any) => ({
           hour: String(r.hour),
           clicks: Number(r.clicks ?? 0),
