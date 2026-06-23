@@ -523,15 +523,28 @@ function ExperimentDetail({
   }
 
   if (!detail.data) {
+    const isNotFound = (detail.error as any)?.data?.code === "NOT_FOUND";
+    const isServerError = !!detail.error && !isNotFound;
     return (
       <div className="mt-4">
         <Button variant="ghost" onClick={onBack}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           {tr("Tilbake", "Back")}
         </Button>
-        <p className="text-sm text-muted-foreground mt-4">
-          {tr("Fant ikke testen.", "Test not found.")}
-        </p>
+        {isServerError ? (
+          <div className="mt-4 space-y-3">
+            <p className="text-sm text-red-600 dark:text-red-400">
+              {tr("Kunne ikke laste testen (serverfeil).", "Could not load the test (server error).")}
+            </p>
+            <Button variant="outline" size="sm" onClick={() => detail.refetch()}>
+              {tr("Prøv igjen", "Retry")}
+            </Button>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground mt-4">
+            {tr("Fant ikke testen.", "Test not found.")}
+          </p>
+        )}
       </div>
     );
   }

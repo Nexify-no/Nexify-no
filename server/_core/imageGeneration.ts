@@ -72,7 +72,6 @@ async function generateWithOpenAI(prompt: string): Promise<Buffer> {
       prompt,
       n: 1,
       size: "1024x1024",
-      response_format: "b64_json",
     }),
   });
 
@@ -83,12 +82,17 @@ async function generateWithOpenAI(prompt: string): Promise<Buffer> {
     );
   }
 
-  const result = (await response.json()) as { data: Array<{ b64_json?: string }> };
-  const base64Data = result.data?.[0]?.b64_json;
-  if (!base64Data) {
-    throw new Error("No image data returned from the image generation API");
+  const result = (await response.json()) as { data: Array<{ b64_json?: string; url?: string }> };
+  const item = result.data?.[0];
+  if (item?.b64_json) {
+    return Buffer.from(item.b64_json, "base64");
   }
-  return Buffer.from(base64Data, "base64");
+  if (item?.url) {
+    const img = await fetch(item.url);
+    if (!img.ok) throw new Error(`Failed to download generated image (${img.status})`);
+    return Buffer.from(await img.arrayBuffer());
+  }
+  throw new Error("No image data returned from the image generation API");
 }
 
 /** fal.ai synchronous run — FLUX dev by default. Returns hosted image URLs. */

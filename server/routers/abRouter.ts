@@ -202,13 +202,19 @@ export const abRouter = router({
         .where(eq(abVariants.experimentId, exp.id));
       const variantIds = variants.map((v) => v.id);
 
-      const stats =
-        variantIds.length > 0
-          ? await db.select().from(abStats).where(inArray(abStats.variantId, variantIds))
-          : [];
+      let stats: any[] = [];
+      try {
+        stats =
+          variantIds.length > 0
+            ? await db.select().from(abStats).where(inArray(abStats.variantId, variantIds))
+            : [];
+      } catch (e) {
+        console.error("[ab.get] stats query failed:", e);
+      }
 
       // Hourly click timeline across all variants of this experiment.
       let timeline: Array<{ hour: string; clicks: number }> = [];
+      try {
       if (variantIds.length > 0) {
         const rows: any = await db
           .select({
@@ -222,6 +228,9 @@ export const abRouter = router({
           hour: String(r.hour),
           clicks: Number(r.clicks ?? 0),
         }));
+      }
+      } catch (e) {
+        console.error("[ab.get] timeline query failed:", e);
       }
 
       const result = { experiment: exp, variants, stats, timeline };

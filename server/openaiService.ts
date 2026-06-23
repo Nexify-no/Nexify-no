@@ -146,7 +146,6 @@ export async function generateImageWithDallE(prompt: string): Promise<string> {
       n: 1,
       size: "1024x1024",
       quality: "standard", // or "hd" for higher quality (costs more)
-      response_format: "url",
     });
 
     if (!response.data || response.data.length === 0) {

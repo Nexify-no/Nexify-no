@@ -1,0 +1,1 @@
+ALTER TABLE `user_preferences` ADD `ayrshare_api_key` varchar(255);
