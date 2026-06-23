@@ -268,8 +268,12 @@ export default function Trends() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Oppdatert</p>
-                  <p className="text-2xl font-bold">I dag</p>
+                  <p className="text-sm text-muted-foreground">Sist oppdatert</p>
+                  <p className="text-lg font-bold">
+                    {(trendsData as any)?.timestamp
+                      ? new Date((trendsData as any).timestamp).toLocaleString("no-NO", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+                      : "—"}
+                  </p>
                 </div>
                 <Clock className="h-8 w-8 text-purple-500" />
               </div>

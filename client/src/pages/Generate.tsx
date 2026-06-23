@@ -412,10 +412,17 @@ export default function Generate() {
     if (!topic.trim()) { toast.error("Skriv inn et emne først"); return; }
     setIsGeneratingImage(true);
     try {
-      const response = await fetch("/api/trpc/content.generateImage", {
+      // Call the correct procedure (both are OpenAI-backed). DALL-E variant is
+      // Pro-gated; Nano Banana works on any plan. Input shape: { topic, platform, tone, keywords }.
+      const endpoint =
+        imageGenerationType === "dalle"
+          ? "content.generateImageDallE"
+          : "content.generateImageNanoBanana";
+      const response = await fetch(`/api/trpc/${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ json: { topic, platform, style: imageStyle, model: imageGenerationType } }),
+        credentials: "include",
+        body: JSON.stringify({ json: { topic, platform, tone, keywords: [] } }),
       });
       const data = await response.json();
       if (data.result?.data?.json?.url) {
