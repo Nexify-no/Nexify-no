@@ -29,6 +29,27 @@ import { TrendingSuggestions } from "@/components/TrendingSuggestions";
 import { TrendingContentTemplates } from "@/components/TrendingContentTemplates";
 import { SmartSchedulingSuggestions } from "@/components/SmartSchedulingSuggestions";
 
+/** Convert a suggestion like "Tuesday 8:00 AM" to the next matching Date. */
+function nextOccurrenceFromLabel(timeStr: string): Date | null {
+  const days: Record<string, number> = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
+  const m = timeStr.trim().match(/^(\w+)\s+(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+  if (!m) return null;
+  const targetDow = days[m[1].toLowerCase()];
+  if (targetDow === undefined) return null;
+  let hour = parseInt(m[2], 10);
+  const min = parseInt(m[3], 10);
+  const ampm = (m[4] || "").toUpperCase();
+  if (ampm === "PM" && hour < 12) hour += 12;
+  if (ampm === "AM" && hour === 12) hour = 0;
+  const now = new Date();
+  const d = new Date(now);
+  d.setHours(hour, min, 0, 0);
+  let diff = (targetDow - now.getDay() + 7) % 7;
+  if (diff === 0 && d.getTime() <= now.getTime()) diff = 7;
+  d.setDate(now.getDate() + diff);
+  return d;
+}
+
 /* ─── LinkedIn Sub-Components ─── */
 
 function PostToLinkedInButton({ content }: { content: string; platform: string }) {
@@ -107,6 +128,7 @@ export default function Generate() {
   const [topic, setTopic] = useState("");
   const [platform, setPlatform] = useState<"linkedin" | "twitter" | "instagram" | "facebook">("linkedin");
   const [tone, setTone] = useState<"professional" | "casual" | "friendly" | "formal" | "humorous">("professional");
+  const [savedPostId, setSavedPostId] = useState<number | null>(null);
   const [length, setLength] = useState<"short" | "medium" | "long">("medium");
   const [keywords, setKeywords] = useState("");
   const [postsRemaining] = useState<number | null>(null);
@@ -321,6 +343,7 @@ export default function Generate() {
   const generateMutation = trpc.content.generate.useMutation({
     onSuccess: (data) => {
       setGeneratedContent(data.content);
+      setSavedPostId((data as any).postId ?? null);
       clearDraft();
       if (currentIdeaId) {
         markIdeaAsUsed.mutate({ id: currentIdeaId });
@@ -336,6 +359,29 @@ export default function Generate() {
       }
     },
   });
+
+  const scheduleMutation = trpc.scheduling.schedulePost.useMutation({
+    onSuccess: () => toast.success("Innlegget er planlagt! \u2705"),
+    onError: (e) => toast.error(e.message || "Kunne ikke planlegge innlegget"),
+  });
+
+  const handleSchedule = (timeLabel: string) => {
+    if (!savedPostId) {
+      toast.error("Generer innlegget f\u00f8rst, s\u00e5 kan du planlegge det");
+      return;
+    }
+    const when = nextOccurrenceFromLabel(timeLabel);
+    if (!when) {
+      toast.error("Kunne ikke tolke tidspunktet");
+      return;
+    }
+    scheduleMutation.mutate({
+      postId: savedPostId,
+      platform,
+      scheduledFor: when,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    });
+  };
 
   const enhanceMutation = trpc.content.enhanceIdea.useMutation({
     onSuccess: (data) => {
@@ -1206,7 +1252,7 @@ export default function Generate() {
                   <SmartSchedulingSuggestions
                     keyword={topic}
                     platform={platform}
-                    onSchedule={(time) => toast.success(`Planlagt for ${time}`)}
+                    onSchedule={handleSchedule}
                   />
                 </>
               )}
