@@ -31,7 +31,7 @@ export default function Terms() {
         content: [
           "**Gratis prøveperiode**: Nye brukere får 14 dagers gratis prøveperiode med 2 innlegg",
           "**Pro-abonnement**: 199 NOK/måned for ubegrenset innholdsgenerering",
-          "**Årsabonnement**: 1910 NOK/år (spar 2 måneder)",
+          "**Årsabonnement**: 2149 NOK/år (spar 10%)",
           "**Fakturering**: Abonnementer fornyes automatisk hver måned/år",
           "**Betalingsmetoder**: Vi aksepterer kredittkort, debetkort og Vipps",
           "**Refusjon**: Ingen refusjon for ubrukte deler av abonnementsperioden"
@@ -107,7 +107,7 @@ export default function Terms() {
         content: [
           "**Free Trial**: New users get a 14-day free trial with 2 posts",
           "**Pro Subscription**: 199 NOK/month for unlimited content generation",
-          "**Annual Subscription**: 1910 NOK/year (save 2 months)",
+          "**Annual Subscription**: 2149 NOK/year (save 10%)",
           "**Billing**: Subscriptions renew automatically every month/year",
           "**Payment Methods**: We accept credit cards, debit cards, and Vipps",
           "**Refunds**: No refunds for unused portions of the subscription period"

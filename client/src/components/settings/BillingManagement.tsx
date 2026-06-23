@@ -94,7 +94,7 @@ export default function BillingManagement() {
                 </div>
                 <p className="text-muted-foreground mb-4">
                   {isTrial 
-                    ? `Du bruker ${subscription?.postsGenerated || 0} av ${subscription?.trialPostsLimit || 5} gratis innlegg`
+                    ? `Du bruker ${subscription?.postsGenerated || 0} av ${subscription?.trialPostsLimit ?? 2} gratis innlegg`
                     : `Du har ubegrenset antall innlegg`
                   }
                 </p>
@@ -102,7 +102,7 @@ export default function BillingManagement() {
                   <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
                     <div
                       className="bg-gradient-to-r from-primary to-purple-600 h-2 rounded-full"
-                      style={{ width: `${((subscription?.postsGenerated || 0) / (subscription?.trialPostsLimit || 5)) * 100}%` }}
+                      style={{ width: `${((subscription?.postsGenerated || 0) / (subscription?.trialPostsLimit ?? 2)) * 100}%` }}
                     ></div>
                   </div>
                 )}

@@ -138,8 +138,8 @@ function SubscriptionCard({ language }: { language: "no" | "en" }) {
                 <p className="text-sm text-amber-800">
                   <Zap className="h-4 w-4 inline mr-1" />
                   {language === "no"
-                    ? `Du har ${5 - (subscription?.postsGenerated || 0)} innlegg igjen i prøveperioden`
-                    : `You have ${5 - (subscription?.postsGenerated || 0)} posts left in your trial`}
+                    ? `Du har ${(subscription?.trialPostsLimit ?? 2) - (subscription?.postsGenerated || 0)} innlegg igjen i prøveperioden`
+                    : `You have ${(subscription?.trialPostsLimit ?? 2) - (subscription?.postsGenerated || 0)} posts left in your trial`}
                 </p>
               </div>
             )}
@@ -171,14 +171,14 @@ function SubscriptionCard({ language }: { language: "no" | "en" }) {
               {/* Yearly Plan */}
               <div className="border-2 border-green-500 rounded-lg p-4 relative">
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-green-500 text-white text-xs px-2 py-1 rounded-full">
-                  {language === "no" ? "Spar 20%" : "Save 20%"}
+                  {language === "no" ? "Spar 10%" : "Save 10%"}
                 </div>
                 <h4 className="font-semibold mb-1">
                   {language === "no" ? "Årlig" : "Yearly"}
                 </h4>
-                <p className="text-2xl font-bold text-green-600">1910 kr<span className="text-sm font-normal text-muted-foreground">/år</span></p>
+                <p className="text-2xl font-bold text-green-600">2149 kr<span className="text-sm font-normal text-muted-foreground">/år</span></p>
                 <ul className="text-sm text-muted-foreground mt-2 space-y-1">
-                  <li>• 1200 innlegg/år</li>
+                  <li>• 15 innlegg/måned</li>
                   <li>• Alt i månedlig</li>
                   <li>• Prioritert support</li>
                 </ul>
