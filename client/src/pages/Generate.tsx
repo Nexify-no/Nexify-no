@@ -365,6 +365,9 @@ export default function Generate() {
     onError: (e) => toast.error(e.message || "Kunne ikke planlegge innlegget"),
   });
 
+  const dalleImageMutation = trpc.content.generateImageDallE.useMutation();
+  const nanoImageMutation = trpc.content.generateImageNanoBanana.useMutation();
+
   const handleSchedule = (timeLabel: string) => {
     if (!savedPostId) {
       toast.error("Generer innlegget f\u00f8rst, s\u00e5 kan du planlegge det");
@@ -455,29 +458,20 @@ export default function Generate() {
   };
 
   const handleGenerateAIImage = async () => {
-    if (!topic.trim()) { toast.error("Skriv inn et emne først"); return; }
+    if (!topic.trim()) { toast.error("Skriv inn et emne f\u00f8rst"); return; }
     setIsGeneratingImage(true);
     try {
-      // Call the correct procedure (both are OpenAI-backed). DALL-E variant is
-      // Pro-gated; Nano Banana works on any plan. Input shape: { topic, platform, tone, keywords }.
-      const endpoint =
-        imageGenerationType === "dalle"
-          ? "content.generateImageDallE"
-          : "content.generateImageNanoBanana";
-      const response = await fetch(`/api/trpc/${endpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ json: { topic, platform, tone, keywords: [] } }),
-      });
-      const data = await response.json();
-      if (data.result?.data?.json?.url) {
-        setUploadedImage(data.result.data.json.url);
-        setGeneratedImagePrompt(data.result.data.json.prompt || topic);
+      const mutation = imageGenerationType === "dalle" ? dalleImageMutation : nanoImageMutation;
+      const res = await mutation.mutateAsync({ topic, platform, tone, keywords: [] });
+      if (res?.url) {
+        setUploadedImage(res.url);
+        setGeneratedImagePrompt(res.prompt || topic);
         toast.success("AI-bilde generert!");
-      } else { toast.error("Kunne ikke generere bilde"); }
-    } catch (error) {
-      toast.error("Feil ved generering av bilde");
+      } else {
+        toast.error("Kunne ikke generere bilde");
+      }
+    } catch (error: any) {
+      toast.error(error?.message || "Feil ved generering av bilde");
     } finally {
       setIsGeneratingImage(false);
     }
