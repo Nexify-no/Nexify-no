@@ -26,25 +26,20 @@ import UsageStatistics from "@/components/settings/UsageStatistics";
 import UserPreferences from "@/components/settings/UserPreferences";
 
 function RestartTourButton({ language }: { language: "no" | "en" }) {
-  const restartMutation = trpc.user.restartOnboarding.useMutation({
-    onSuccess: () => {
-      toast.success(language === "no" ? "Omvisning startet på nytt! Last inn siden på nytt." : "Tour restarted! Reload the page.");
-      setTimeout(() => window.location.reload(), 1500);
-    },
-    onError: () => {
-      toast.error(language === "no" ? "Kunne ikke starte omvisning på nytt" : "Could not restart tour");
-    },
-  });
+  const handleRestart = () => {
+    try {
+      localStorage.setItem("nexify_start_tour", "1");
+    } catch {
+      /* ignore */
+    }
+    toast.success(language === "no" ? "Starter omvisning..." : "Starting tour...");
+    setTimeout(() => {
+      window.location.href = "/dashboard";
+    }, 600);
+  };
 
   return (
-    <Button 
-      variant="outline" 
-      onClick={() => restartMutation.mutate()}
-      disabled={restartMutation.isPending}
-    >
-      {restartMutation.isPending ? (
-        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-      ) : null}
+    <Button variant="outline" onClick={handleRestart}>
       {language === "no" ? "Start omvisning på nytt" : "Restart Tour"}
     </Button>
   );
