@@ -316,6 +316,86 @@ async function startServer() {
   // Sitemap and RSS feed routes
   app.use("/", sitemapRoutes);
 
+  // A/B tracking redirect — short links for variant click attribution.
+  // MUST be registered AFTER cookieParser and BEFORE serveStatic (the SPA
+  // catch-all). It is deliberately NOT under /api so the IP rate limiter's
+  // /api scope leaves it unthrottled. Fast path: resolve the variant via the
+  // indexed tracking_code, redirect immediately (302), and record the click
+  // fire-and-forget (never block or fail the redirect).
+  app.get("/r/:code", async (req, res) => {
+    const PUBLIC_SITE_URL = process.env.PUBLIC_SITE_URL || "https://innlegg.no";
+    try {
+      const code = String(req.params.code || "").slice(0, 20);
+      if (!code) return res.redirect(302, PUBLIC_SITE_URL);
+
+      const { getDb } = await import("../db");
+      const { abVariants, abExperiments } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) return res.redirect(302, PUBLIC_SITE_URL);
+
+      // Single indexed lookup by tracking_code.
+      const [variant] = await db
+        .select()
+        .from(abVariants)
+        .where(eq(abVariants.trackingCode, code))
+        .limit(1);
+
+      if (!variant) return res.redirect(302, PUBLIC_SITE_URL);
+
+      // Resolve the destination before the redirect; fall back through the chain.
+      let destination = variant.destinationUrl || "";
+      let recordEvent = true;
+      if (!destination) {
+        const [exp] = await db
+          .select()
+          .from(abExperiments)
+          .where(eq(abExperiments.id, variant.experimentId))
+          .limit(1);
+        // Only count clicks while the experiment is actually running.
+        if (exp && exp.status !== "running") recordEvent = false;
+        destination = exp?.destinationUrl || PUBLIC_SITE_URL;
+      }
+
+      // Derive lightweight attribution metadata (no PII stored raw).
+      const ua = String(req.headers["user-agent"] || "");
+      const device = /mobile|iphone|android|ipad/i.test(ua) ? "mobile" : "desktop";
+      const referer = String(req.headers["referer"] || req.headers["referrer"] || "").slice(0, 500);
+      const ip =
+        (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
+        req.socket?.remoteAddress ||
+        "";
+      const { createHash } = await import("crypto");
+      const sessionHash = createHash("sha256").update(`${ip}|${ua}`).digest("hex").slice(0, 64);
+
+      // Fire-and-forget the insert — do NOT await it on the redirect path.
+      if (recordEvent) {
+        const { abClickEvents } = await import("../../drizzle/schema");
+        void db
+          .insert(abClickEvents)
+          .values({
+            variantId: variant.id,
+            device,
+            referer: referer || null,
+            sessionHash,
+          })
+          .catch((e: unknown) => {
+            logger.warn("ab_click_record_failed", {
+              code,
+              msg: e instanceof Error ? e.message : String(e),
+            });
+          });
+      }
+
+      return res.redirect(302, destination);
+    } catch (error) {
+      logger.error("ab_redirect_error", {
+        msg: error instanceof Error ? error.message : String(error),
+      });
+      return res.redirect(302, PUBLIC_SITE_URL);
+    }
+  });
+
   // Stripe webhook - MUST be before express.json() middleware for signature verification
   // Note: We need raw body for Stripe signature verification
   app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async (req, res) => {

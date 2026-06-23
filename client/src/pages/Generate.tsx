@@ -1150,6 +1150,22 @@ export default function Generate() {
 
                   {/* Post to LinkedIn */}
                   <PostToLinkedInButton content={generatedContent} platform={platform} />
+
+                  {/* Run A/B test on this content */}
+                  <Button
+                    variant="outline"
+                    className="w-full mt-2"
+                    onClick={() => {
+                      const params = new URLSearchParams();
+                      if (savedPostId) params.set("postId", String(savedPostId));
+                      params.set("platform", platform);
+                      params.set("body", generatedContent);
+                      setLocation(`/ab-testing?${params.toString()}`);
+                    }}
+                  >
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Kjør A/B-test
+                  </Button>
                 </CardContent>
               </Card>
             )}

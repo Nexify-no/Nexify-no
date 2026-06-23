@@ -34,6 +34,7 @@ import { stripeRouter } from "./routers/stripeRouter";
 import { competitorsRouter } from "./routers/competitorsRouter";
 import { seriesRouter } from "./routers/seriesRouter";
 import { abtestRouter } from "./routers/abtestRouter";
+import { abRouter } from "./routers/abRouter";
 import { calendarRouter } from "./routers/calendarRouter";
 import { reportsRouter } from "./routers/reportsRouter";
 import { engagementRouter } from "./routers/engagementRouter";
@@ -75,6 +76,9 @@ export const appRouter = router({
   series: seriesRouter,
   
   abtest: abtestRouter,
+
+  // NEW real A/B content-testing engine (click tracking + winner stats)
+  ab: abRouter,
   
 
   

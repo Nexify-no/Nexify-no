@@ -163,6 +163,68 @@ async function processScheduledPostsInner() {
   }
 }
 
+let abExperimentTask: cron.ScheduledTask | null = null;
+let isProcessingAb = false;
+
+/**
+ * Auto-end due A/B experiments.
+ *
+ * Finds experiments with status 'running' whose ends_at has passed, recomputes
+ * stats, runs the winner engine, and marks them 'completed' with the winning
+ * variant. Follows the same in-process overlap-guard pattern as the post
+ * scheduler so an over-running tick is not re-entered.
+ */
+async function processDueAbExperiments() {
+  if (isProcessingAb) {
+    console.log('[Scheduler:AB] Previous run still in progress, skipping this tick');
+    return;
+  }
+  isProcessingAb = true;
+  try {
+    const db = await getDatabase();
+    if (!db) {
+      console.warn('[Scheduler:AB] Database not available');
+      return;
+    }
+
+    const { abExperiments } = await import('../drizzle/schema');
+    const now = new Date();
+
+    const due = await db
+      .select()
+      .from(abExperiments)
+      .where(and(eq(abExperiments.status, 'running'), lte(abExperiments.endsAt, now)))
+      .limit(25);
+
+    if (due.length === 0) return;
+
+    console.log(`[Scheduler:AB] Found ${due.length} A/B experiment(s) to auto-end`);
+    const { recomputeAndScore } = await import('./services/abService');
+
+    for (const exp of due) {
+      try {
+        const winner = await recomputeAndScore(exp.id);
+        await db
+          .update(abExperiments)
+          .set({ status: 'completed', winnerVariantId: winner.winnerVariantId ?? null })
+          .where(eq(abExperiments.id, exp.id));
+        console.log(
+          `[Scheduler:AB] Auto-ended experiment ${exp.id} — ${winner.reason}`
+        );
+      } catch (error) {
+        console.error(
+          `[Scheduler:AB] Failed to auto-end experiment ${exp.id}:`,
+          (error as Error)?.message || String(error)
+        );
+      }
+    }
+  } catch (error) {
+    console.error('[Scheduler:AB] Error processing due A/B experiments:', error);
+  } finally {
+    isProcessingAb = false;
+  }
+}
+
 /**
  * Start the scheduler — runs every 5 minutes to check for due posts.
  */
@@ -176,7 +238,13 @@ export function startScheduler() {
     await processScheduledPosts();
   });
 
-  console.log('[Scheduler] Started - checking for scheduled posts every 5 minutes');
+  // A/B experiment auto-end loop (same 5-min cadence, separate task so a slow
+  // publish run never delays winner computation and vice-versa).
+  abExperimentTask = cron.schedule('*/5 * * * *', async () => {
+    await processDueAbExperiments();
+  });
+
+  console.log('[Scheduler] Started - checking for scheduled posts and A/B experiments every 5 minutes');
 }
 
 export function stopScheduler() {
@@ -184,6 +252,11 @@ export function stopScheduler() {
     void schedulerTask.stop();
     schedulerTask = null;
     console.log('[Scheduler] Stopped');
+  }
+  if (abExperimentTask) {
+    void abExperimentTask.stop();
+    abExperimentTask = null;
+    console.log('[Scheduler:AB] Stopped');
   }
 }
 

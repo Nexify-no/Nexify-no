@@ -4,7 +4,7 @@
  * Unauthorized copying, distribution, or use is strictly prohibited.
  */
 
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, tinyint, date, boolean, json, decimal, index } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, tinyint, date, boolean, json, decimal, double, index } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -1517,3 +1517,80 @@ export const usageOverages = mysqlTable("usage_overages", {
 
 export type UsageOverage = typeof usageOverages.$inferSelect;
 export type InsertUsageOverage = typeof usageOverages.$inferInsert;
+/**
+ * ============================================================================
+ * A/B CONTENT TESTING (NEW real feature — `ab` namespace)
+ * ----------------------------------------------------------------------------
+ * Separate from the legacy manual `ab_tests` table. These tables back a live
+ * click-tracking experiment engine: each variant gets a short tracking code
+ * served at /r/:code, clicks are recorded in ab_click_events, and ab_stats
+ * holds the rolled-up metrics used to determine a statistically-significant
+ * winner. See drizzle/0031_ab_testing.sql.
+ * ============================================================================
+ */
+
+/** A single A/B experiment owned by a user. */
+export const abExperiments = mysqlTable("ab_experiments", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("user_id").notNull(),
+  postId: int("post_id"),
+  platform: varchar("platform", { length: 20 }).notNull(),
+  goal: varchar("goal", { length: 20 }).default("clicks").notNull(),
+  status: varchar("status", { length: 20 }).default("draft").notNull(),
+  destinationUrl: varchar("destination_url", { length: 1000 }),
+  winnerVariantId: int("winner_variant_id"),
+  startedAt: timestamp("started_at"),
+  endsAt: timestamp("ends_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type AbExperiment = typeof abExperiments.$inferSelect;
+export type InsertAbExperiment = typeof abExperiments.$inferInsert;
+
+/** A content variant within an experiment. */
+export const abVariants = mysqlTable("ab_variants", {
+  id: int("id").autoincrement().primaryKey(),
+  experimentId: int("experiment_id").notNull(),
+  label: varchar("label", { length: 40 }),
+  body: text("body").notNull(),
+  imageUrl: varchar("image_url", { length: 1000 }),
+  trackingCode: varchar("tracking_code", { length: 20 }).notNull().unique(),
+  destinationUrl: varchar("destination_url", { length: 1000 }),
+  allocationPercent: int("allocation_percent").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  trackingCodeIdx: index("idx_ab_variants_tracking_code").on(table.trackingCode),
+}));
+
+export type AbVariant = typeof abVariants.$inferSelect;
+export type InsertAbVariant = typeof abVariants.$inferInsert;
+
+/** A single click event against a variant tracking link. */
+export const abClickEvents = mysqlTable("ab_click_events", {
+  id: int("id").autoincrement().primaryKey(),
+  variantId: int("variant_id").notNull(),
+  ts: timestamp("ts").defaultNow().notNull(),
+  country: varchar("country", { length: 8 }),
+  device: varchar("device", { length: 20 }),
+  referer: varchar("referer", { length: 500 }),
+  sessionHash: varchar("session_hash", { length: 64 }),
+}, (table) => ({
+  variantIdIdx: index("idx_ab_click_events_variant_id").on(table.variantId),
+}));
+
+export type AbClickEvent = typeof abClickEvents.$inferSelect;
+export type InsertAbClickEvent = typeof abClickEvents.$inferInsert;
+
+/** Rolled-up per-variant statistics (one row per variant). */
+export const abStats = mysqlTable("ab_stats", {
+  variantId: int("variant_id").primaryKey(),
+  clicks: int("clicks").default(0).notNull(),
+  uniqueClicks: int("unique_clicks").default(0).notNull(),
+  ctr: double("ctr").default(0).notNull(),
+  confidence: double("confidence").default(0).notNull(),
+  winnerProbability: double("winner_probability").default(0).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type AbStat = typeof abStats.$inferSelect;
+export type InsertAbStat = typeof abStats.$inferInsert;
