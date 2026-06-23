@@ -262,6 +262,7 @@ export default function Generate() {
   // Auto-save draft functionality
   const [draftSaved, setDraftSaved] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const fromUrlRef = useRef(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const { data: existingDraft } = trpc.drafts.get.useQuery({ pageType: "generate" });
@@ -272,6 +273,7 @@ export default function Generate() {
 
   // Restore draft on load
   useEffect(() => {
+    if (fromUrlRef.current) return; // arrived from Trends/Idébank — don't merge an old draft
     if (existingDraft && !topic) {
       try {
         const formData = JSON.parse(existingDraft.formData);
@@ -321,6 +323,7 @@ export default function Generate() {
     const ideaParam = urlParams.get('idea');
     const ideaIdParam = urlParams.get('ideaId');
     const platformParam = urlParams.get('platform');
+    if (topicParam || ideaParam) { fromUrlRef.current = true; clearDraft(); }
     
     if (ideaParam) {
       setTopic(decodeURIComponent(ideaParam));

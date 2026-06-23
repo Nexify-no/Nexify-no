@@ -1,15 +1,14 @@
 /**
  * Copyright © 2026 Nexify CRM Systems AS. All rights reserved.
  * Org.nr: 936300278 — Proprietary and confidential.
- * Unauthorized copying, distribution, or use is strictly prohibited.
+ *
+ * Shows REAL aggregated trends (Google Trends, NRK, Wikipedia, Reddit, Mastodon,
+ * Social Media Today) — clickable to seed the topic field. No mock data.
  */
-
-import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, Lightbulb, Loader2, RefreshCw } from "lucide-react";
-import { toast } from "sonner";
+import { TrendingUp, Loader2, RefreshCw, ArrowRight } from "lucide-react";
 import { SkeletonCard } from "@/components/SkeletonLoader";
 import { Badge } from "@/components/ui/badge";
 
@@ -21,66 +20,13 @@ export interface TrendingTopicsSidebarProps {
   contentStyle?: string;
 }
 
-export function TrendingTopicsSidebar({
-  platform,
-  onTopicSelected,
-  expertise = "general",
-  targetAudience = "general audience",
-  contentStyle = "professional",
-}: TrendingTopicsSidebarProps) {
-  const [trendingKeywords, setTrendingKeywords] = useState<string>("");
-  const [refreshing, setRefreshing] = useState(false);
+export function TrendingTopicsSidebar({ onTopicSelected }: TrendingTopicsSidebarProps) {
+  const { data, isLoading, isFetching, refetch } = trpc.trends.getAggregatedTrends.useQuery(undefined, {
+    staleTime: 60 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
 
-  // Fetch trending topics
-  const analyzeTrendsQuery = trpc.langchain.analyzeTrends.useQuery(
-    {
-      trends: trendingKeywords,
-      platform,
-      expertise,
-      targetAudience,
-      contentStyle,
-    },
-    {
-      enabled: false, // Manual trigger only
-    }
-  );
-
-  // Initial load
-  useEffect(() => {
-    if (!trendingKeywords) {
-      handleRefreshTrends();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const handleRefreshTrends = async () => {
-    setRefreshing(true);
-    // Trending keywords relevant to Norwegian market
-    const defaultTrends = [
-      "AI i digital markedsføring",
-      "Produktivitetsforbedring",
-      "Digital transformasjon",
-      "Innholdsstrategier",
-      "Dataanalyse",
-      "Kunstig intelligens",
-      "Innholdsmarkedsføring",
-      "Sosiale medier",
-    ].join(", ");
-
-    setTrendingKeywords(defaultTrends);
-
-    try {
-      // Refetch with new trends
-      await analyzeTrendsQuery.refetch();
-      toast.success("Trendende emner er oppdatert!");
-    } catch (error: any) {
-      toast.error(error.message || "Kunne ikke hente trendende emner");
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
-  const ideas = analyzeTrendsQuery.data?.ideas || [];
+  const trends: any[] = ((data as any)?.data || []).slice(0, 8);
 
   return (
     <Card className="border-primary/20 h-full">
@@ -93,95 +39,54 @@ export function TrendingTopicsSidebar({
           <Button
             variant="ghost"
             size="icon"
-            onClick={handleRefreshTrends}
-            disabled={refreshing || analyzeTrendsQuery.isLoading}
+            onClick={() => refetch()}
+            disabled={isFetching}
             className="h-8 w-8"
           >
-            <RefreshCw
-              className={`h-4 w-4 ${
-                refreshing || analyzeTrendsQuery.isLoading ? "animate-spin" : ""
-              }`}
-            />
+            <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
           </Button>
         </div>
-        <CardDescription>
-          Innholdsideer inspirert av trendende emner
-        </CardDescription>
+        <CardDescription>Ekte trender fra flere kilder — klikk for å bruke</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Trending Keywords */}
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground">Trendende nøkkelord:</p>
-          <div className="flex flex-wrap gap-1">
-            {trendingKeywords
-              .split(",")
-              .slice(0, 5)
-              .map((keyword, idx) => (
-                <Badge key={idx} variant="secondary" className="text-xs">
-                  {keyword.trim()}
-                </Badge>
-              ))}
+      <CardContent className="space-y-2">
+        {isLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
           </div>
-        </div>
+        ) : trends.length > 0 ? (
+          <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1">
+            {trends.map((t, idx) => (
+              <button
+                key={idx}
+                onClick={() => onTopicSelected?.(t.keyword)}
+                className="group w-full text-left rounded-lg border p-2.5 hover:border-primary hover:bg-primary/5 transition-colors"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-sm font-medium line-clamp-2">{t.keyword}</span>
+                  <ArrowRight className="h-4 w-4 flex-shrink-0 opacity-0 group-hover:opacity-100 text-primary transition-opacity" />
+                </div>
+                <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{t.source}</Badge>
+                  {t.date && (
+                    <span>{new Date(t.date).toLocaleDateString("no-NO", { day: "2-digit", month: "2-digit" })}</span>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="text-xs text-muted-foreground text-center py-4">
+            Ingen trender tilgjengelig akkurat nå.
+          </div>
+        )}
 
-        {/* Content Ideas */}
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground">Innholdsideer:</p>
-          {analyzeTrendsQuery.isLoading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <SkeletonCard key={i} />
-              ))}
-            </div>
-          ) : ideas && ideas.length > 0 ? (
-            <div className="space-y-2 max-h-[400px] overflow-y-auto">
-              {ideas.slice(0, 5).map((idea: any, idx: number) => {
-                // analyzeTrends returns objects { topic, contentIdeas }, not a
-                // `title` string — rendering the raw object crashed React with
-                // "Objects are not valid as a React child".
-                const label =
-                  typeof idea === "string"
-                    ? idea
-                    : idea?.topic || idea?.title || idea?.idea || "";
-                return (
-                  <Button
-                    key={idx}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onTopicSelected?.(label)}
-                    className="w-full justify-start text-left h-auto py-2 px-2 whitespace-normal text-xs"
-                  >
-                    <Lightbulb className="h-3 w-3 mr-2 flex-shrink-0 mt-0.5" />
-                    <span className="line-clamp-2">{label}</span>
-                  </Button>
-                );
-              })}
-            </div>
+        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching} className="w-full">
+          {isFetching ? (
+            <><Loader2 className="h-3 w-3 mr-2 animate-spin" />Oppdaterer...</>
           ) : (
-            <div className="text-xs text-muted-foreground text-center py-4">
-              Ingen ideer tilgjengelig for øyeblikket
-            </div>
-          )}
-        </div>
-
-        {/* Refresh Button */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleRefreshTrends}
-          disabled={refreshing || analyzeTrendsQuery.isLoading}
-          className="w-full"
-        >
-          {refreshing || analyzeTrendsQuery.isLoading ? (
-            <>
-              <Loader2 className="h-3 w-3 mr-2 animate-spin" />
-              Oppdaterer...
-            </>
-          ) : (
-            <>
-              <RefreshCw className="h-3 w-3 mr-2" />
-              Oppdater ideer
-            </>
+            <><RefreshCw className="h-3 w-3 mr-2" />Oppdater trender</>
           )}
         </Button>
       </CardContent>

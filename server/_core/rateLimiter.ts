@@ -29,7 +29,7 @@ function makeStore(prefix: string): Store | undefined {
 // IP-based rate limiter (general API)
 export const ipRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 100, // 100 requests per minute per IP
+  max: 300, // requests per minute per IP
   message: "Too many requests from this IP, please try again later.",
   standardHeaders: true,
   legacyHeaders: false,
@@ -46,7 +46,7 @@ export const ipRateLimiter = rateLimit({
 // User-based rate limiter (stricter for authenticated users)
 export const userRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 30, // 30 requests per minute per user
+  max: 150, // requests per minute per user
   keyGenerator: (req) => {
     // Use user ID if authenticated, otherwise use IP
     const user = (req as any).user;
