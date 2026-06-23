@@ -362,142 +362,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Charts Section */}
-        {(subscription?.postsGenerated || 0) > 0 && (
-          <div className="grid gap-5 mb-8 lg:grid-cols-5 page-enter" style={{ animationDelay: '0.15s' }}>
-            {/* Activity Chart */}
-            <div className="lg:col-span-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 overflow-hidden">
-              <div className="px-5 pt-5 pb-2">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-2">
-                    <Activity className="h-4 w-4 text-indigo-500" />
-                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-                      {language === "no" ? "Aktivitet" : "Activity"}
-                    </h3>
-                  </div>
-                  <span className="text-[11px] text-slate-400">
-                    {language === "no" ? "Siste 7 dager" : "Last 7 days"}
-                  </span>
-                </div>
-              </div>
-              <div className="px-2 pb-4">
-                {activityLoading ? (
-                  <div className="h-[260px] flex items-center justify-center">
-                    <div className="animate-pulse text-muted-foreground text-sm">
-                      {language === "no" ? "Laster..." : "Loading..."}
-                    </div>
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={260}>
-                    <AreaChart data={activityData || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="activityGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#6366f1" stopOpacity={0.3} />
-                          <stop offset="100%" stopColor="#6366f1" stopOpacity={0.02} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.5} vertical={false} />
-                      <XAxis 
-                        dataKey="date" 
-                        stroke="var(--muted-foreground)" 
-                        fontSize={11} 
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <YAxis 
-                        stroke="var(--muted-foreground)" 
-                        fontSize={11} 
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <RechartsTooltip 
-                        contentStyle={{ 
-                          backgroundColor: "var(--card)", 
-                          border: "1px solid var(--border)",
-                          borderRadius: "10px",
-                          boxShadow: "0 8px 30px rgba(0,0,0,0.12)",
-                          fontSize: "12px",
-                          padding: "8px 12px"
-                        }}
-                      />
-                      <Area 
-                        type="monotone" 
-                        dataKey="count" 
-                        stroke="#6366f1" 
-                        strokeWidth={2.5}
-                        fill="url(#activityGradient)" 
-                        dot={{ fill: "#6366f1", strokeWidth: 0, r: 3 }}
-                        activeDot={{ fill: "#6366f1", strokeWidth: 2, stroke: "#fff", r: 5 }}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            </div>
-
-            {/* Platform Distribution */}
-            <div className="lg:col-span-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 overflow-hidden">
-              <div className="px-5 pt-5 pb-2">
-                <div className="flex items-center gap-2 mb-1">
-                  <Target className="h-4 w-4 text-violet-500" />
-                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-                    {language === "no" ? "Plattformer" : "Platforms"}
-                  </h3>
-                </div>
-              </div>
-              {platformDistribution.length > 0 ? (
-                <div className="px-2 pb-4">
-                  <ResponsiveContainer width="100%" height={200}>
-                    <PieChart>
-                      <Pie
-                        data={platformDistribution}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={50}
-                        outerRadius={75}
-                        paddingAngle={4}
-                        dataKey="value"
-                        strokeWidth={0}
-                      >
-                        {platformDistribution.map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <RechartsTooltip 
-                        contentStyle={{ 
-                          backgroundColor: "var(--card)", 
-                          border: "1px solid var(--border)",
-                          borderRadius: "10px",
-                          boxShadow: "0 8px 30px rgba(0,0,0,0.12)",
-                          fontSize: "12px"
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  {/* Legend */}
-                  <div className="px-4 flex flex-wrap gap-3 justify-center">
-                    {platformDistribution.map((item, index) => (
-                      <div key={item.name} className="flex items-center gap-1.5">
-                        <div 
-                          className="h-2.5 w-2.5 rounded-full" 
-                          style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} 
-                        />
-                        <span className="text-[11px] text-slate-500 dark:text-slate-400 capitalize">
-                          {item.name} ({item.value})
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="h-[240px] flex items-center justify-center text-sm text-muted-foreground">
-                  {language === "no" ? "Ingen data ennå" : "No data yet"}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Recent Posts Section */}
         <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 overflow-hidden page-enter" style={{ animationDelay: '0.25s' }}>
           <div className="px-5 pt-5 pb-4">
@@ -715,6 +579,142 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+
+        {/* Charts Section */}
+        {(subscription?.postsGenerated || 0) > 0 && (
+          <div className="grid gap-5 mb-8 lg:grid-cols-5 page-enter" style={{ animationDelay: '0.15s' }}>
+            {/* Activity Chart */}
+            <div className="lg:col-span-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 overflow-hidden">
+              <div className="px-5 pt-5 pb-2">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <Activity className="h-4 w-4 text-indigo-500" />
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                      {language === "no" ? "Aktivitet" : "Activity"}
+                    </h3>
+                  </div>
+                  <span className="text-[11px] text-slate-400">
+                    {language === "no" ? "Siste 7 dager" : "Last 7 days"}
+                  </span>
+                </div>
+              </div>
+              <div className="px-2 pb-4">
+                {activityLoading ? (
+                  <div className="h-[260px] flex items-center justify-center">
+                    <div className="animate-pulse text-muted-foreground text-sm">
+                      {language === "no" ? "Laster..." : "Loading..."}
+                    </div>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <AreaChart data={activityData || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="activityGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#6366f1" stopOpacity={0.3} />
+                          <stop offset="100%" stopColor="#6366f1" stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.5} vertical={false} />
+                      <XAxis 
+                        dataKey="date" 
+                        stroke="var(--muted-foreground)" 
+                        fontSize={11} 
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <YAxis 
+                        stroke="var(--muted-foreground)" 
+                        fontSize={11} 
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <RechartsTooltip 
+                        contentStyle={{ 
+                          backgroundColor: "var(--card)", 
+                          border: "1px solid var(--border)",
+                          borderRadius: "10px",
+                          boxShadow: "0 8px 30px rgba(0,0,0,0.12)",
+                          fontSize: "12px",
+                          padding: "8px 12px"
+                        }}
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="count" 
+                        stroke="#6366f1" 
+                        strokeWidth={2.5}
+                        fill="url(#activityGradient)" 
+                        dot={{ fill: "#6366f1", strokeWidth: 0, r: 3 }}
+                        activeDot={{ fill: "#6366f1", strokeWidth: 2, stroke: "#fff", r: 5 }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
+
+            {/* Platform Distribution */}
+            <div className="lg:col-span-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 overflow-hidden">
+              <div className="px-5 pt-5 pb-2">
+                <div className="flex items-center gap-2 mb-1">
+                  <Target className="h-4 w-4 text-violet-500" />
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                    {language === "no" ? "Plattformer" : "Platforms"}
+                  </h3>
+                </div>
+              </div>
+              {platformDistribution.length > 0 ? (
+                <div className="px-2 pb-4">
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie
+                        data={platformDistribution}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={75}
+                        paddingAngle={4}
+                        dataKey="value"
+                        strokeWidth={0}
+                      >
+                        {platformDistribution.map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip 
+                        contentStyle={{ 
+                          backgroundColor: "var(--card)", 
+                          border: "1px solid var(--border)",
+                          borderRadius: "10px",
+                          boxShadow: "0 8px 30px rgba(0,0,0,0.12)",
+                          fontSize: "12px"
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  {/* Legend */}
+                  <div className="px-4 flex flex-wrap gap-3 justify-center">
+                    {platformDistribution.map((item, index) => (
+                      <div key={item.name} className="flex items-center gap-1.5">
+                        <div 
+                          className="h-2.5 w-2.5 rounded-full" 
+                          style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} 
+                        />
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400 capitalize">
+                          {item.name} ({item.value})
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="h-[240px] flex items-center justify-center text-sm text-muted-foreground">
+                  {language === "no" ? "Ingen data ennå" : "No data yet"}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Upgrade CTA if on trial */}
         {!postsLoading && subscription?.status === "trial" && postsRemaining <= 2 && (
