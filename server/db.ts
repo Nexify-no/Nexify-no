@@ -151,6 +151,45 @@ export async function getUserByOpenId(openId: string) {
 }
 
 /**
+ * Look up a user by email (used by email/password auth). Returns the full row,
+ * including passwordHash, or undefined when not found.
+ */
+export async function getUserByEmail(email: string) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get user by email: database not available");
+    return undefined;
+  }
+  const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+/**
+ * Create a new email/password user. The caller must have already hashed the
+ * password (bcrypt) and ensured the email is not already taken.
+ */
+export async function createEmailUser(input: {
+  openId: string;
+  email: string;
+  name?: string | null;
+  passwordHash: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(users).values({
+    openId: input.openId,
+    email: input.email,
+    name: input.name ?? null,
+    loginMethod: "email",
+    passwordHash: input.passwordHash,
+    lastSignedIn: new Date(),
+  });
+  const created = await getUserByOpenId(input.openId);
+  if (!created) throw new Error("Failed to load newly created user");
+  return created;
+}
+
+/**
  * Idempotency guard for payment webhooks. Returns true if this event is new
  * (and records it), false if it has already been processed.
  */

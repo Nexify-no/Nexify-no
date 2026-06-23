@@ -9,12 +9,19 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle, Loader2, Zap } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
 import { VippsLoginButton } from "@/components/VippsLogin";
 
 export function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   // Check if user is already logged in via tRPC
   const { data: user, isLoading: authLoading } = trpc.auth.me.useQuery(undefined, {
@@ -35,6 +42,35 @@ export function LoginPage() {
       setError("Autentisering mislyktes. Prøv igjen.");
     }
   }, []);
+
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      const endpoint = mode === "register" ? "/api/auth/register" : "/api/auth/login/email";
+      const body =
+        mode === "register"
+          ? { email, password, name: name.trim() || undefined }
+          : { email, password };
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        window.location.href = "/dashboard";
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      setError(data.error || "Det oppstod en feil. Prøv igjen.");
+      setSubmitting(false);
+    } catch (err) {
+      console.error("Email auth error:", err);
+      setError("Det oppstod en feil. Prøv igjen.");
+      setSubmitting(false);
+    }
+  };
 
   const handleDevLogin = async () => {
     setIsLoading(true);
@@ -117,12 +153,89 @@ export function LoginPage() {
                     Kobler til...
                   </>
                 ) : (
-                  "🚀 Dev Login (Testing)"
+                  "\u{1F680} Dev Login (Testing)"
                 )}
               </Button>
             )}
 
-            {/* Google login — backend route: GET /api/auth/login/google */}
+            {/* Email + password */}
+            <form onSubmit={handleEmailSubmit} className="space-y-3">
+              {mode === "register" && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="name">Navn</Label>
+                  <Input
+                    id="name"
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Ditt navn"
+                    autoComplete="name"
+                  />
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <Label htmlFor="email">E-post</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="deg@eksempel.no"
+                  autoComplete="email"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="password">Passord</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  required
+                  minLength={mode === "register" ? 8 : undefined}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={mode === "register" ? "Minst 8 tegn" : "Passord"}
+                  autoComplete={mode === "register" ? "new-password" : "current-password"}
+                />
+              </div>
+              <Button type="submit" disabled={submitting} className="w-full h-11" size="lg">
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Vennligst vent...
+                  </>
+                ) : mode === "register" ? (
+                  "Opprett konto"
+                ) : (
+                  "Logg inn"
+                )}
+              </Button>
+            </form>
+
+            <p className="text-sm text-center text-muted-foreground">
+              {mode === "register" ? "Har du allerede en konto? " : "Ny bruker? "}
+              <button
+                type="button"
+                onClick={() => {
+                  setMode(mode === "register" ? "login" : "register");
+                  setError(null);
+                }}
+                className="text-primary underline font-medium hover:opacity-80"
+              >
+                {mode === "register" ? "Logg inn" : "Opprett konto"}
+              </button>
+            </p>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-gray-200" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-2 text-muted-foreground">eller</span>
+              </div>
+            </div>
+
+            {/* Google login - backend route: GET /api/auth/login/google */}
             <Button
               asChild
               variant="outline"
@@ -139,15 +252,6 @@ export function LoginPage() {
                 Logg inn med Google
               </a>
             </Button>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-gray-200" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-2 text-muted-foreground">eller</span>
-              </div>
-            </div>
 
             <VippsLoginButton className="w-full" />
 

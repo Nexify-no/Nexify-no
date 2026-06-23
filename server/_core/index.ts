@@ -19,6 +19,7 @@ import { validateEnv } from "./validateEnv";
 import { registerTelegramWebhook } from "./telegramWebhookRoute";
 import { registerLinkedInCallback } from "./linkedinCallback";
 import { registerGoogleOAuthRoutes } from "../routes/googleOAuthRoutes";
+import { registerEmailAuthRoutes } from "../routes/emailAuthRoutes";
 import { registerMonitoringRoutes } from "../routes/monitoringRoutes";
 import { appRouter } from "../routers";
 import { startScheduler, stopScheduler } from "../schedulerService";
@@ -222,6 +223,7 @@ async function startServer() {
   
   // Google OAuth routes (standalone, sets the app session cookie)
   registerGoogleOAuthRoutes(app);
+  registerEmailAuthRoutes(app);
   
   // Demo/dev login — gated behind an explicit opt-in flag (ENABLE_DEV_LOGIN).
   // Signs you in without OAuth. Accepts GET so it can be opened in a browser.
