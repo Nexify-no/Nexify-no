@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    
+    <!-- Primary Meta Tags -->
+    <title>Innlegg - Din AI Innholdsassistent | Lag Profesjonelle Innlegg på Sekunder</title>
+    <meta name="title" content="Innlegg - Din AI Innholdsassistent | Lag Profesjonelle Innlegg på Sekunder" />
+    <meta name="description" content="Lag profesjonelle LinkedIn og sosiale medier innlegg med AI på sekunder. Nano Banana og DALL-E 3 bilder inkludert. Prøv gratis i dag!" />
+    <meta name="keywords" content="AI innlegg, LinkedIn innlegg, sosiale medier, content creation, norsk AI, Nano Banana, DALL-E 3, innholdsmarkedsføring" />
+    <meta name="author" content="Innlegg" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="%VITE_SITE_URL%" />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="%VITE_SITE_URL%" />
+    <meta property="og:title" content="Innlegg - Din AI Innholdsassistent" />
+    <meta property="og:description" content="Lag profesjonelle LinkedIn og sosiale medier innlegg med AI på sekunder. Nano Banana og DALL-E 3 bilder inkludert." />
+    <meta property="og:image" content="%VITE_SITE_URL%/og-image.png" />
+    <meta property="og:locale" content="nb_NO" />
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="%VITE_SITE_URL%" />
+    <meta property="twitter:title" content="Innlegg - Din AI Innholdsassistent" />
+    <meta property="twitter:description" content="Lag profesjonelle LinkedIn og sosiale medier innlegg med AI på sekunder." />
+    <meta property="twitter:image" content="%VITE_SITE_URL%/og-image.png" />
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    
+    <!-- Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Innlegg",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "199",
+        "priceCurrency": "NOK",
+        "priceValidUntil": "2026-12-31"
+      },
+      "description": "AI-drevet innholdsassistent for profesjonelle sosiale medier innlegg",
+      "url": "%VITE_SITE_URL%",
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.8",
+        "ratingCount": "127"
+      }
+    }
+    </script>    
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    
+    <!-- Google Analytics 4 — only loaded when VITE_GA4_ID is actually configured. -->
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      (function () {
+        var id = "%VITE_GA4_ID%";
+        if (id && id.indexOf("%VITE_") !== 0) {
+          var s = document.createElement("script");
+          s.async = true;
+          s.src = "https://www.googletagmanager.com/gtag/js?id=" + id;
+          document.head.appendChild(s);
+          gtag('js', new Date());
+          gtag('config', id, { 'page_path': window.location.pathname, 'anonymize_ip': true });
+        }
+      })();
+    </script>
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <!-- Umami analytics — only injected when configured. Without this guard the
+         unsubstituted "%VITE_ANALYTICS_ENDPOINT%/umami" placeholder fires a malformed
+         same-origin request that the server rejects ("Failed to decode param"). -->
+    <script>
+      (function () {
+        var ep = "%VITE_ANALYTICS_ENDPOINT%";
+        var wid = "%VITE_ANALYTICS_WEBSITE_ID%";
+        if (ep && ep.indexOf("%VITE_") !== 0) {
+          var s = document.createElement("script");
+          s.defer = true;
+          s.src = ep + "/umami";
+          if (wid && wid.indexOf("%VITE_") !== 0) s.setAttribute("data-website-id", wid);
+          document.body.appendChild(s);
+        }
+      })();
+    </script>
+  </body>
+
+</html>

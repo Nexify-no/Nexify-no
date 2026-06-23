@@ -1,0 +1,4 @@
+-- No-op: this migration was an accidental duplicate of 0017_nifty_romulus
+-- (it re-created stripe_payment_intents / subscription_history / subscription_plans,
+-- which already exist after 0017, causing "table already exists" during migrate).
+-- Emptied to preserve migration ordering without re-running those CREATE TABLEs.

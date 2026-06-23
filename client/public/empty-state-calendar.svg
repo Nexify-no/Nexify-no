@@ -1,0 +1,41 @@
+<svg viewBox="0 0 300 250" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+      }
+      .blinking { animation: blink 2s ease-in-out infinite; }
+    </style>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="300" height="250" fill="#fef3c7"/>
+  
+  <!-- Calendar -->
+  <rect x="80" y="60" width="140" height="120" rx="8" fill="white" stroke="#fbbf24" stroke-width="2"/>
+  
+  <!-- Calendar header -->
+  <rect x="80" y="60" width="140" height="25" rx="8" fill="#fbbf24"/>
+  <text x="150" y="80" font-size="12" font-weight="600" fill="white" text-anchor="middle">February</text>
+  
+  <!-- Calendar grid -->
+  <g stroke="#e5e7eb" stroke-width="1">
+    <line x1="80" y1="85" x2="220" y2="85"/>
+    <line x1="100" y1="60" x2="100" y2="180"/>
+    <line x1="120" y1="60" x2="120" y2="180"/>
+    <line x1="140" y1="60" x2="140" y2="180"/>
+    <line x1="160" y1="60" x2="160" y2="180"/>
+    <line x1="180" y1="60" x2="180" y2="180"/>
+    <line x1="200" y1="60" x2="200" y2="180"/>
+  </g>
+  
+  <!-- Calendar dates -->
+  <circle cx="110" cy="105" r="6" fill="#f59e0b" class="blinking" style="animation-delay: 0s"/>
+  <circle cx="150" cy="125" r="6" fill="#f59e0b" class="blinking" style="animation-delay: 0.3s"/>
+  <circle cx="190" cy="145" r="6" fill="#f59e0b" class="blinking" style="animation-delay: 0.6s"/>
+  
+  <!-- Text -->
+  <text x="150" y="210" font-size="16" font-weight="600" fill="#1e293b" text-anchor="middle">No events scheduled</text>
+  <text x="150" y="230" font-size="12" fill="#64748b" text-anchor="middle">Plan your content calendar</text>
+</svg>

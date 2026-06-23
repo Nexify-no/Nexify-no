@@ -1,0 +1,35 @@
+<svg viewBox="0 0 300 250" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      @keyframes grow {
+        0%, 100% { height: 20px; }
+        50% { height: 60px; }
+      }
+      .bar1 { animation: grow 2s ease-in-out infinite; }
+      .bar2 { animation: grow 2s ease-in-out infinite 0.3s; }
+      .bar3 { animation: grow 2s ease-in-out infinite 0.6s; }
+    </style>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="300" height="250" fill="#f0f9ff"/>
+  
+  <!-- Chart bars -->
+  <rect x="80" y="120" width="20" height="20" rx="2" fill="#3b82f6" class="bar1"/>
+  <rect x="120" y="120" width="20" height="20" rx="2" fill="#10b981" class="bar2"/>
+  <rect x="160" y="120" width="20" height="20" rx="2" fill="#f59e0b" class="bar3"/>
+  
+  <!-- Chart baseline -->
+  <line x1="70" y1="145" x2="200" y2="145" stroke="#e2e8f0" stroke-width="2" stroke-linecap="round"/>
+  
+  <!-- Axis -->
+  <line x1="70" y1="70" x2="70" y2="145" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round"/>
+  
+  <!-- Grid lines -->
+  <line x1="70" y1="95" x2="200" y2="95" stroke="#f1f5f9" stroke-width="1" stroke-dasharray="2,2"/>
+  <line x1="70" y1="120" x2="200" y2="120" stroke="#f1f5f9" stroke-width="1" stroke-dasharray="2,2"/>
+  
+  <!-- Text -->
+  <text x="150" y="190" font-size="16" font-weight="600" fill="#1e293b" text-anchor="middle">No data yet</text>
+  <text x="150" y="210" font-size="12" fill="#64748b" text-anchor="middle">Your analytics will appear here</text>
+</svg>

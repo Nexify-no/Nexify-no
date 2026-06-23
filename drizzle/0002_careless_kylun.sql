@@ -1,0 +1,21 @@
+CREATE TABLE `content_analysis` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`post_id` int NOT NULL,
+	`user_id` int NOT NULL,
+	`word_count` int NOT NULL,
+	`sentence_count` int NOT NULL,
+	`question_count` int NOT NULL,
+	`emoji_count` int NOT NULL,
+	`hashtag_count` int NOT NULL,
+	`has_numbers` int NOT NULL DEFAULT 0,
+	`has_call_to_action` int NOT NULL DEFAULT 0,
+	`length_score` int NOT NULL,
+	`engagement_score` int NOT NULL,
+	`readability_score` int NOT NULL,
+	`overall_score` int NOT NULL,
+	`strengths` text,
+	`improvements` text,
+	`tips` text,
+	`created_at` timestamp NOT NULL DEFAULT (now()),
+	CONSTRAINT `content_analysis_id` PRIMARY KEY(`id`)
+);

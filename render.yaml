@@ -1,0 +1,79 @@
+# Render Blueprint — Nexify AI (Innlegg)
+# One-click deploy: Render → New → Blueprint → pick this repo.
+#
+# Architecture: a single always-on Node web service that serves BOTH the built
+# Vite frontend and the Express/tRPC API, plus an in-process node-cron scheduler
+# (auto-publish every 5 min). Because of that scheduler the service MUST stay
+# awake — do NOT use the Free plan (it spins down on inactivity and the cron
+# stops). Starter ($7/mo) keeps it always-on and unlocks preDeployCommand so
+# database migrations run automatically before each release.
+#
+# Database is external: TiDB Cloud (MySQL-compatible). Set DATABASE_URL in the
+# Render dashboard to your TiDB Serverless connection string.
+
+services:
+  # -- Web service: frontend + API + scheduler --------------------------------
+  - type: web
+    name: nexify-ai
+    runtime: node
+    plan: starter            # do NOT use "free": cron scheduler needs always-on
+    region: frankfurt        # closest EU region (Norway)
+    branch: main
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    preDeployCommand: pnpm db:migrate   # apply Drizzle migrations before going live
+    startCommand: pnpm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: RUN_SCHEDULER
+        value: "true"        # single instance -> run the in-process cron here
+
+      # Auto-generated secrets (Render fills these once)
+      - key: JWT_SECRET
+        generateValue: true
+      - key: TOKEN_ENCRYPTION_KEY
+        generateValue: true
+
+      # Redis (wired automatically from the keyvalue service below)
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: nexify-redis
+          property: connectionString
+
+      # Secrets you MUST set in the Render dashboard (sync:false)
+      - key: DATABASE_URL          # mysql://user:pass@gateway.<region>.prod.aws.tidbcloud.com:4000/db?ssl={"rejectUnauthorized":true}
+        sync: false
+      - key: PUBLIC_SITE_URL       # e.g. https://nexify-ai.onrender.com (or your custom domain)
+        sync: false
+      - key: OPENAI_API_KEY        # sk-...
+        sync: false
+      - key: STRIPE_SECRET_KEY     # sk_test_... or sk_live_...
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET # whsec_...
+        sync: false
+      - key: VITE_STRIPE_PUBLISHABLE_KEY  # pk_test_... (build-time, frontend)
+        sync: false
+
+      # Optional (leave unset to disable the feature)
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: SENDGRID_FROM_EMAIL
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+
+  # -- Redis (managed, for distributed rate limiting) -------------------------
+  - type: keyvalue
+    name: nexify-redis
+    plan: free
+    region: frankfurt
+    ipAllowList: []          # private -- reachable only from Render services

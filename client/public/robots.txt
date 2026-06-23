@@ -1,0 +1,35 @@
+User-agent: *
+Allow: /
+Allow: /faq
+Allow: /about-us
+Allow: /contact
+Allow: /blog
+Allow: /privacy
+Allow: /terms
+Allow: /cookie-policy
+
+# Protected pages (require authentication)
+Disallow: /api/
+Disallow: /dashboard
+Disallow: /generate
+Disallow: /posts
+Disallow: /settings
+Disallow: /account-settings
+Disallow: /coach
+Disallow: /trends
+Disallow: /voice-training
+Disallow: /calendar
+Disallow: /best-time
+Disallow: /repurpose
+Disallow: /telegram-bot
+Disallow: /competitor-radar
+Disallow: /content-series
+Disallow: /ab-testing
+Disallow: /weekly-report
+Disallow: /engagement-helper
+Disallow: /idea-bank
+Disallow: /examples
+Disallow: /admin/
+Disallow: /subscription/
+
+Sitemap: https://innlegg.no/sitemap.xml

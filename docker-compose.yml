@@ -1,0 +1,68 @@
+# Full local run: app + MySQL, one command:  docker compose up --build
+# Open http://localhost:5000
+#
+# OPENAI_API_KEY / STRIPE_* are read from your local .env (or shell) if present,
+# so AI features work with your real key; otherwise dummy values are used so the
+# server still boots. DATABASE_URL is overridden to point at the `db` container.
+
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: nexify
+      MYSQL_USER: nexify
+      MYSQL_PASSWORD: nexify
+    ports:
+      - "3307:3306"            # host 3307 → container 3306 (avoids clashing with a local MySQL)
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  # One-shot migration job. Runs `drizzle-kit migrate` exactly once, then exits.
+  # The app waits for it to complete successfully before starting, so the schema
+  # is never modified at app boot or on restart.
+  migrate:
+    build:
+      context: .
+      target: migrator
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "mysql://nexify:nexify@db:3306/nexify"
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      target: runtime
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      PORT: "5000"
+      DATABASE_URL: "mysql://nexify:nexify@db:3306/nexify"
+      JWT_SECRET: "local_docker_jwt_secret_at_least_32_chars_xx"
+      TOKEN_ENCRYPTION_KEY: "local_docker_token_encryption_key"
+      PUBLIC_SITE_URL: "http://localhost:5000"
+      DISABLE_HTTPS_REDIRECT: "true"     # allow plain-HTTP local access (no TLS proxy)
+      ENABLE_DEV_LOGIN: "true"           # LOCAL/DEMO ONLY — sign in without OAuth at /api/auth/dev-login
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-sk-local-dummy}"
+      STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-sk_test_dummy}"
+      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-whsec_dummy}"
+    ports:
+      - "5000:5000"
+
+volumes:
+  db_data:
