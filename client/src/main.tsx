@@ -27,6 +27,19 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
 
   if (!isUnauthorized) return;
 
+  // Don't bounce visitors off PUBLIC pages just because a background query
+  // (e.g. a consent/preferences check) returned "unauthorized". Only redirect
+  // to login from protected pages. This prevents the landing page from auto-
+  // navigating to /login for logged-out visitors.
+  const path = window.location.pathname;
+  const PUBLIC_PATHS = new Set([
+    "/", "/login", "/landing", "/pricing", "/about-us", "/faq", "/contact",
+    "/privacy", "/terms", "/privacy-policy", "/terms-of-service",
+    "/cookie-policy", "/reset-password",
+  ]);
+  const isPublicPath = PUBLIC_PATHS.has(path) || path.startsWith("/blog");
+  if (isPublicPath) return;
+
   window.location.href = getLoginUrl();
 };
 
