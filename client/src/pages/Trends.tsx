@@ -203,7 +203,7 @@ export default function Trends() {
                       <p className="text-sm text-amber-700">Se alle trender og bruk dem direkte i innholdsgenerering</p>
                     </div>
                   </div>
-                  <Button className="bg-gradient-to-r from-amber-500 to-orange-500 hover:opacity-90">
+                  <Button onClick={() => (window.location.href = "/settings")} className="bg-gradient-to-r from-amber-500 to-orange-500 hover:opacity-90">
                     Oppgrader nå
                   </Button>
                 </div>

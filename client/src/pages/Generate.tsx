@@ -901,7 +901,7 @@ export default function Generate() {
                       <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
                         <p className="text-sm font-medium text-amber-800 dark:text-amber-300 mb-1">🔒 AI-bilder krever Pro</p>
                         <p className="text-xs text-amber-700 dark:text-amber-400 mb-2">Oppgrader for å generere bilder med AI.</p>
-                        <Button variant="outline" size="sm" className="w-full border-amber-300 text-amber-800 hover:bg-amber-100">
+                        <Button onClick={() => (window.location.href = "/settings")} variant="outline" size="sm" className="w-full border-amber-300 text-amber-800 hover:bg-amber-100">
                           Oppgrader til Pro
                         </Button>
                       </div>

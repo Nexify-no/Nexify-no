@@ -163,7 +163,7 @@ export default function VoiceTraining() {
                       <p className="text-sm text-purple-700">Oppgrader for å trene AI til å skrive i din stil</p>
                     </div>
                   </div>
-                  <Button className="bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90">
+                  <Button onClick={() => (window.location.href = "/settings")} className="bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90">
                     Oppgrader nå
                   </Button>
                 </div>
@@ -445,7 +445,7 @@ export default function VoiceTraining() {
                 Med Pro-abonnement kan du trene AI til å skrive i din unike stil. 
                 Aldri mer generisk AI-tekst - alt innhold høres ut som deg.
               </p>
-              <Button className="bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90">
+              <Button onClick={() => (window.location.href = "/settings")} className="bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90">
                 Oppgrader til Pro - 199 kr/mnd
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
