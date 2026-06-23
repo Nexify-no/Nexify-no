@@ -89,9 +89,9 @@ export default function Home() {
   const howItWorksSection = useInView(0.1);
   const testimonialsSection = useInView(0.1);
 
-  const usersCount = useCountUp(2500, 2000, true);
-  const postsCount = useCountUp(50000, 2500, true);
-  const hoursCount = useCountUp(10, 1500, true);
+  const usersCount = useCountUp(10, 2000, true);
+  const postsCount = useCountUp(250, 2500, true);
+  const hoursCount = useCountUp(5, 1500, true);
 
   const features = [
     {
@@ -282,7 +282,7 @@ export default function Home() {
             {/* Trust badge */}
             <div className="inline-flex items-center gap-2 mb-6 bg-white border border-gray-200 px-4 py-2 rounded-full shadow-sm">
               <Sparkles className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium text-gray-700">Brukt av 2 500+ markedsførere i Norden</span>
+              <span className="text-sm font-medium text-gray-700">Ny norsk AI-plattform for innhold</span>
             </div>
 
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 leading-[1.1] tracking-tight text-gray-900">
@@ -366,7 +366,7 @@ export default function Home() {
                   <Star key={i} className="h-5 w-5 fill-yellow-400 text-yellow-400" />
                 ))}
               </div>
-              <div className="text-sm text-gray-500 font-medium">4.9/5 vurdering</div>
+              <div className="text-sm text-gray-500 font-medium">Ny plattform</div>
             </div>
           </div>
         </div>
@@ -565,7 +565,7 @@ export default function Home() {
               Start gratis, oppgrader når du er klar
             </h2>
             <p className="text-lg text-gray-500">
-              Mindre enn en kaffe per dag. Spar 10+ timer hver uke.
+              Mindre enn en kaffe per dag. Spar 5+ timer hver uke.
             </p>
           </div>
 
@@ -642,7 +642,7 @@ export default function Home() {
         <div className="container mx-auto px-4 text-center relative z-10">
           <Sparkles className="h-10 w-10 mx-auto mb-6 opacity-80" />
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Klar til å spare 10+ timer hver uke?
+            Klar til å spare 5+ timer hver uke?
           </h2>
           <p className="text-lg mb-8 max-w-xl mx-auto opacity-90 leading-relaxed">
             Prøv 2 innlegg gratis. Ingen kredittkort. Klar på 30 sekunder.
