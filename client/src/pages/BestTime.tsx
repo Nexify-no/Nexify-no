@@ -5,42 +5,21 @@
  */
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, TrendingUp, Calendar, BarChart3, Zap } from "lucide-react";
-import { trpc } from "@/lib/trpc";
+import { Clock, TrendingUp, Calendar, Info, Moon } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { PAGE_DESCRIPTIONS } from "@/lib/pageDescriptions";
 
 export default function BestTime() {
-  const { data: subscription } = trpc.user.getSubscription.useQuery();
-
-  const isPro = subscription?.status === "active";
-
   const daysOfWeek = ["Søndag", "Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag"];
-  
-  // Sample data for demo
+
+  // General industry benchmarks for the Norwegian market — NOT based on the
+  // user's own account data. Widely-cited best-practice windows per platform.
   const bestTimes = {
-    linkedin: {
-      bestDays: [2, 3, 4], // Tuesday, Wednesday, Thursday
-      bestHours: [8, 9, 12, 17],
-      avgEngagement: 245,
-    },
-    twitter: {
-      bestDays: [1, 2, 5], // Monday, Tuesday, Friday
-      bestHours: [10, 13, 19, 21],
-      avgEngagement: 89,
-    },
-    instagram: {
-      bestDays: [0, 3, 6], // Sunday, Wednesday, Saturday
-      bestHours: [11, 15, 19, 20],
-      avgEngagement: 312,
-    },
-    facebook: {
-      bestDays: [2, 4, 5], // Tuesday, Thursday, Friday
-      bestHours: [9, 12, 18, 20],
-      avgEngagement: 156,
-    },
+    linkedin: { bestDays: [2, 3, 4], bestHours: [8, 9, 12, 17] },
+    twitter: { bestDays: [1, 2, 5], bestHours: [10, 13, 19, 21] },
+    instagram: { bestDays: [0, 3, 6], bestHours: [11, 15, 19, 20] },
+    facebook: { bestDays: [2, 4, 5], bestHours: [9, 12, 18, 20] },
   };
 
   const getPlatformColor = (platform: string) => {
@@ -53,9 +32,7 @@ export default function BestTime() {
     return colors[platform] || "from-gray-500 to-gray-600";
   };
 
-  const formatHour = (hour: number) => {
-    return `${hour.toString().padStart(2, '0')}:00`;
-  };
+  const formatHour = (hour: number) => `${hour.toString().padStart(2, "0")}:00`;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
@@ -69,47 +46,47 @@ export default function BestTime() {
             <div>
               <PageHeader title="Beste Tid" description={PAGE_DESCRIPTIONS.bestTime} />
               <p className="text-muted-foreground">
-                Optimaliser engasjement ved å publisere på riktig tidspunkt
+                Generelle anbefalinger for beste publiseringstidspunkt i det norske markedet
               </p>
             </div>
           </div>
 
-          {!isPro && (
-            <Card className="bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200 mb-6">
-              <CardContent className="pt-4 pb-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Zap className="h-5 w-5 text-purple-600" />
-                    <div>
-                      <p className="font-medium text-purple-800">Beste Tid krever Pro-abonnement</p>
-                      <p className="text-sm text-purple-700">Oppgrader for personlige anbefalinger basert på din data</p>
-                    </div>
-                  </div>
-                  <Button className="bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90">
-                    Oppgrader nå
-                  </Button>
+          {/* Honest disclaimer — general benchmarks, not account data */}
+          <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 mb-6">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-start gap-3">
+                <Info className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-blue-900 dark:text-blue-200">
+                    Generelle bransjestandarder
+                  </p>
+                  <p className="text-sm text-blue-800 dark:text-blue-300">
+                    Anbefalingene under er alminnelige beste-praksis-tidspunkter for det norske
+                    markedet — ikke basert på din egen kontodata. Personlig tidsanalyse fra dine
+                    egne publiserte innlegg er planlagt og krever tilkobling av sosiale kontoer.
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Overview Stats */}
+        {/* General highlights — no fabricated account metrics */}
         <div className="grid md:grid-cols-4 gap-4 mb-8">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-muted-foreground">Beste dag</span>
+                <span className="text-sm text-muted-foreground">Beste dag (generelt)</span>
                 <Calendar className="h-4 w-4 text-muted-foreground" />
               </div>
               <p className="text-2xl font-bold">Onsdag</p>
-              <p className="text-xs text-muted-foreground">+34% engasjement</p>
+              <p className="text-xs text-muted-foreground">På tvers av plattformer</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-muted-foreground">Beste tid</span>
+                <span className="text-sm text-muted-foreground">Beste morgentid</span>
                 <Clock className="h-4 w-4 text-muted-foreground" />
               </div>
               <p className="text-2xl font-bold">09:00</p>
@@ -119,39 +96,34 @@ export default function BestTime() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-muted-foreground">Snitt engasjement</span>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Beste kveldstid</span>
+                <Moon className="h-4 w-4 text-muted-foreground" />
               </div>
-              <p className="text-2xl font-bold">201</p>
-              <p className="text-xs text-muted-foreground">Per innlegg</p>
+              <p className="text-2xl font-bold">20:00</p>
+              <p className="text-xs text-muted-foreground">Prime time</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-muted-foreground">Analyserte innlegg</span>
-                <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Datakilde</span>
+                <Info className="h-4 w-4 text-muted-foreground" />
               </div>
-              <p className="text-2xl font-bold">47</p>
-              <p className="text-xs text-muted-foreground">Siste 30 dager</p>
+              <p className="text-2xl font-bold">Bransjestandard</p>
+              <p className="text-xs text-muted-foreground">Norske markedet</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Platform-specific recommendations */}
+        {/* Platform-specific general recommendations */}
         <div className="grid md:grid-cols-2 gap-6">
           {Object.entries(bestTimes).map(([platform, data]) => (
             <Card key={platform} className="overflow-hidden">
               <div className={`h-2 bg-gradient-to-r ${getPlatformColor(platform)}`} />
               <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span className="capitalize">{platform}</span>
-                  <Badge variant="secondary">
-                    {data.avgEngagement} snitt engasjement
-                  </Badge>
-                </CardTitle>
+                <CardTitle className="capitalize">{platform}</CardTitle>
                 <CardDescription>
-                  Optimale tidspunkter basert på historisk data
+                  Generelle anbefalinger for det norske markedet
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -192,12 +164,14 @@ export default function BestTime() {
                   {/* Insight */}
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                     <p className="text-sm text-blue-900">
-                      <strong>💡 Innsikt:</strong> {
-                        platform === "linkedin" ? "Publiser på hverdager mellom 08-09 for maksimal rekkevidde blant profesjonelle." :
-                        platform === "twitter" ? "Tidlig morgen og sen ettermiddag gir best engasjement." :
-                        platform === "instagram" ? "Helger og kvelder er best for visuelt innhold." :
-                        "Lunsj og kveldstid fungerer best for Facebook-publikum."
-                      }
+                      <strong>💡 Innsikt:</strong>{" "}
+                      {platform === "linkedin"
+                        ? "Publiser på hverdager mellom 08-09 for maksimal rekkevidde blant profesjonelle."
+                        : platform === "twitter"
+                          ? "Tidlig morgen og sen ettermiddag gir best engasjement."
+                          : platform === "instagram"
+                            ? "Helger og kvelder er best for visuelt innhold."
+                            : "Lunsj og kveldstid fungerer best for Facebook-publikum."}
                     </p>
                   </div>
                 </div>
