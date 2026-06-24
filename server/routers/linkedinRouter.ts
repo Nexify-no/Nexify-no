@@ -196,7 +196,8 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
           });
           publishedPostId = saved.id;
         }
-        if (publishedPostId) await recordPostAnalytics(ctx.user.id, publishedPostId, "linkedin", publishedAt);
+        // result.id is the LinkedIn platform post id (URN/share id) returned by createLinkedInPost.
+        if (publishedPostId) await recordPostAnalytics(ctx.user.id, publishedPostId, "linkedin", publishedAt, result?.id ?? null);
 
         return result;
       }),

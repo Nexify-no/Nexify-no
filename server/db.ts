@@ -620,7 +620,8 @@ export async function recordPostAnalytics(
   userId: number,
   postId: number,
   platform: "linkedin" | "twitter" | "instagram" | "facebook",
-  publishedAt: Date = new Date()
+  publishedAt: Date = new Date(),
+  platformPostId?: string | null
 ): Promise<void> {
   const db = await getDb();
   if (!db) return;
@@ -635,6 +636,7 @@ export async function recordPostAnalytics(
       hourOfDay: publishedAt.getHours(),
       engagement: 0,
       impressions: 0,
+      platformPostId: platformPostId ?? null,
     });
   } catch (e) {
     console.warn("[analytics] could not record post analytics:", (e as Error)?.message);

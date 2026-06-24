@@ -469,6 +469,8 @@ export const postAnalytics = mysqlTable("post_analytics", {
   hourOfDay: int("hour_of_day").notNull(), // 0-23
   engagement: int("engagement").default(0).notNull(), // likes + comments + shares
   impressions: int("impressions").default(0).notNull(),
+  platformPostId: varchar("platform_post_id", { length: 255 }),
+  metricsFetchedAt: timestamp("metrics_fetched_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

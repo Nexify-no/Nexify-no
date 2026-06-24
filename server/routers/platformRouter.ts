@@ -14,6 +14,7 @@ import {
   platformManager,
 } from "../services/platformOAuthService";
 import { publishingManager, type PublishContent } from "../services/publishingService";
+import { createPost, recordPostAnalytics } from "../db";
 
 // OAuth configurations (should be in environment variables)
 const linkedinConfig = {
@@ -182,6 +183,33 @@ export const platformRouter = router({
           publishContent
         );
 
+        // Best-effort: record each successful publication as a published post + analytics
+        // row so the "best time to post" pipeline has real engagement data to learn from.
+        // Wrapped per-result so analytics bookkeeping never breaks publishing.
+        for (const r of results) {
+          if (!r.success) continue;
+          try {
+            const post = await createPost({
+              userId: ctx.user.id,
+              platform: r.platform as any,
+              tone: "professional",
+              rawInput: input.content,
+              generatedContent: input.content,
+              status: "published",
+              publishedAt: new Date(),
+            } as any);
+            await recordPostAnalytics(
+              ctx.user.id,
+              post.id,
+              r.platform as any,
+              new Date(),
+              r.postId ?? null
+            );
+          } catch (e) {
+            console.warn("[analytics] record failed", (e as Error)?.message);
+          }
+        }
+
         return {
           success: true,
           results,
@@ -223,6 +251,33 @@ export const platformRouter = router({
           input.platforms,
           publishContent
         );
+
+        // Best-effort: record each successful publication as a published post + analytics
+        // row so the "best time to post" pipeline has real engagement data to learn from.
+        // Wrapped per-result so analytics bookkeeping never breaks publishing.
+        for (const r of results) {
+          if (!r.success) continue;
+          try {
+            const post = await createPost({
+              userId: ctx.user.id,
+              platform: r.platform as any,
+              tone: "professional",
+              rawInput: input.content,
+              generatedContent: input.content,
+              status: "published",
+              publishedAt: new Date(),
+            } as any);
+            await recordPostAnalytics(
+              ctx.user.id,
+              post.id,
+              r.platform as any,
+              new Date(),
+              r.postId ?? null
+            );
+          } catch (e) {
+            console.warn("[analytics] record failed", (e as Error)?.message);
+          }
+        }
 
         return {
           success: true,

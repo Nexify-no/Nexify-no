@@ -22,6 +22,21 @@ import {
   getOrCreateSchedulingPreferences,
 } from "../services/schedulingService";
 
+// General industry-benchmark optimal times (mirrors schedulingService's internal
+// DEFAULT_OPTIMAL_TIMES, which is not exported). Used as the honest fallback when a
+// user has no personalized engagement data yet.
+const DEFAULT_OPTIMAL_TIMES: Record<
+  "linkedin" | "twitter" | "instagram" | "facebook",
+  { days: number[]; hours: number[] }
+> = {
+  linkedin: { days: [1, 2, 3, 4, 5], hours: [8, 9, 12, 17, 18] },
+  twitter: { days: [1, 2, 3, 4, 5], hours: [9, 12, 17, 20] },
+  instagram: { days: [0, 1, 2, 3, 4, 5, 6], hours: [8, 12, 18, 20, 21] },
+  facebook: { days: [1, 2, 3, 4, 5], hours: [12, 13, 19, 20] },
+};
+
+const PLATFORMS = ["linkedin", "twitter", "instagram", "facebook"] as const;
+
 export const schedulingRouter = router({
   /**
    * Get optimal posting times for a platform
@@ -302,4 +317,156 @@ export const schedulingRouter = router({
         message: `Post scheduled for ${optimalTime.toLocaleString()}`,
       };
     }),
+  /**
+   * Best-times overview — the REAL "best time to post" answer per platform.
+   * Returns personalized slots derived from the user's own published-post
+   * engagement when available, with an honest fallback to general benchmarks.
+   * JS-side aggregation only (only_full_group_by safe).
+   */
+  getBestTimesOverview: protectedProcedure.query(async ({ ctx }) => {
+    const { getDb } = await import("../db");
+    const db = await getDb();
+    const { postingTimesAnalytics, postAnalytics } = await import(
+      "../../drizzle/schema"
+    );
+    const { eq, and } = await import("drizzle-orm");
+
+    type Slot = { dayOfWeek: number; hour: number; score: number };
+    type PlatformOverview = {
+      source: "personalized" | "general";
+      slots: Slot[];
+      totalPosts: number;
+      topDay: number | null;
+      topHour: number | null;
+      note?: string;
+    };
+
+    const overview: Record<string, PlatformOverview> = {};
+
+    for (const platform of PLATFORMS) {
+      // Default general fallback (used if no db or no data).
+      const general = DEFAULT_OPTIMAL_TIMES[platform];
+      const buildGeneral = (totalPosts: number): PlatformOverview => ({
+        source: "general",
+        slots: general.hours.map((h) => ({
+          dayOfWeek: general.days[0],
+          hour: h,
+          score: 70,
+        })),
+        totalPosts,
+        topDay: general.days[0] ?? null,
+        topHour: general.hours[0] ?? null,
+        note:
+          totalPosts > 0
+            ? "Venter på engasjementsdata fra plattformen."
+            : undefined,
+      });
+
+      if (!db) {
+        overview[platform] = buildGeneral(0);
+        continue;
+      }
+
+      // Personalized aggregated rows.
+      let ptaRows: any[] = [];
+      try {
+        ptaRows = await db
+          .select()
+          .from(postingTimesAnalytics)
+          .where(
+            and(
+              eq(postingTimesAnalytics.userId, ctx.user.id),
+              eq(postingTimesAnalytics.platform, platform)
+            )
+          );
+      } catch {
+        ptaRows = [];
+      }
+
+      // Count of raw published-post rows for this platform (may be 0).
+      let postCount = 0;
+      try {
+        const raw = await db
+          .select({ id: postAnalytics.id })
+          .from(postAnalytics)
+          .where(
+            and(
+              eq(postAnalytics.userId, ctx.user.id),
+              eq(postAnalytics.platform, platform)
+            )
+          );
+        postCount = raw.length;
+      } catch {
+        postCount = 0;
+      }
+
+      // Aggregate signal in JS.
+      let totalGroupPosts = 0;
+      let totalEngagementSignal = 0;
+      for (const r of ptaRows) {
+        const avgEng = Number(r.avgEngagement ?? 0);
+        const tp = Number(r.totalPosts ?? 0);
+        totalGroupPosts += tp;
+        totalEngagementSignal += avgEng * tp;
+      }
+
+      if (ptaRows.length > 0 && totalEngagementSignal > 0) {
+        // Personalized.
+        const sorted = [...ptaRows].sort(
+          (a, b) => Number(b.avgEngagement) - Number(a.avgEngagement)
+        );
+        const best = Number(sorted[0].avgEngagement) || 1;
+        const slots: Slot[] = sorted.slice(0, 6).map((r) => {
+          const ratio = best > 0 ? Number(r.avgEngagement) / best : 0;
+          const score = Math.max(40, Math.round(ratio * 100));
+          return { dayOfWeek: r.dayOfWeek, hour: r.hourOfDay, score };
+        });
+
+        // topDay = mode of dayOfWeek weighted by engagement.
+        const dayWeight = new Map<number, number>();
+        const hourWeight = new Map<number, number>();
+        for (const r of ptaRows) {
+          const w = Number(r.avgEngagement ?? 0) * Number(r.totalPosts ?? 0);
+          dayWeight.set(r.dayOfWeek, (dayWeight.get(r.dayOfWeek) ?? 0) + w);
+          hourWeight.set(r.hourOfDay, (hourWeight.get(r.hourOfDay) ?? 0) + w);
+        }
+        const pickMode = (m: Map<number, number>): number | null => {
+          let bestKey: number | null = null;
+          let bestVal = -1;
+          for (const [k, v] of m.entries()) {
+            if (v > bestVal) {
+              bestVal = v;
+              bestKey = k;
+            }
+          }
+          return bestKey;
+        };
+
+        overview[platform] = {
+          source: "personalized",
+          slots,
+          totalPosts: totalGroupPosts,
+          topDay: pickMode(dayWeight),
+          topHour: pickMode(hourWeight),
+        };
+      } else {
+        overview[platform] = buildGeneral(postCount);
+      }
+    }
+
+    return overview;
+  }),
+
+  /**
+   * Refresh the signed-in user's engagement metrics on demand, then re-aggregate
+   * their personalized best-times. Returns how many rows were refreshed.
+   */
+  refreshMyMetrics: protectedProcedure.mutation(async ({ ctx }) => {
+    const { fetchAndStoreMetrics, aggregatePostingTimes } = await import(
+      "../services/engagementMetricsService"
+    );
+    const { updated } = await fetchAndStoreMetrics(ctx.user.id);
+    await aggregatePostingTimes(ctx.user.id);
+    return { success: true, updated };
+  }),
 });

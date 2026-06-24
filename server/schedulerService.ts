@@ -226,6 +226,7 @@ async function processDueAbExperiments() {
 }
 
 let radarTask: cron.ScheduledTask | null = null;
+let bestTimesTask: cron.ScheduledTask | null = null;
 let isProcessingRadar = false;
 
 /**
@@ -320,7 +321,18 @@ export function startScheduler() {
     await processCompetitorRadar();
   });
 
-  console.log('[Scheduler] Started - scheduled posts + A/B every 5 min, Competitor Radar hourly');
+  // Best-time-to-post refresh — daily at 03:30. Pulls each user's own published-post
+  // engagement from the platform APIs and re-aggregates their personalized best times.
+  bestTimesTask = cron.schedule('30 3 * * *', async () => {
+    try {
+      const { refreshAllUsers } = await import('./services/engagementMetricsService');
+      await refreshAllUsers();
+    } catch (e) {
+      console.error('[scheduler] best-times refresh failed', e);
+    }
+  });
+
+  console.log('[Scheduler] Started - scheduled posts + A/B every 5 min, Competitor Radar hourly, best-times daily 03:30');
 }
 
 export function stopScheduler() {
@@ -338,6 +350,11 @@ export function stopScheduler() {
     void radarTask.stop();
     radarTask = null;
     console.log('[Scheduler:Radar] Stopped');
+  }
+  if (bestTimesTask) {
+    void bestTimesTask.stop();
+    bestTimesTask = null;
+    console.log('[Scheduler:BestTimes] Stopped');
   }
 }
 
