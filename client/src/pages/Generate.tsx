@@ -25,7 +25,6 @@ import { ContentImprovement } from "@/components/ContentImprovement";
 import { TrendingTopicsSidebar } from "@/components/TrendingTopicsSidebar";
 import { LivePostPreview } from "@/components/LivePostPreview";
 import { SavedTemplates } from "@/components/SavedTemplates";
-import { TrendingSuggestions } from "@/components/TrendingSuggestions";
 import { TrendingContentTemplates } from "@/components/TrendingContentTemplates";
 import { SmartSchedulingSuggestions } from "@/components/SmartSchedulingSuggestions";
 
@@ -1232,14 +1231,6 @@ export default function Generate() {
                 currentPlatform={platform}
                 currentTone={tone}
                 currentTopic={topic}
-              />
-
-              {/* Trending Suggestions */}
-              <TrendingSuggestions
-                onSelectTrend={(keyword) => {
-                  setTopic(keyword);
-                  toast.success(`Trending tema valgt: ${keyword}`);
-                }}
               />
 
               {/* Trending Topics */}
