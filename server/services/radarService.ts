@@ -259,6 +259,21 @@ export async function detectSources(website: string | null | undefined, name: st
         const abs = absolutize(decodeEntities(hrefM[1]), normalized);
         if (abs) push(typeM[1].toLowerCase() === "atom" ? "atom" : "rss", abs);
       }
+
+      // YouTube channel link discovery from the homepage (footer "follow us", etc.).
+      if (!sources.some((s) => s.type === "youtube")) {
+        const ytLink = homepageHtml.match(
+          /https?:\/\/(?:www\.)?youtube\.com\/(?:channel\/UC[\w-]{20,}|@[A-Za-z0-9_.\-]+|user\/[A-Za-z0-9_\-]+|c\/[A-Za-z0-9_\-]+)/i,
+        );
+        if (ytLink) {
+          try {
+            const yt = await deriveYoutubeRss(decodeEntities(ytLink[0]));
+            if (yt) push("youtube", yt);
+          } catch {
+            /* ignore */
+          }
+        }
+      }
     }
 
     // Probe common feed paths only when nothing was discovered from the page.
