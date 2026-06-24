@@ -37,15 +37,32 @@ export type GenerateImageResponse = {
   url?: string;
 };
 
+async function withImageRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastErr: any;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await fn();
+    } catch (e: any) {
+      lastErr = e;
+      const status = e?.status ?? e?.statusCode ?? e?.response?.status;
+      const retriable = status === 429 || (typeof status === "number" && status >= 500 && status < 600);
+      if (!retriable || i === attempts) break;
+      await new Promise((r) => setTimeout(r, Math.min(1000 * 2 ** (i - 1), 8000)));
+    }
+  }
+  throw lastErr;
+}
+
 export async function generateImage(
   options: GenerateImageOptions
 ): Promise<GenerateImageResponse> {
   // Pick the configured provider. Defaults to OpenAI so behaviour is unchanged
   // until IMAGE_PROVIDER is set. fal.ai (FLUX) is the best quality-per-cost option.
-  const buffer =
+  const buffer = await withImageRetry(() =>
     ENV.imageProvider === "fal"
-      ? await generateWithFal(options.prompt)
-      : await generateWithOpenAI(options.prompt);
+      ? generateWithFal(options.prompt)
+      : generateWithOpenAI(options.prompt)
+  );
 
   // Save to S3 (single storage path for every provider).
   const { url } = await storagePut(`generated/${Date.now()}.png`, buffer, "image/png");

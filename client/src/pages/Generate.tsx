@@ -473,7 +473,17 @@ export default function Generate() {
         toast.error("Kunne ikke generere bilde");
       }
     } catch (error: any) {
-      toast.error(error?.message || "Feil ved generering av bilde");
+      const msg = String(error?.message || "");
+      const code = error?.data?.code || error?.shape?.data?.code;
+      const isBusy =
+        code === "TOO_MANY_REQUESTS" ||
+        /too many|for mange|opptatt|rate.?limit|429/i.test(msg);
+      const isUnparsable = /not valid json|unexpected token/i.test(msg);
+      if (isBusy || isUnparsable) {
+        toast.error("Bildegenerering er opptatt \u2014 pr\u00f8v igjen om litt.");
+      } else {
+        toast.error(msg && msg.length < 160 ? msg : "Feil ved generering av bilde. Pr\u00f8v igjen.");
+      }
     } finally {
       setIsGeneratingImage(false);
     }

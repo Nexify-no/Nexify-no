@@ -26,11 +26,39 @@ function makeStore(prefix: string): Store | undefined {
   });
 }
 
+// Return a 429 as JSON the tRPC client can actually parse. express-rate-limit's
+// default `message` is sent as text/plain, which makes the tRPC httpBatchLink throw
+// a raw "Unexpected token 'T', \"Too many r\"... is not valid JSON" SyntaxError and
+// fail silently in the UI. For /api/trpc we emit the tRPC batch error envelope so the
+// client surfaces a real TRPCClientError (code TOO_MANY_REQUESTS); otherwise a plain
+// JSON error object.
+function jsonLimitHandler(message: string) {
+  return (req: Request, res: Response) => {
+    const url = req.originalUrl || req.url || req.path || "";
+    res.status(429).setHeader("Content-Type", "application/json");
+    if (url.startsWith("/api/trpc")) {
+      res.json([
+        {
+          error: {
+            json: {
+              message,
+              code: -32029, // TRPC TOO_MANY_REQUESTS
+              data: { code: "TOO_MANY_REQUESTS", httpStatus: 429, path: null },
+            },
+          },
+        },
+      ]);
+    } else {
+      res.json({ error: { code: "TOO_MANY_REQUESTS", message } });
+    }
+  };
+}
+
 // IP-based rate limiter (general API)
 export const ipRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 300, // requests per minute per IP
-  message: "Too many requests from this IP, please try again later.",
+  handler: jsonLimitHandler("Too many requests from this IP, please try again later."),
   standardHeaders: true,
   legacyHeaders: false,
   store: makeStore("rl:ip:"),
@@ -52,7 +80,7 @@ export const userRateLimiter = rateLimit({
     const user = (req as any).user;
     return user?.id ? `user-${user.id}` : ipKeyGenerator(req as any);
   },
-  message: "Too many requests, please try again later.",
+  handler: jsonLimitHandler("For mange forespørsler. Vent et øyeblikk og prøv igjen."),
   standardHeaders: true,
   legacyHeaders: false,
   store: makeStore("rl:user:"),
@@ -66,7 +94,7 @@ export const aiRateLimiter = rateLimit({
     const user = (req as any).user;
     return user?.id ? `ai-${user.id}` : ipKeyGenerator(req as any);
   },
-  message: "Too many AI requests. Please wait before trying again.",
+  handler: jsonLimitHandler("For mange AI-forespørsler. Vent et øyeblikk og prøv igjen."),
   standardHeaders: true,
   legacyHeaders: false,
   store: makeStore("rl:ai:"),

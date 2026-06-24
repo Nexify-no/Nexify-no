@@ -138,15 +138,32 @@ Return ONLY the improved content, no explanations or meta-commentary.`,
  * @param prompt - Detailed image generation prompt
  * @returns URL of the generated image stored in S3
  */
+// Retry transient image-provider failures (429 / 5xx) with exponential backoff.
+async function withImageRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastErr: any;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await fn();
+    } catch (e: any) {
+      lastErr = e;
+      const status = e?.status ?? e?.statusCode ?? e?.response?.status;
+      const retriable = status === 429 || (typeof status === "number" && status >= 500 && status < 600);
+      if (!retriable || i === attempts) break;
+      await new Promise((r) => setTimeout(r, Math.min(1000 * 2 ** (i - 1), 8000)));
+    }
+  }
+  throw lastErr;
+}
+
 export async function generateImageWithDallE(prompt: string): Promise<string> {
   try {
-    const response = await imageOpenai.images.generate({
+    const response = await withImageRetry(() => imageOpenai.images.generate({
       model: "dall-e-3",
       prompt: prompt,
       n: 1,
       size: "1024x1024",
       quality: "standard", // or "hd" for higher quality (costs more)
-    });
+    }));
 
     if (!response.data || response.data.length === 0) {
       throw new Error("No image data returned from DALL-E 3");
@@ -176,8 +193,14 @@ export async function generateImageWithDallE(prompt: string): Promise<string> {
     );
 
     return url;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error generating image with DALL-E 3:", error);
+    const status = error?.status ?? error?.statusCode ?? error?.response?.status;
+    if (status === 429) {
+      const e = new Error("Image provider rate limited");
+      (e as any).code = "TOO_MANY_REQUESTS";
+      throw e;
+    }
     throw new Error(`Failed to generate image with DALL-E 3: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }

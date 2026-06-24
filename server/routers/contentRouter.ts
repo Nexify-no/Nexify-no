@@ -6,6 +6,7 @@
 
 // Extracted from server/routers.ts (app-layer feature router).
 import { protectedProcedure, aiProcedure, router } from "../_core/trpc";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 // Shared shape for the expanded content-generation "properties". Reused by the
@@ -166,9 +167,17 @@ export const contentRouter = router({
           keywords: input.keywords,
         });
         
-        // Generate image with DALL-E 3
-        const imageUrl = await generateImageWithDallE(optimizedPrompt.prompt);
-        
+        // Generate image with DALL-E 3 (provider errors mapped to clean tRPC errors)
+        let imageUrl: string;
+        try {
+          imageUrl = await generateImageWithDallE(optimizedPrompt.prompt);
+        } catch (e: any) {
+          if (e?.code === "TOO_MANY_REQUESTS" || e?.status === 429 || /rate.?limit|too many|429/i.test(String(e?.message))) {
+            throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Bildegenerering er opptatt \u2014 pr\u00f8v igjen om litt." });
+          }
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Kunne ikke generere bilde akkurat n\u00e5. Pr\u00f8v igjen." });
+        }
+
         return { 
           url: imageUrl,
           prompt: optimizedPrompt.prompt,
@@ -194,13 +203,20 @@ export const contentRouter = router({
           keywords: input.keywords,
         });
         
-        // Generate image with OpenAI (DALL-E 3)
-        const result = await generateImage({ prompt });
-        
-        if (!result.url) {
-          throw new Error("Failed to generate image");
+        // Generate image (provider errors mapped to clean tRPC errors)
+        let result: { url?: string };
+        try {
+          result = await generateImage({ prompt });
+        } catch (e: any) {
+          if (e?.code === "TOO_MANY_REQUESTS" || e?.status === 429 || /rate.?limit|too many|429/i.test(String(e?.message))) {
+            throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Bildegenerering er opptatt \u2014 pr\u00f8v igjen om litt." });
+          }
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Kunne ikke generere bilde akkurat n\u00e5. Pr\u00f8v igjen." });
         }
-        
+        if (!result.url) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Kunne ikke generere bilde akkurat n\u00e5. Pr\u00f8v igjen." });
+        }
+
         return { 
           url: result.url,
           prompt,
