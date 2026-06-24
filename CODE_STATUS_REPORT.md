@@ -3,6 +3,81 @@
 
 ---
 
+## Session 4 — 2026-06-24/25 (live deploy on Render + TiDB, real features, honesty pass)
+
+Goal: get the app live and make every user-facing feature **real** — no fabricated
+data. Pipeline used throughout: edit → `esbuild` per-file syntax check → commit →
+push to `main` → Render auto-builds + runs `pnpm db:migrate` (pre-deploy) → verify
+live via the browser (tRPC calls + Render logs).
+
+### Hosting & infrastructure
+- **Live on Render** (`render.yaml` Blueprint, Node web service) + **TiDB Cloud
+  Serverless** (MySQL-compatible, TLS `?ssl={"rejectUnauthorized":true}`). Migrations
+  run as Render's **`preDeployCommand` (`pnpm db:migrate`)** — a failed migration
+  blocks the release. Repo: `github.com/Nexify-no/Nexify-no`. URL:
+  `https://nexify-ai.onrender.com`.
+- **Migrations are hand-authored** SQL + a manual `drizzle/meta/_journal.json` entry.
+  Each statement separated by `--> statement-breakpoint` (drizzle splits on it — two
+  ALTERs without it are one multi-statement query and `mysql2` rejects it; this broke
+  one deploy and was fixed). Applied `0028`→`0035`.
+
+### Auth
+- Added **email/password** auth alongside Google OAuth, plus **email verification**
+  and **password reset** (tokenised, SendGrid). (`0028`/`0029`.)
+
+### Real features shipped
+- **A/B Content Testing** (`ab` router, `0031`): AI variant generation, **real click
+  tracking** via tracked redirect links `GET /r/:code` (off `/api`, unthrottled,
+  awaited insert), two-proportion winner engine (≥100 clicks + 95%), live counts from
+  `ab_click_events`, scheduler auto-end. Verified live (clicks recorded, win-prob
+  updates).
+- **Competitor Radar** (`radar` router, `0033`/`0034`): source auto-discovery from
+  **public sources only** — website RSS/Atom (`<link rel=alternate>` + common paths
+  incl. Shopify `.atom`), **YouTube channel feed discovered from homepage links**, and
+  Google News; RSS/Atom parser, sha256 dedupe, hourly sync. **AI topic extraction +
+  recommendations** from clean article titles (`ai_summary`); content-gap vs the
+  user's own posts. Fixed the root `stripHtml` bug (decode entities **before**
+  stripping tags) that had leaked `font/href/target` from entity-encoded Google News
+  HTML into topics/recommendations.
+- **Best Time to Post — real (Option B)** (`0035`): store the platform post id on
+  publish; `engagementMetricsService` fetches real engagement/impressions per platform
+  (LinkedIn/Twitter/Instagram/Facebook, best-effort + graceful timeouts), aggregates
+  (JS-side, only_full_group_by-safe) into `posting_times_analytics`;
+  `scheduling.getBestTimesOverview` returns **personalized** times when engagement data
+  exists, else honest **general benchmarks**; daily refresh + on-demand
+  `scheduling.refreshMyMetrics`. Verified live (general fallback + 0-update refresh on
+  an account with no connections).
+- **Trend & Inspirasjon page redesigned**: clean SaaS dashboard (header + global
+  search + last-updated, lightweight KPIs, featured top-3, **sticky source-chip filter
+  bar** + sort + compact/expanded toggle, responsive grid, `Vis flere` pagination,
+  skeletons, empty states, dark mode, a11y). Logic/APIs preserved
+  (`trends.getAggregatedTrends`, Pro gate, navigate to `/generate`).
+
+### Honesty pass (removed fabricated data)
+- **Deleted the fake "Trending Topics" sidebar widget** on `/generate` (hardcoded
+  label + `Math.random()` growth/searches) — redundant with the real
+  `TrendingTopicsSidebar` (live `getAggregatedTrends`).
+- **Beste Tid**: removed fabricated per-account stats (`Analyserte innlegg: 47`,
+  `Snitt engasjement: 201`, per-platform engagement, `+34%`, "basert på din data");
+  relabelled as honest general benchmarks (then superseded by the real Option B
+  pipeline above).
+
+### Bug fixes (verified live)
+- **Content Series progress stuck at 0/N**: posts were linked (`series_posts`) but
+  `series.list` never returned the count and the page hardcoded `generatedPosts: 0`.
+  `list` now counts linked posts (JS-side); page shows the real count (e.g. 2/3).
+- Image generation (removed invalid `response_format`; tRPC wire format; raised rate
+  limits), `getPreference` 500 (missing `user_preferences.ayrshare_api_key`, `0032`),
+  landing auto-redirect guard, subscription end-date by plan interval.
+
+### Verification approach
+No tsc gate in this loop; each changed file passed
+`esbuild --bundle=false` (exit 0), migrations reviewed for TiDB-safety, and every
+feature was confirmed live (tRPC responses + Render logs + rendered DOM) before
+moving on.
+
+---
+
 ## Session 3 — 2026-06-23 (production-readiness & hardening pass)
 
 Senior-engineer deep-dive on branch `fix/drizzle-migration-history`. Every change

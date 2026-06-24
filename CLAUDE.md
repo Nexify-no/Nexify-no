@@ -37,6 +37,42 @@ Security overrides written as `"pkg@<x": ">=y"` resolve to the **latest** satisf
 ### Deploy & migrations — NEVER at app boot
 Migrations run as a **separate one-shot job** (`pnpm db:migrate` / the compose `migrate` service built from the Dockerfile `migrator` stage), and the app waits for it (`service_completed_successfully`). The runtime image is multi-stage, **non-root**, prod-deps-only (no drizzle-kit), with a `/health` `HEALTHCHECK`; its CMD is `node dist/index.js` ONLY — a restart never alters the DB. An already-`push`-built DB must be **baselined** once before switching to `migrate` (see `docs/PRODUCTION_READINESS_BACKLOG.md`). `index.ts` registers SIGTERM/SIGINT **graceful shutdown** (drain HTTP, stop scheduler, quit Redis). The in-process scheduler is gated behind **`RUN_SCHEDULER`** — it must run on exactly one instance (set `false` on web instances when scaling). Google **login** uses OAuth `state` + PKCE (short-lived httpOnly cookies, verified constant-time on callback).
 
+### Hosting (production): Render + TiDB Cloud
+Production runs on **Render** via the `render.yaml` **Blueprint** (Node web service),
+with **TiDB Cloud Serverless** (MySQL-compatible) as the DB. `buildCommand` =
+`pnpm install --frozen-lockfile && pnpm build`; **`preDeployCommand` = `pnpm db:migrate`**
+(migrations are a separate pre-deploy step — a failed migration blocks the new
+release and the old one keeps serving); `startCommand` = `pnpm start`. Auto-deploys
+on push to `main` (`github.com/Nexify-no/Nexify-no`). `DATABASE_URL` **must** carry
+TLS: `?ssl={"rejectUnauthorized":true}`. Live URL: `https://nexify-ai.onrender.com`.
+(The Docker/compose path in the README still works for self-hosting, but Render is
+the live target.) When a feature touches the client, Render rebuilds the SPA too, so
+allow ~3–5 min before verifying a frontend change live.
+
+### Migrations are hand-authored SQL + a manual journal entry
+In practice migrations here are **written by hand**, not always via
+`drizzle-kit generate`: add `drizzle/00NN_name.sql` AND append a matching entry to
+`drizzle/meta/_journal.json` (`idx` = next integer, `version: "5"`, `tag`, `when`,
+`breakpoints: true`). **Separate every statement in a `.sql` file with a
+`--> statement-breakpoint` line** — drizzle's migrator splits on it; two statements
+without it are sent as one multi-statement query and `mysql2` rejects it (this has
+broken a deploy). Latest applied migration is `0035_post_analytics_metrics`.
+
+### TiDB constraints (recurring footguns)
+- **No `DEFAULT` on JSON or text columns.**
+- **Only ONE auto-init/auto-update `CURRENT_TIMESTAMP` timestamp per table.** Extra
+  timestamp columns must be `timestamp NULL` (no default).
+- **DDL is non-transactional** — a partially-applied migration persists; keep them
+  minimal and re-runnable.
+- **`sql_mode=only_full_group_by`** — do NOT rely on SQL `GROUP BY` with extra
+  selected columns; either reuse the exact same `sql\`...\`` expression object in
+  both SELECT and GROUP BY, or (preferred here) **aggregate in JS** after a plain
+  select.
+
+### Verifying TS before pushing (no tsc in CI gate for these)
+Quick per-file syntax check used throughout:
+`npx --yes esbuild <file> --bundle=false --loader:.ts=ts --loader:.tsx=tsx --format=esm --outfile=/tmp/o.js` (exit 0).
+
 ### Observability — Sentry must init FIRST
 `server/_core/instrument.ts` (imported first in `index.ts`, right after dotenv) calls `initSentry()` before express/other modules load (v8+ requirement); it no-ops without `SENTRY_DSN`. `Sentry.setupExpressErrorHandler` + process `unhandledRejection`/`uncaughtException` handlers are wired. Don't move the instrument import below other imports.
 
@@ -57,7 +93,7 @@ Migrations run as a **separate one-shot job** (`pnpm db:migrate` / the compose `
 
 ### Two layers under `server/`
 - **`server/_core/`** — the framework/runtime layer (auth, http, security, infra). Treat it as the platform: `index.ts` (Express bootstrap + all route/middleware wiring + Stripe/Vipps/Telegram webhooks + `/health` liveness & `/ready` DB+Redis readiness probes), `validateEnv.ts` (boot-time config check), `trpc.ts` (procedure builders), `context.ts` (builds tRPC context), `sdk.ts` (session-token sign/verify via `jose`), `env.ts`, `rateLimiter.ts` (+ `redis.ts` for the distributed store), `securityHeaders.ts` (`enforceHttps` redirects to the `PUBLIC_SITE_URL` canonical host — never the `Host` header), `abuseProtection.ts`, `cookies.ts`, `vite.ts`, `llm.ts`, `imageGeneration.ts`, `tokenCrypto.ts`, `oauthState.ts`, `sanitizeHtml.ts`.
-- **`server/routers.ts`** — the large tRPC aggregator (~2000 lines) that composes `server/routers/*.ts` (17 feature routers: subscription, payment, vipps, social media, support, admin, scheduling, etc.) plus many inline procedures. This is the app layer. Start here to find an API endpoint.
+- **`server/routers.ts`** — the large tRPC aggregator (~2000 lines) that composes `server/routers/*.ts` (feature routers: subscription, payment, vipps, social media, support, admin, scheduling, **ab** (A/B testing + tracked redirect), **radar** (Competitor Radar, public sources only), series, trends, engagement, etc.) plus many inline procedures. This is the app layer. Start here to find an API endpoint.
 
 ### Auth model (important, easy to get wrong)
 Authentication happens **inside tRPC `createContext`** (`context.ts` → `sdk.authenticateRequest`), not in Express middleware. The session is a JWT cookie; the user row (including `role`) is loaded from the DB, so `ctx.user.role` is server-trusted and **not** client-controllable. Procedure tiers in `_core/trpc.ts`: `publicProcedure`, `protectedProcedure` (requires `ctx.user`), `adminProcedure` (requires `role === "admin"`). Several routers redefine their own `adminProcedure` inline — keep that pattern. Express-level middleware that needs the user reads `req.user`, which is populated by an `attachUser` middleware on `/api/trpc` in `index.ts` (Express never sets it otherwise).

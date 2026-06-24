@@ -55,14 +55,20 @@ Innlegg is an AI-powered content generation platform designed specifically for N
 
 ### Advanced Features
 - **Content Repurposing** - Adapt content for different platforms
-- **Trend Analysis** - Discover trending topics and hashtags
+- **Content Series** - Multi-part series with series-aware generation and real progress tracking (`series_posts`)
+- **A/B Content Testing** - Generate variants and measure them with **real** click tracking via tracked redirect links (`/r/:code`), a two-proportion winner engine, and auto-end
+- **Competitor Radar** - Monitor competitors from **public sources only** (website RSS/Atom, YouTube channel feed, Google News) with AI topic extraction, content-gap detection and recommendations — never LinkedIn/private scraping
+- **Best Time to Post** - Personalized posting-time analytics computed from your **own** published-post engagement (fetched per platform), with honest fallback to general Norwegian-market benchmarks until data exists
+- **Trend & Inspiration** - Real, dated, multi-source aggregated trends (Google Trends, NRK, Wikipedia, Reddit, Mastodon, Social Media Today) in a clean dashboard layout
 - **Bulk Operations** - Manage multiple posts efficiently
 - **User Preferences** - Customize tone, style, and language
 - **Subscription Management** - Flexible pricing plans
-- **Payment Processing** - Secure Stripe integration
+- **Payment Processing** - Secure Stripe + Vipps integration
+
+> **Honest data principle:** the app never displays fabricated account metrics. Features show real measured data, or are clearly labelled as general benchmarks/estimates when no real data exists yet.
 
 ### Security Features
-- **OAuth 2.0 Authentication** - Secure user authentication (Google OAuth + JWT session cookies)
+- **Authentication** - Google OAuth (state + PKCE) **and** email/password with email verification + password reset; JWT session cookies
 - **Rate Limiting** - Protect against abuse
 - **CORS Protection** - Cross-origin request security
 - **SQL Injection Prevention** - Parameterized queries via Drizzle ORM
@@ -547,7 +553,26 @@ After optimization:
 
 ### Deployment Options
 
-#### Option 1: Docker Compose (Recommended)
+#### Option 1: Render Blueprint (production — current)
+
+The app runs in production on **Render** (Node web service) with **TiDB Cloud
+Serverless** (MySQL-compatible) as the database. The repo ships a `render.yaml`
+Blueprint:
+
+- `buildCommand: pnpm install --frozen-lockfile && pnpm build`
+- `preDeployCommand: pnpm db:migrate` — migrations run as a separate pre-deploy
+  step, **never at app boot** (a failed migration blocks the new version)
+- `startCommand: pnpm start`
+- Auto-deploys on push to `main`.
+
+TiDB requires TLS — append `?ssl={"rejectUnauthorized":true}` to `DATABASE_URL`.
+Set the secret env vars (sync:false) in the Render dashboard; `JWT_SECRET` /
+`TOKEN_ENCRYPTION_KEY` can be `generateValue`. A managed Redis (key-value) instance
+provides the distributed rate-limit store.
+
+Live: `https://nexify-ai.onrender.com`
+
+#### Option 2: Docker Compose
 
 Brings up the app + MySQL with a single command:
 ```bash

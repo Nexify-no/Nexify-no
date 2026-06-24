@@ -4,8 +4,8 @@
 
 Before deploying to production, ensure all items are complete:
 
-- [ ] All 280 tests passing locally
-- [ ] Environment variables configured in Vercel
+- [ ] Tests passing locally (`pnpm test`)
+- [ ] Environment variables configured in Render (dashboard, sync:false for secrets)
 - [ ] Database migrations applied
 - [ ] OAuth redirect URI configured for production domain
 - [ ] Stripe keys configured (test or production)
@@ -24,8 +24,8 @@ Before deploying to production, ensure all items are complete:
 ### Required Variables
 
 ```bash
-# Database
-DATABASE_URL=mysql://user:password@host/database
+# Database (TiDB Cloud Serverless — TLS REQUIRED)
+DATABASE_URL=mysql://user:password@host:4000/nexify?ssl={"rejectUnauthorized":true}
 
 # Auth & security
 JWT_SECRET=your_jwt_secret_at_least_32_chars
@@ -97,16 +97,25 @@ pnpm test
 pnpm build
 
 # Check bundle size
-npm run build:analyze
+ls -la dist/   # inspect build output
 ```
 
-### 2. Configure Vercel
+### 2. Configure Render (Blueprint)
 
-1. Connect your GitHub repository to Vercel
-2. Set environment variables in Vercel Settings → Environment Variables
-3. Configure production domain
-4. Set build command: `pnpm build`
-5. Set start command: `pnpm start`
+Production runs on **Render** with the repo's `render.yaml` Blueprint (Node web
+service) + **TiDB Cloud Serverless** database. Live: `https://nexify-ai.onrender.com`.
+
+1. New → **Blueprint**, connect the GitHub repo (`github.com/Nexify-no/Nexify-no`).
+   Render reads `render.yaml`:
+   - `buildCommand`: `pnpm install --frozen-lockfile && pnpm build`
+   - `preDeployCommand`: `pnpm db:migrate`  (migrations run here, **not** at boot)
+   - `startCommand`: `pnpm start`
+2. Set the secret env vars in the dashboard (every `sync: false` key). `JWT_SECRET`
+   and `TOKEN_ENCRYPTION_KEY` can use `generateValue`.
+3. `DATABASE_URL` **must** include TLS: `?ssl={"rejectUnauthorized":true}`.
+4. Auto-deploy on push to `main` is on by default.
+5. The managed Redis (key-value) instance from the Blueprint provides the
+   rate-limit store; set `RUN_SCHEDULER=true` on exactly one instance.
 
 ### 3. Database Setup
 
@@ -131,13 +140,12 @@ node server/scripts/optimizeDatabase.ts
 > `migrate` service (compose) / the `migrator` build stage — the app container
 > (`node dist/index.js`, non-root) never touches the schema on start.
 
-### 4. Deploy to Vercel
+### 4. Deploy to Render
 
-```bash
-# Deploy from git (automatic)
-# OR deploy manually
-vercel deploy --prod
-```
+Push to `main` → Render auto-builds, runs `preDeployCommand` (`pnpm db:migrate`),
+then starts the new instance. Watch **Events**/**Logs** in the Render dashboard; a
+failed pre-deploy (e.g. a bad migration) aborts the release and keeps the previous
+version live.
 
 ### 5. Post-Deployment Verification
 
@@ -186,15 +194,13 @@ Set up monitoring for:
 
 If deployment fails:
 
-1. **Immediate Rollback**
-   ```bash
-   vercel rollback
-   ```
+1. **Immediate Rollback** — Render dashboard → the service → **Events** →
+   **Rollback** on the last known-good deploy.
 
-2. **Check Vercel Dashboard**
-   - Go to Deployments
-   - Select previous stable version
-   - Click "Promote to Production"
+2. **Check Render Dashboard**
+   - Go to Events / Logs
+   - Select the previous successful deploy
+   - Use **Rollback**
 
 3. **Verify Rollback**
    - Test production URL
@@ -235,8 +241,8 @@ If deployment fails:
 **Problem:** Error 400: redirect_uri_mismatch
 
 **Solution:**
-1. Check production domain in Vercel
-2. Update OAuth redirect URI to: `https://your-domain.com/api/oauth/callback`
+1. Check the production URL in Render (`https://nexify-ai.onrender.com` or your domain)
+2. Update OAuth redirect URI to: `https://<your-render-domain>/api/oauth/callback`
 3. Verify the redirect URI in your Google OAuth client settings
 
 ### Database Connection Issues
@@ -317,7 +323,7 @@ As the application grows:
 For deployment issues:
 
 1. **Check Logs**
-   - Vercel build logs
+   - Render build/deploy logs
    - Sentry error logs
    - Application logs
 
@@ -327,5 +333,5 @@ For deployment issues:
    - Review documentation
 
 3. **Get Help**
-   - Contact Vercel support
+   - Contact Render support
    - Review application README
