@@ -228,6 +228,7 @@ export const radarRouter = router({
           id: competitor.id,
           name: competitor.name,
           website: competitor.website ?? null,
+          aiSummary: competitor.aiSummary ?? null,
           createdAt: competitor.createdAt,
         },
         sources: sources.map((s) => ({ id: s.id, type: s.type, url: s.url, lastFetch: s.lastFetch })),

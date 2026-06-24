@@ -500,6 +500,7 @@ export const competitors = mysqlTable("competitors", {
   platform: mysqlEnum("platform", ["linkedin", "twitter", "instagram", "facebook"]).notNull(),
   profileUrl: varchar("profile_url", { length: 500 }).notNull(),
   website: varchar("website", { length: 500 }),
+  aiSummary: text("ai_summary"),
   isActive: tinyint("is_active").default(1).notNull(),
   lastChecked: timestamp("last_checked"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

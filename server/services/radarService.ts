@@ -103,7 +103,11 @@ function decodeEntities(s: string): string {
 }
 
 function stripHtml(s: string): string {
-  return decodeEntities(s.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
+  // Decode entities FIRST so entity-encoded markup (e.g. Google News descriptions
+  // like &lt;a href=...&gt;) becomes real tags, THEN strip tags, then decode again.
+  const decoded = decodeEntities(s || "");
+  const noTags = decoded.replace(/<[^>]+>/g, " ");
+  return decodeEntities(noTags).replace(/\s+/g, " ").trim();
 }
 
 function firstMatch(block: string, re: RegExp): string | undefined {
@@ -260,7 +264,11 @@ export async function detectSources(website: string | null | undefined, name: st
     // Probe common feed paths only when nothing was discovered from the page.
     const hasFeed = sources.some((s) => s.type === "rss" || s.type === "atom");
     if (!hasFeed) {
-      const paths = ["/feed", "/rss", "/feed.xml", "/atom.xml", "/rss.xml"];
+      const paths = [
+        "/feed", "/feed/", "/rss", "/rss/", "/feed.xml", "/atom.xml", "/rss.xml",
+        "/index.xml", "/blog/feed", "/blog/feed/", "/blog/rss", "/news/feed",
+        "/blogs/news.atom", "/blog.atom", "/blogs/nyheter.atom", "/blog?format=rss",
+      ];
       const probes = await Promise.allSettled(
         paths.map(async (p) => {
           const probeUrl = absolutize(p, normalized);
@@ -386,6 +394,7 @@ const STOPWORDS = new Set<string>([
   "etter", "mot", "uten", "kun", "for", "denne", "dette", "disse", "hvordan", "hvorfor",
   "mer", "mest", "ny", "nye", "slik", "blir", "bli", "andre", "andre", "samt", "enn",
 ]);
+["font","href","target","class","div","span","style","nbsp","amp","quot","apos","http","https","www","html","head","body","src","alt","img","rel","nofollow","blank","color","ul","li","br","strong","table","t_blank","news","google","com","net","org"].forEach((w) => STOPWORDS.add(w));
 
 function tokenize(text: string): string[] {
   return (text || "")
@@ -432,19 +441,11 @@ export async function analyzeCompetitor(competitorId: number): Promise<{ topics:
   }
 
   const ranked = Array.from(freq.entries()).sort((a, b) => b[1] - a[1]);
-  const topTopics = ranked.slice(0, 12);
+  const freqTopics = ranked
+    .slice(0, 12)
+    .map(([topic, score]) => ({ topic, score: Math.round(score * 100) / 100 }));
 
-  // Re-write topics (clear then insert).
-  await db.delete(competitorTopics).where(eq(competitorTopics.competitorId, competitorId));
-  for (const [topic, score] of topTopics) {
-    await db.insert(competitorTopics).values({
-      competitorId,
-      topic: topic.slice(0, 118),
-      score: Math.round(score * 100) / 100,
-    });
-  }
-
-  // Determine the owning user, then build the user's own topic set from their posts.
+  // Owning user + their own topic tokens (for gap detection).
   const [comp] = await db
     .select()
     .from(competitors)
@@ -466,21 +467,79 @@ export async function analyzeCompetitor(competitorId: number): Promise<{ topics:
     }
   }
 
-  // Gaps: topics the competitor covers but the user does NOT, ranked by opportunity.
-  const gaps = topTopics
-    .filter(([topic]) => !userTopics.has(topic))
-    .map(([topic, score]) => ({ topic, score }));
+  // Real AI analysis from clean article titles (falls back to word frequency).
+  const titles = content.map((c) => c.title).filter(Boolean).slice(0, 40);
+  let finalTopics: Array<{ topic: string; score: number }> = freqTopics;
+  let aiRecommendations = "";
+  if (titles.length > 0) {
+    try {
+      const { invokeLLM } = await import("../_core/llm");
+      const prompt =
+        `Her er artikkeltitler fra en konkurrent:\n` +
+        titles.map((t) => `- ${t}`).join("\n") +
+        `\n\nReturner KUN gyldig JSON (ingen markdown, ingen forklaring): ` +
+        `{"topics":["6-8 korte konkrete temaer (1-3 ord) pa norsk"],` +
+        `"recommendations":["3-4 konkrete innholdsforslag til brukeren, hver som en kort setning pa norsk"]}`;
+      const r: any = await invokeLLM({
+        messages: [
+          { role: "system", content: "Du er en innholdsstrateg. Svar kun med gyldig JSON." },
+          { role: "user", content: prompt },
+        ],
+      });
+      const raw = String(r?.choices?.[0]?.message?.content || "").replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed.topics) && parsed.topics.length) {
+        finalTopics = parsed.topics
+          .filter((x: any) => typeof x === "string" && x.trim())
+          .slice(0, 12)
+          .map((t: string, i: number) => ({ topic: t.trim(), score: Math.round((12 - i) * 10) / 10 }));
+      }
+      if (Array.isArray(parsed.recommendations)) {
+        aiRecommendations = parsed.recommendations.filter((x: any) => typeof x === "string").join("\n");
+      } else if (typeof parsed.recommendations === "string") {
+        aiRecommendations = parsed.recommendations;
+      }
+    } catch (e) {
+      console.warn("[radar] AI analysis failed, using frequency topics:", (e as Error)?.message || e);
+    }
+  }
+
+  // Re-write topics (clear then insert).
+  await db.delete(competitorTopics).where(eq(competitorTopics.competitorId, competitorId));
+  for (const t of finalTopics) {
+    await db.insert(competitorTopics).values({
+      competitorId,
+      topic: t.topic.slice(0, 118),
+      score: t.score,
+    });
+  }
+
+  // Store the AI recommendations summary on the competitor (best-effort).
+  try {
+    await db
+      .update(competitors)
+      .set({ aiSummary: aiRecommendations || null })
+      .where(eq(competitors.id, competitorId));
+  } catch (e) {
+    console.warn("[radar] could not store ai_summary:", (e as Error)?.message || e);
+  }
+
+  // Gaps: topics whose tokens don't overlap with the user's own topics.
+  const gaps = finalTopics.filter((t) => {
+    const toks = tokenize(t.topic);
+    return toks.length > 0 && !toks.some((tk) => userTopics.has(tk));
+  });
 
   await db.delete(competitorGaps).where(eq(competitorGaps.competitorId, competitorId));
   for (const g of gaps) {
     await db.insert(competitorGaps).values({
       competitorId,
       topic: g.topic.slice(0, 118),
-      opportunityScore: Math.round(g.score * 100) / 100,
+      opportunityScore: g.score,
     });
   }
 
-  return { topics: topTopics.length, gaps: gaps.length };
+  return { topics: finalTopics.length, gaps: gaps.length };
 }
 
 /** Quick activity stats for a competitor over the last 30 days. */

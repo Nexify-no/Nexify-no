@@ -412,7 +412,12 @@ function CompetitorDetail({
 
   const maxTopicScore = data?.topics?.reduce((m: number, t: any) => Math.max(m, t.score), 0) || 1;
 
-  const recommendations = buildRecommendations(data, tr);
+  const aiRecs = String(data?.competitor?.aiSummary || "")
+    .split(/\n+/)
+    .map((l: string) => l.replace(/^[-*\u2022\d.\s]+/, "").trim())
+    .filter(Boolean);
+  const aiPowered = aiRecs.length > 0;
+  const recommendations = aiPowered ? aiRecs : buildRecommendations(data, tr);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
@@ -628,7 +633,7 @@ function CompetitorDetail({
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">{tr("Anbefalinger", "Recommendations")}</CardTitle>
-                  <CardDescription>{tr("Basert på gap og emner.", "Based on gaps and topics.")}</CardDescription>
+                  <CardDescription>{aiPowered ? tr("AI-genererte forslag basert på konkurrentens innhold.", "AI-generated suggestions based on the competitor\u2019s content.") : tr("Basert på gap og emner.", "Based on gaps and topics.")}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {recommendations.length === 0 ? (

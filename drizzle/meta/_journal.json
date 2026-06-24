@@ -1,244 +1,251 @@
 {
-	"version": "7",
-	"dialect": "mysql",
-	"entries": [
-		{
-			"idx": 0,
-			"version": "5",
-			"when": 1769382495899,
-			"tag": "0000_orange_otto_octavius",
-			"breakpoints": true
-		},
-		{
-			"idx": 1,
-			"version": "5",
-			"when": 1769382627952,
-			"tag": "0001_certain_nova",
-			"breakpoints": true
-		},
-		{
-			"idx": 2,
-			"version": "5",
-			"when": 1769387775392,
-			"tag": "0002_careless_kylun",
-			"breakpoints": true
-		},
-		{
-			"idx": 3,
-			"version": "5",
-			"when": 1769388700641,
-			"tag": "0003_flowery_blizzard",
-			"breakpoints": true
-		},
-		{
-			"idx": 4,
-			"version": "5",
-			"when": 1769419862555,
-			"tag": "0004_busy_fenris",
-			"breakpoints": true
-		},
-		{
-			"idx": 5,
-			"version": "5",
-			"when": 1769434531638,
-			"tag": "0005_fresh_prima",
-			"breakpoints": true
-		},
-		{
-			"idx": 6,
-			"version": "5",
-			"when": 1769438524329,
-			"tag": "0006_oval_tarantula",
-			"breakpoints": true
-		},
-		{
-			"idx": 7,
-			"version": "5",
-			"when": 1769469544923,
-			"tag": "0007_stiff_the_order",
-			"breakpoints": true
-		},
-		{
-			"idx": 8,
-			"version": "5",
-			"when": 1769470298212,
-			"tag": "0008_stormy_saracen",
-			"breakpoints": true
-		},
-		{
-			"idx": 9,
-			"version": "5",
-			"when": 1769472839339,
-			"tag": "0009_dazzling_roulette",
-			"breakpoints": true
-		},
-		{
-			"idx": 10,
-			"version": "5",
-			"when": 1769475240493,
-			"tag": "0010_exotic_payback",
-			"breakpoints": true
-		},
-		{
-			"idx": 11,
-			"version": "5",
-			"when": 1769475712551,
-			"tag": "0011_clumsy_chat",
-			"breakpoints": true
-		},
-		{
-			"idx": 12,
-			"version": "5",
-			"when": 1769519908404,
-			"tag": "0012_bizarre_gorilla_man",
-			"breakpoints": true
-		},
-		{
-			"idx": 13,
-			"version": "5",
-			"when": 1769523874764,
-			"tag": "0013_round_winter_soldier",
-			"breakpoints": true
-		},
-		{
-			"idx": 14,
-			"version": "5",
-			"when": 1769525573314,
-			"tag": "0014_plain_ink",
-			"breakpoints": true
-		},
-		{
-			"idx": 15,
-			"version": "5",
-			"when": 1769590939637,
-			"tag": "0016_curly_sway",
-			"breakpoints": true
-		},
-		{
-			"idx": 16,
-			"version": "5",
-			"when": 1769811116064,
-			"tag": "0017_nifty_romulus",
-			"breakpoints": true
-		},
-		{
-			"idx": 17,
-			"version": "5",
-			"when": 1769811337462,
-			"tag": "0018_medical_shriek",
-			"breakpoints": true
-		},
-		{
-			"idx": 18,
-			"version": "5",
-			"when": 1771542794158,
-			"tag": "0018_youthful_spencer_smythe",
-			"breakpoints": true
-		},
-		{
-			"idx": 19,
-			"version": "5",
-			"when": 1771623643753,
-			"tag": "0019_graceful_gabe_jones",
-			"breakpoints": true
-		},
-		{
-			"idx": 20,
-			"version": "5",
-			"when": 1772233401676,
-			"tag": "0020_naive_solo",
-			"breakpoints": true
-		},
-		{
-			"idx": 21,
-			"version": "5",
-			"when": 1778110859143,
-			"tag": "0021_quiet_shockwave",
-			"breakpoints": true
-		},
-		{
-			"idx": 22,
-			"version": "5",
-			"when": 1778192142848,
-			"tag": "0022_cultured_captain_britain",
-			"breakpoints": true
-		},
-		{
-			"idx": 23,
-			"version": "5",
-			"when": 1778541843407,
-			"tag": "0023_damp_big_bertha",
-			"breakpoints": true
-		},
-		{
-			"idx": 24,
-			"version": "5",
-			"when": 1778885394367,
-			"tag": "0024_daffy_xorn",
-			"breakpoints": true
-		},
-		{
-			"idx": 25,
-			"version": "5",
-			"when": 1781951133999,
-			"tag": "0025_add_plan_id_webhook_events_payment_orders",
-			"breakpoints": true
-		},
-		{
-			"idx": 26,
-			"version": "5",
-			"when": 1781951200000,
-			"tag": "0026_add_missing_linkedin_vipps_tables",
-			"breakpoints": true
-		},
-		{
-			"idx": 27,
-			"version": "5",
-			"when": 1782154510698,
-			"tag": "0027_famous_genesis",
-			"breakpoints": true
-		},
-		{
-			"idx": 28,
-			"version": "5",
-			"when": 1782236857906,
-			"tag": "0028_add_password_hash",
-			"breakpoints": true
-		},
-		{
-			"idx": 29,
-			"version": "5",
-			"when": 1782237510289,
-			"tag": "0029_email_verify_reset",
-			"breakpoints": true
-		},
-		{
-			"idx": 30,
-			"version": "5",
-			"when": 1782243240549,
-			"tag": "0030_add_posts_tags",
-			"breakpoints": true
-		},
-		{
-			"idx": 31,
-			"version": "5",
-			"when": 1782256303674,
-			"tag": "0031_ab_testing",
-			"breakpoints": true
-		},
-		{
-			"idx": 32,
-			"version": "5",
-			"when": 1782258074813,
-			"tag": "0032_user_pref_ayrshare",
-			"breakpoints": true
-		},
-		{
-			"idx": 33,
-			"version": "5",
-			"when": 1782260239421,
-			"tag": "0033_competitor_radar",
-			"breakpoints": true
-		}
-	]
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1769382495899,
+      "tag": "0000_orange_otto_octavius",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1769382627952,
+      "tag": "0001_certain_nova",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1769387775392,
+      "tag": "0002_careless_kylun",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1769388700641,
+      "tag": "0003_flowery_blizzard",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1769419862555,
+      "tag": "0004_busy_fenris",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1769434531638,
+      "tag": "0005_fresh_prima",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1769438524329,
+      "tag": "0006_oval_tarantula",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1769469544923,
+      "tag": "0007_stiff_the_order",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1769470298212,
+      "tag": "0008_stormy_saracen",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1769472839339,
+      "tag": "0009_dazzling_roulette",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1769475240493,
+      "tag": "0010_exotic_payback",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1769475712551,
+      "tag": "0011_clumsy_chat",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1769519908404,
+      "tag": "0012_bizarre_gorilla_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1769523874764,
+      "tag": "0013_round_winter_soldier",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "5",
+      "when": 1769525573314,
+      "tag": "0014_plain_ink",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "5",
+      "when": 1769590939637,
+      "tag": "0016_curly_sway",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "5",
+      "when": 1769811116064,
+      "tag": "0017_nifty_romulus",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1769811337462,
+      "tag": "0018_medical_shriek",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1771542794158,
+      "tag": "0018_youthful_spencer_smythe",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1771623643753,
+      "tag": "0019_graceful_gabe_jones",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1772233401676,
+      "tag": "0020_naive_solo",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1778110859143,
+      "tag": "0021_quiet_shockwave",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1778192142848,
+      "tag": "0022_cultured_captain_britain",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1778541843407,
+      "tag": "0023_damp_big_bertha",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1778885394367,
+      "tag": "0024_daffy_xorn",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1781951133999,
+      "tag": "0025_add_plan_id_webhook_events_payment_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1781951200000,
+      "tag": "0026_add_missing_linkedin_vipps_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1782154510698,
+      "tag": "0027_famous_genesis",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "5",
+      "when": 1782236857906,
+      "tag": "0028_add_password_hash",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "5",
+      "when": 1782237510289,
+      "tag": "0029_email_verify_reset",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "5",
+      "when": 1782243240549,
+      "tag": "0030_add_posts_tags",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "5",
+      "when": 1782256303674,
+      "tag": "0031_ab_testing",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "5",
+      "when": 1782258074813,
+      "tag": "0032_user_pref_ayrshare",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "5",
+      "when": 1782260239421,
+      "tag": "0033_competitor_radar",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "5",
+      "when": 1782260240421,
+      "tag": "0034_competitor_ai_summary",
+      "breakpoints": true
+    }
+  ]
 }
