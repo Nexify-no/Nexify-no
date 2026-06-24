@@ -371,20 +371,19 @@ async function startServer() {
       // Fire-and-forget the insert — do NOT await it on the redirect path.
       if (recordEvent) {
         const { abClickEvents } = await import("../../drizzle/schema");
-        void db
-          .insert(abClickEvents)
-          .values({
+        try {
+          await db.insert(abClickEvents).values({
             variantId: variant.id,
             device,
             referer: referer || null,
             sessionHash,
-          })
-          .catch((e: unknown) => {
-            logger.warn("ab_click_record_failed", {
-              code,
-              msg: e instanceof Error ? e.message : String(e),
-            });
           });
+        } catch (e: unknown) {
+          logger.warn("ab_click_record_failed", {
+            code,
+            msg: e instanceof Error ? e.message : String(e),
+          });
+        }
       }
 
       return res.redirect(302, destination);

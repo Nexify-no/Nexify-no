@@ -352,3 +352,33 @@ export async function recomputeAndScore(experimentId: number): Promise<WinnerRes
 
   return winner;
 }
+
+/**
+ * Live per-variant click counts straight from ab_click_events (so dashboards
+ * reflect clicks in real time without waiting for the stats roll-up / cron).
+ * group-by is on a plain column (variant_id) → safe under only_full_group_by.
+ */
+export async function liveCountsByVariant(
+  variantIds: number[]
+): Promise<Map<number, { clicks: number; uniqueClicks: number }>> {
+  const m = new Map<number, { clicks: number; uniqueClicks: number }>();
+  if (!variantIds.length) return m;
+  const { getDb } = await import("../db");
+  const { abClickEvents } = await import("../../drizzle/schema");
+  const { inArray, sql } = await import("drizzle-orm");
+  const db = await getDb();
+  if (!db) return m;
+  const rows: any = await db
+    .select({
+      variantId: abClickEvents.variantId,
+      clicks: sql<number>`count(*)`,
+      uniqueClicks: sql<number>`count(distinct ${abClickEvents.sessionHash})`,
+    })
+    .from(abClickEvents)
+    .where(inArray(abClickEvents.variantId, variantIds))
+    .groupBy(abClickEvents.variantId);
+  for (const r of rows) {
+    m.set(Number(r.variantId), { clicks: Number(r.clicks || 0), uniqueClicks: Number(r.uniqueClicks || 0) });
+  }
+  return m;
+}

@@ -161,16 +161,13 @@ export const abRouter = router({
       .where(inArray(abVariants.experimentId, expIds));
 
     const variantIds = variants.map((v) => v.id);
-    const stats =
-      variantIds.length > 0
-        ? await db.select().from(abStats).where(inArray(abStats.variantId, variantIds))
-        : [];
-    const statByVariant = new Map(stats.map((s) => [s.variantId, s]));
+    const { liveCountsByVariant } = await import("../services/abService");
+    const live = await liveCountsByVariant(variantIds);
 
     return experiments.map((e) => {
       const vs = variants.filter((v) => v.experimentId === e.id);
       const totalClicks = vs.reduce(
-        (sum, v) => sum + Number(statByVariant.get(v.id)?.clicks ?? 0),
+        (sum, v) => sum + (live.get(v.id)?.clicks ?? 0),
         0
       );
       return {
@@ -202,15 +199,38 @@ export const abRouter = router({
         .where(eq(abVariants.experimentId, exp.id));
       const variantIds = variants.map((v) => v.id);
 
-      let stats: any[] = [];
+      let baseStats: any[] = [];
       try {
-        stats =
+        baseStats =
           variantIds.length > 0
             ? await db.select().from(abStats).where(inArray(abStats.variantId, variantIds))
             : [];
       } catch (e) {
         console.error("[ab.get] stats query failed:", e);
       }
+      // Live click counts so the dashboard updates in real time (ab_stats is only
+      // rolled up on end/cron). Keep confidence from the stored stats.
+      const { liveCountsByVariant } = await import("../services/abService");
+      let live = new Map<number, { clicks: number; uniqueClicks: number }>();
+      try {
+        live = await liveCountsByVariant(variantIds);
+      } catch (e) {
+        console.error("[ab.get] live counts failed:", e);
+      }
+      const baseByVariant = new Map(baseStats.map((s: any) => [s.variantId, s]));
+      const totalLive = variantIds.reduce((sum, vid) => sum + (live.get(vid)?.clicks ?? 0), 0);
+      const stats = variantIds.map((vid) => {
+        const b: any = baseByVariant.get(vid) || {};
+        const lc = live.get(vid) || { clicks: 0, uniqueClicks: 0 };
+        return {
+          variantId: vid,
+          clicks: lc.clicks,
+          uniqueClicks: lc.uniqueClicks,
+          ctr: b.ctr ?? 0,
+          confidence: b.confidence ?? 0,
+          winnerProbability: totalLive > 0 ? Math.round((lc.clicks / totalLive) * 100) / 100 : (b.winnerProbability ?? 0),
+        };
+      });
 
       // Hourly click timeline across all variants of this experiment.
       let timeline: Array<{ hour: string; clicks: number }> = [];
