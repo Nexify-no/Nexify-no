@@ -32,7 +32,7 @@ export default function ContentSeries() {
   const seriesList = seriesData?.map((s: any) => ({
     ...s,
     totalPosts: s.totalParts,
-    generatedPosts: 0, // Will be calculated from seriesPosts
+    generatedPosts: s.generatedPosts ?? 0,
   })) || [];
   const { data: subscription } = trpc.user.getSubscription.useQuery();
 

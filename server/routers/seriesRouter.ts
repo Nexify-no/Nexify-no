@@ -11,11 +11,20 @@ import { z } from "zod";
 export const seriesRouter = router({
     list: protectedProcedure.query(async ({ ctx }) => {
       const { getDb } = await import("../db");
-      const { contentSeries } = await import("../../drizzle/schema");
-      const { eq } = await import("drizzle-orm");
+      const { contentSeries, seriesPosts } = await import("../../drizzle/schema");
+      const { eq, inArray } = await import("drizzle-orm");
       const db = await getDb();
       if (!db) throw new Error("Database not available");
-      return db.select().from(contentSeries).where(eq(contentSeries.userId, ctx.user.id));
+      const all = await db.select().from(contentSeries).where(eq(contentSeries.userId, ctx.user.id));
+      if (all.length === 0) return [];
+      // Count linked posts per series (JS-side to stay only_full_group_by-safe).
+      const ids = all.map((s) => s.id);
+      const links = await db.select().from(seriesPosts).where(inArray(seriesPosts.seriesId, ids));
+      const counts = new Map<number, number>();
+      for (const l of links) {
+        if (l.postId != null) counts.set(l.seriesId, (counts.get(l.seriesId) || 0) + 1);
+      }
+      return all.map((s) => ({ ...s, generatedPosts: counts.get(s.id) || 0 }));
     }),
     
     create: protectedProcedure
