@@ -225,6 +225,77 @@ async function processDueAbExperiments() {
   }
 }
 
+let radarTask: cron.ScheduledTask | null = null;
+let isProcessingRadar = false;
+
+/**
+ * Competitor Radar refresh loop.
+ *
+ * Hourly: finds competitors whose sources are stale (oldest last_fetch older than
+ * ~6h, or never fetched) and runs sync + analyze for each. Fail-soft per competitor
+ * so one bad feed never blocks the rest. Uses the same in-process overlap guard as
+ * the other scheduled tasks.
+ */
+async function processCompetitorRadar() {
+  if (isProcessingRadar) {
+    console.log('[Scheduler:Radar] Previous run still in progress, skipping this tick');
+    return;
+  }
+  isProcessingRadar = true;
+  try {
+    const db = await getDatabase();
+    if (!db) {
+      console.warn('[Scheduler:Radar] Database not available');
+      return;
+    }
+
+    const { competitors, competitorSources } = await import('../drizzle/schema');
+    const { lt, or, isNull, eq, inArray } = await import('drizzle-orm');
+
+    const staleBefore = new Date(Date.now() - 6 * 60 * 60 * 1000);
+
+    // Sources that are stale (or never fetched) → derive the distinct competitor ids.
+    const staleSources = await db
+      .select({ competitorId: competitorSources.competitorId })
+      .from(competitorSources)
+      .where(or(isNull(competitorSources.lastFetch), lt(competitorSources.lastFetch, staleBefore)))
+      .limit(500);
+
+    const competitorIds = Array.from(new Set(staleSources.map((r) => r.competitorId)));
+    if (competitorIds.length === 0) return;
+
+    // Keep only competitors that still exist (defensive against orphan sources).
+    const existing = await db
+      .select({ id: competitors.id })
+      .from(competitors)
+      .where(inArray(competitors.id, competitorIds));
+    const validIds = existing.map((c) => c.id).slice(0, 50);
+
+    if (validIds.length === 0) return;
+
+    console.log(`[Scheduler:Radar] Refreshing ${validIds.length} competitor(s)`);
+    const { syncCompetitor, analyzeCompetitor } = await import('./services/radarService');
+
+    for (const competitorId of validIds) {
+      try {
+        await syncCompetitor(competitorId);
+        await analyzeCompetitor(competitorId);
+        console.log(`[Scheduler:Radar] Refreshed competitor ${competitorId}`);
+      } catch (error) {
+        console.error(
+          `[Scheduler:Radar] Failed to refresh competitor ${competitorId}:`,
+          (error as Error)?.message || String(error)
+        );
+      }
+    }
+    void eq; // keep import tree-shake-stable (eq available for future filters)
+  } catch (error) {
+    console.error('[Scheduler:Radar] Error processing competitor radar:', error);
+  } finally {
+    isProcessingRadar = false;
+  }
+}
+
 /**
  * Start the scheduler — runs every 5 minutes to check for due posts.
  */
@@ -244,7 +315,12 @@ export function startScheduler() {
     await processDueAbExperiments();
   });
 
-  console.log('[Scheduler] Started - checking for scheduled posts and A/B experiments every 5 minutes');
+  // Competitor Radar refresh loop — hourly, refreshes competitors with stale sources.
+  radarTask = cron.schedule('0 * * * *', async () => {
+    await processCompetitorRadar();
+  });
+
+  console.log('[Scheduler] Started - scheduled posts + A/B every 5 min, Competitor Radar hourly');
 }
 
 export function stopScheduler() {
@@ -257,6 +333,11 @@ export function stopScheduler() {
     void abExperimentTask.stop();
     abExperimentTask = null;
     console.log('[Scheduler:AB] Stopped');
+  }
+  if (radarTask) {
+    void radarTask.stop();
+    radarTask = null;
+    console.log('[Scheduler:Radar] Stopped');
   }
 }
 

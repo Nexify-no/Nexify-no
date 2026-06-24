@@ -499,6 +499,7 @@ export const competitors = mysqlTable("competitors", {
   name: varchar("name", { length: 200 }).notNull(),
   platform: mysqlEnum("platform", ["linkedin", "twitter", "instagram", "facebook"]).notNull(),
   profileUrl: varchar("profile_url", { length: 500 }).notNull(),
+  website: varchar("website", { length: 500 }),
   isActive: tinyint("is_active").default(1).notNull(),
   lastChecked: timestamp("last_checked"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -1594,3 +1595,69 @@ export const abStats = mysqlTable("ab_stats", {
 
 export type AbStat = typeof abStats.$inferSelect;
 export type InsertAbStat = typeof abStats.$inferInsert;
+
+/* ============================================================================
+ * Competitor Radar (real feature) — public-source monitoring.
+ * Sources: website RSS/Atom, YouTube channel RSS, Google News RSS. No private data.
+ * ==========================================================================*/
+
+/** Detected public feed/source per competitor. */
+export const competitorSources = mysqlTable("competitor_sources", {
+  id: int("id").autoincrement().primaryKey(),
+  competitorId: int("competitor_id").notNull(),
+  type: varchar("type", { length: 20 }).notNull(), // rss | atom | youtube | google_news
+  url: varchar("url", { length: 1000 }).notNull(),
+  lastFetch: timestamp("last_fetch"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  competitorIdIdx: index("idx_competitor_sources_competitor_id").on(table.competitorId),
+}));
+
+export type CompetitorSource = typeof competitorSources.$inferSelect;
+export type InsertCompetitorSource = typeof competitorSources.$inferInsert;
+
+/** Individual content items fetched from a competitor source. Deduped by content_hash. */
+export const competitorContent = mysqlTable("competitor_content", {
+  id: int("id").autoincrement().primaryKey(),
+  competitorId: int("competitor_id").notNull(),
+  sourceId: int("source_id").notNull(),
+  title: varchar("title", { length: 500 }).notNull(),
+  url: varchar("url", { length: 1000 }),
+  publishedAt: timestamp("published_at"),
+  summary: text("summary"),
+  contentHash: varchar("content_hash", { length: 64 }).notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  competitorIdIdx: index("idx_competitor_content_competitor_id").on(table.competitorId),
+}));
+
+export type CompetitorContent = typeof competitorContent.$inferSelect;
+export type InsertCompetitorContent = typeof competitorContent.$inferInsert;
+
+/** Top topics extracted from a competitor's recent content. */
+export const competitorTopics = mysqlTable("competitor_topics", {
+  id: int("id").autoincrement().primaryKey(),
+  competitorId: int("competitor_id").notNull(),
+  topic: varchar("topic", { length: 120 }).notNull(),
+  score: double("score").default(0).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  competitorIdIdx: index("idx_competitor_topics_competitor_id").on(table.competitorId),
+}));
+
+export type CompetitorTopic = typeof competitorTopics.$inferSelect;
+export type InsertCompetitorTopic = typeof competitorTopics.$inferInsert;
+
+/** Content gaps: topics the competitor covers but the user does not. */
+export const competitorGaps = mysqlTable("competitor_gaps", {
+  id: int("id").autoincrement().primaryKey(),
+  competitorId: int("competitor_id").notNull(),
+  topic: varchar("topic", { length: 120 }).notNull(),
+  opportunityScore: double("opportunity_score").default(0).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  competitorIdIdx: index("idx_competitor_gaps_competitor_id").on(table.competitorId),
+}));
+
+export type CompetitorGap = typeof competitorGaps.$inferSelect;
+export type InsertCompetitorGap = typeof competitorGaps.$inferInsert;

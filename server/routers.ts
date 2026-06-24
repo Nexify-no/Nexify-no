@@ -32,6 +32,7 @@ import { coachRouter } from "./routers/coachRouter";
 import { blogRouter } from "./routers/blogRouter";
 import { stripeRouter } from "./routers/stripeRouter";
 import { competitorsRouter } from "./routers/competitorsRouter";
+import { radarRouter } from "./routers/radarRouter";
 import { seriesRouter } from "./routers/seriesRouter";
 import { abtestRouter } from "./routers/abtestRouter";
 import { abRouter } from "./routers/abRouter";
@@ -72,6 +73,9 @@ export const appRouter = router({
   stripe: stripeRouter,
   
   competitors: competitorsRouter,
+
+  // Competitor Radar (real feature: public-source monitoring)
+  radar: radarRouter,
   
   series: seriesRouter,
   
