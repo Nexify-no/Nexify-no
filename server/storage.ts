@@ -91,7 +91,13 @@ async function putToObjectStore(
   const endpoint =
     process.env.S3_ENDPOINT ||
     (r2Account ? `https://${r2Account}.r2.cloudflarestorage.com` : undefined);
-  if (!bucket || !accessKeyId || !secretAccessKey || !endpoint) return null;
+  if (!bucket || !accessKeyId || !secretAccessKey || !endpoint) {
+    console.warn("[storage] object store not configured", {
+      bucket: !!bucket, accessKeyId: !!accessKeyId, secretAccessKey: !!secretAccessKey, endpoint: !!endpoint,
+    });
+    return null;
+  }
+  console.log("[storage] uploading to object store", { endpoint, bucket });
 
   const region = process.env.S3_REGION || "auto";
   const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
