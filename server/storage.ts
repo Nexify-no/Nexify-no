@@ -97,24 +97,45 @@ async function putToObjectStore(
     });
     return null;
   }
-  console.log("[storage] uploading to object store", { endpoint, bucket });
-
   const region = process.env.S3_REGION || "auto";
   const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
-  const client = new S3Client({
-    region,
-    endpoint,
-    credentials: { accessKeyId, secretAccessKey },
-    forcePathStyle: true,
-  });
   const body = typeof data === "string" ? Buffer.from(data) : Buffer.from(data as any);
-  await client.send(
-    new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: contentType })
-  );
+
+  // R2 jurisdictions (default vs EU) are isolated: a bucket only exists on one
+  // endpoint. The configured S3_ENDPOINT may point at the wrong one ("bucket does
+  // not exist"), so try the configured endpoint AND its jurisdiction sibling
+  // (toggle the `.eu.` segment) before giving up — no manual env fix needed.
+  const candidates = Array.from(new Set([
+    endpoint,
+    endpoint.includes(".eu.r2.cloudflarestorage.com")
+      ? endpoint.replace(".eu.r2.cloudflarestorage.com", ".r2.cloudflarestorage.com")
+      : endpoint.replace(".r2.cloudflarestorage.com", ".eu.r2.cloudflarestorage.com"),
+  ]));
 
   const publicBase = process.env.R2_PUBLIC_URL || process.env.S3_PUBLIC_URL;
-  if (publicBase) return `${publicBase.replace(/\/+$/, "")}/${key}`;
-  return `${endpoint.replace(/\/+$/, "")}/${bucket}/${key}`;
+  let lastErr: any = null;
+  for (const ep of candidates) {
+    console.log("[storage] uploading to object store", { endpoint: ep, bucket });
+    try {
+      const client = new S3Client({
+        region, endpoint: ep,
+        credentials: { accessKeyId, secretAccessKey },
+        forcePathStyle: true,
+      });
+      await client.send(
+        new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: contentType })
+      );
+      if (publicBase) return `${publicBase.replace(/\/+$/, "")}/${key}`;
+      return `${ep.replace(/\/+$/, "")}/${bucket}/${key}`;
+    } catch (e: any) {
+      lastErr = e;
+      const msg = String(e?.message || e?.name || "");
+      // Only try the sibling jurisdiction on a bucket-not-found error.
+      if (/NoSuchBucket|bucket does not exist/i.test(msg)) continue;
+      throw e;
+    }
+  }
+  throw lastErr || new Error("object store upload failed");
 }
 
 export async function storagePut(
