@@ -24,6 +24,9 @@ export function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
   const [forgotSent, setForgotSent] = useState(false);
+  // 2FA challenge step
+  const [challenge, setChallenge] = useState<string | null>(null);
+  const [twoFactorCode, setTwoFactorCode] = useState("");
 
   // Check if user is already logged in via tRPC
   const { data: user, isLoading: authLoading } = trpc.auth.me.useQuery(undefined, {
@@ -78,6 +81,13 @@ export function LoginPage() {
         body: JSON.stringify(body),
       });
       if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data && data.requires2fa === true) {
+          setChallenge(data.challenge);
+          setTwoFactorCode("");
+          setSubmitting(false);
+          return;
+        }
         window.location.href = "/dashboard";
         return;
       }
@@ -86,6 +96,34 @@ export function LoginPage() {
       setSubmitting(false);
     } catch (err) {
       console.error("Email auth error:", err);
+      setError("Det oppstod en feil. Prøv igjen.");
+      setSubmitting(false);
+    }
+  };
+
+  const handleVerify2fa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/auth/login/2fa", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ challenge, code: twoFactorCode.trim() }),
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data && data.ok) {
+          window.location.href = "/dashboard";
+          return;
+        }
+      }
+      const data = await res.json().catch(() => ({}));
+      setError(data.error || "Det oppstod en feil. Prøv igjen.");
+      setSubmitting(false);
+    } catch (err) {
+      console.error("2FA verify error:", err);
       setError("Det oppstod en feil. Prøv igjen.");
       setSubmitting(false);
     }
@@ -162,6 +200,58 @@ export function LoginPage() {
               </Alert>
             )}
 
+            {challenge ? (
+              <form onSubmit={handleVerify2fa} className="space-y-3">
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold">
+                    Skriv inn 2FA-koden
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Enter your 2FA code
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="twofa-code">Kode</Label>
+                  <Input
+                    id="twofa-code"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={12}
+                    required
+                    autoFocus
+                    value={twoFactorCode}
+                    onChange={(e) => setTwoFactorCode(e.target.value)}
+                    placeholder="123456 / ab12-cd34"
+                    autoComplete="one-time-code"
+                    className="font-mono"
+                  />
+                </div>
+                <Button type="submit" disabled={submitting} className="w-full h-11" size="lg">
+                  {submitting ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Vennligst vent...
+                    </>
+                  ) : (
+                    "Bekreft"
+                  )}
+                </Button>
+                <p className="text-sm text-center text-muted-foreground">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setChallenge(null);
+                      setTwoFactorCode("");
+                      setError(null);
+                    }}
+                    className="text-primary underline font-medium hover:opacity-80"
+                  >
+                    Tilbake
+                  </button>
+                </p>
+              </form>
+            ) : (
+              <>
             {/* Development Login - Only shown in development */}
             {process.env.NODE_ENV === "development" && mode !== "forgot" && (
               <Button
@@ -326,6 +416,9 @@ export function LoginPage() {
                 </Button>
 
                 <VippsLoginButton className="w-full" />
+              </>
+            )}
+
               </>
             )}
 

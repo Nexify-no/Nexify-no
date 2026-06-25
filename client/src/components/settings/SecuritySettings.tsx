@@ -11,18 +11,25 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Lock, Shield, AlertTriangle, CheckCircle2, Copy, Eye, EyeOff } from 'lucide-react';
+import { Lock, Shield, AlertTriangle, CheckCircle2, Copy, Eye, EyeOff, Download } from 'lucide-react';
 import { toast } from 'sonner';
+import { trpc } from '@/lib/trpc';
 
 interface SecuritySettingsProps {
   language: 'no' | 'en';
 }
 
 export function SecuritySettings({ language }: SecuritySettingsProps) {
-  const [twoFAEnabled, setTwoFAEnabled] = useState(false);
-  const [showQRCode, setShowQRCode] = useState(false);
-  const [qrCodeUrl, setQrCodeUrl] = useState('');
-  const [backupCodes, setBackupCodes] = useState<string[]>([]);
+  const utils = trpc.useUtils();
+  const { data: status } = trpc.twoFactor.status.useQuery();
+
+  // 2FA flow state
+  const [setupData, setSetupData] = useState<{ secret: string; otpauthUri: string } | null>(null);
+  const [code, setCode] = useState('');
+  const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
+  const [disabling, setDisabling] = useState(false);
+  const [disableCode, setDisableCode] = useState('');
+
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -71,6 +78,18 @@ export function SecuritySettings({ language }: SecuritySettingsProps) {
       enabled: 'Aktivert',
       done: 'Ferdig',
       cancel: 'Avbryt',
+      twoFAEnabled: '2FA er aktivert',
+      twoFAExplain: 'Tofaktorgodkjenning legger til et ekstra sikkerhetslag på kontoen din ved å kreve en kode fra en autentiseringsapp i tillegg til passordet.',
+      addKeyInstruction: 'Legg til denne nøkkelen i en autentiseringsapp (Google Authenticator, Authy, 1Password):',
+      copy: 'Kopier',
+      otpauthLink: 'otpauth-lenke',
+      enterCode: 'Skriv inn den 6-sifrede koden fra appen',
+      activate: 'Aktiver',
+      enterDisableCode: 'Skriv inn en 6-sifret kode eller en reservekode for å bekrefte',
+      confirm: 'Bekreft',
+      backupCodesSaved: '2FA aktivert! Lagre disse reservekodene (vises kun én gang):',
+      copyAll: 'Kopier alle',
+      downloadCodes: 'Last ned',
     },
     en: {
       security: 'Security',
@@ -110,10 +129,52 @@ export function SecuritySettings({ language }: SecuritySettingsProps) {
       enabled: 'Enabled',
       done: 'Done',
       cancel: 'Cancel',
+      twoFAEnabled: '2FA is enabled',
+      twoFAExplain: 'Two-factor authentication adds an extra layer of security to your account by requiring a code from an authenticator app in addition to your password.',
+      addKeyInstruction: 'Add this key to an authenticator app (Google Authenticator, Authy, 1Password):',
+      copy: 'Copy',
+      otpauthLink: 'otpauth link',
+      enterCode: 'Enter the 6-digit code from the app',
+      activate: 'Activate',
+      enterDisableCode: 'Enter a 6-digit code or a backup code to confirm',
+      confirm: 'Confirm',
+      backupCodesSaved: '2FA enabled! Save these backup codes (shown only once):',
+      copyAll: 'Copy all',
+      downloadCodes: 'Download',
     },
   };
 
   const t = labels[language];
+
+  const setupMutation = trpc.twoFactor.setup.useMutation({
+    onSuccess: (data) => {
+      setSetupData(data);
+      setCode('');
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const enableMutation = trpc.twoFactor.enable.useMutation({
+    onSuccess: (data) => {
+      setBackupCodes(data.backupCodes);
+      toast.success(t.success);
+      utils.twoFactor.status.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const disableMutation = trpc.twoFactor.disable.useMutation({
+    onSuccess: () => {
+      toast.success(t.success);
+      utils.twoFactor.status.invalidate();
+      setDisabling(false);
+      setDisableCode('');
+      setSetupData(null);
+      setBackupCodes(null);
+      setCode('');
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   const handlePasswordChange = (password: string) => {
     setNewPassword(password);
@@ -142,18 +203,28 @@ export function SecuritySettings({ language }: SecuritySettingsProps) {
     toast.info(language === 'no' ? 'Endre passord kommer snart' : 'Change password coming soon');
   };
 
-  const handleEnable2FA = () => {
-    toast.info(language === 'no' ? '2FA kommer snart' : '2FA coming soon');
-  };
-
-  const handleDisable2FA = () => {
-    setTwoFAEnabled(false);
-    toast.success(t.success);
-  };
-
-  const copyBackupCode = (code: string) => {
-    navigator.clipboard.writeText(code);
+  const copyText = (text: string) => {
+    navigator.clipboard.writeText(text);
     toast.success(t.copied);
+  };
+
+  const handleDownloadCodes = () => {
+    if (!backupCodes) return;
+    const blob = new Blob([backupCodes.join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'nexify-2fa-backup-codes.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleFinish = () => {
+    setSetupData(null);
+    setBackupCodes(null);
+    setCode('');
   };
 
   const getPasswordStrengthLabel = () => {
@@ -186,7 +257,7 @@ export function SecuritySettings({ language }: SecuritySettingsProps) {
             {t.twoFA}
           </CardTitle>
           <CardDescription>
-            {twoFAEnabled
+            {status?.enabled
               ? language === 'no'
                 ? '2FA er aktivert på kontoen din'
                 : '2FA is enabled on your account'
@@ -196,20 +267,150 @@ export function SecuritySettings({ language }: SecuritySettingsProps) {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {twoFAEnabled ? (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-green-600" />
-                <span className="text-sm font-medium">{t.enabled}</span>
+          {/* State: just enabled — show backup codes (one-time) */}
+          {backupCodes ? (
+            <div className="space-y-4">
+              <Alert className="border-green-200 bg-green-50">
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <AlertDescription className="text-green-800">
+                  {t.backupCodesSaved}
+                </AlertDescription>
+              </Alert>
+              <div className="grid grid-cols-2 gap-2 rounded-md border bg-gray-50 p-4 dark:bg-gray-900">
+                {backupCodes.map((bc) => (
+                  <code
+                    key={bc}
+                    className="select-all font-mono text-sm text-gray-800 dark:text-gray-200"
+                  >
+                    {bc}
+                  </code>
+                ))}
               </div>
-              <Button variant="destructive" onClick={handleDisable2FA}>
-                {t.disable2FA}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() => copyText(backupCodes.join('\n'))}>
+                  <Copy className="mr-2 h-4 w-4" />
+                  {t.copyAll}
+                </Button>
+                <Button variant="outline" onClick={handleDownloadCodes}>
+                  <Download className="mr-2 h-4 w-4" />
+                  {t.downloadCodes}
+                </Button>
+                <Button onClick={handleFinish}>{t.done}</Button>
+              </div>
+            </div>
+          ) : status?.enabled ? (
+            /* State: enabled — allow disabling */
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  <span className="text-sm font-medium">
+                    {t.twoFAEnabled} ✓
+                  </span>
+                </div>
+                {!disabling && (
+                  <Button variant="destructive" onClick={() => setDisabling(true)}>
+                    {t.disable2FA}
+                  </Button>
+                )}
+              </div>
+              {disabling && (
+                <div className="space-y-3 rounded-md border p-4">
+                  <Label htmlFor="disable-code">{t.enterDisableCode}</Label>
+                  <Input
+                    id="disable-code"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={12}
+                    value={disableCode}
+                    onChange={(e) => setDisableCode(e.target.value)}
+                    placeholder="123456"
+                    className="font-mono"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setDisabling(false);
+                        setDisableCode('');
+                      }}
+                    >
+                      {t.cancel}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      disabled={disableMutation.isPending || disableCode.length < 6}
+                      onClick={() => disableMutation.mutate({ code: disableCode })}
+                    >
+                      {t.confirm}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : setupData ? (
+            /* State: setup in progress */
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">{t.addKeyInstruction}</p>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 select-all break-all rounded-md border bg-gray-50 p-3 font-mono text-sm text-gray-800 dark:bg-gray-900 dark:text-gray-200">
+                    {setupData.secret}
+                  </code>
+                  <Button variant="outline" size="sm" onClick={() => copyText(setupData.secret)}>
+                    <Copy className="mr-2 h-4 w-4" />
+                    {t.copy}
+                  </Button>
+                </div>
+                <a
+                  href={setupData.otpauthUri}
+                  className="block break-all text-xs text-primary underline hover:opacity-80"
+                >
+                  {t.otpauthLink}
+                </a>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="enable-code">{t.enterCode}</Label>
+                <Input
+                  id="enable-code"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="123456"
+                  className="font-mono"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSetupData(null);
+                      setCode('');
+                    }}
+                  >
+                    {t.cancel}
+                  </Button>
+                  <Button
+                    disabled={enableMutation.isPending || code.length < 6}
+                    onClick={() => enableMutation.mutate({ code })}
+                  >
+                    {t.activate}
+                  </Button>
+                </div>
+              </div>
             </div>
           ) : (
-            <Button disabled>
-              {t.enable2FA}{language === 'no' ? ' (kommer snart)' : ' (coming soon)'}
-            </Button>
+            /* State: not enabled, no setup in progress */
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">{t.twoFAExplain}</p>
+              <Button
+                disabled={setupMutation.isPending}
+                onClick={() => setupMutation.mutate()}
+              >
+                {t.setup2FA}
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>
