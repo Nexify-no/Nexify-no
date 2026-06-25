@@ -262,6 +262,8 @@ export default function Generate() {
   const [draftSaved, setDraftSaved] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const fromUrlRef = useRef(false);
+  const hasRestoredRef = useRef(false); // draft restore must run at most once
+  const userTypedRef = useRef(false);   // never overwrite/merge once the user types
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const { data: existingDraft } = trpc.drafts.get.useQuery({ pageType: "generate" });
@@ -272,8 +274,12 @@ export default function Generate() {
 
   // Restore draft on load
   useEffect(() => {
-    if (fromUrlRef.current) return; // arrived from Trends/Idébank — don't merge an old draft
+    // Restore deterministically: at most once, only into an untouched empty field,
+    // and never when the user has started typing or arrived from Trends/Idébank.
+    // (existingDraft can change reference on refetch — the refs stop a re-insert.)
+    if (hasRestoredRef.current || userTypedRef.current || fromUrlRef.current) return;
     if (existingDraft && !topic) {
+      hasRestoredRef.current = true;
       try {
         const formData = JSON.parse(existingDraft.formData);
         if (formData.topic) setTopic(formData.topic);
@@ -644,7 +650,7 @@ export default function Generate() {
                   id="topic"
                   placeholder="F.eks: 'Hvordan AI endrer fremtiden for markedsføring' eller 'Vi lanserer et nytt produkt som...'"
                   value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
+                  onChange={(e) => { userTypedRef.current = true; setTopic(e.target.value); }}
                   rows={3}
                   className="resize-none text-base"
                 />
