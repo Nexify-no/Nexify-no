@@ -80,39 +80,48 @@ async function generateWithOpenAI(prompt: string): Promise<Buffer> {
     throw new Error("OPENAI_API_KEY is not configured");
   }
   const baseUrl = "https://api.openai.com";
-  const response = await fetch(`${baseUrl}/v1/images/generations`, {
-    method: "POST",
-    headers: {
-      accept: "application/json",
-      "content-type": "application/json",
-      authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: "dall-e-3",
-      prompt,
-      n: 1,
-      size: "1024x1024",
-    }),
-  });
+  // Different OpenAI accounts/keys have different image models available — some
+  // only have gpt-image-1, others dall-e-3/2. Try them in order and skip a model
+  // that the key can't access ("The model '...' does not exist.") instead of 500ing.
+  const models = ENV.imageModel ? [ENV.imageModel] : ["gpt-image-1", "dall-e-3", "dall-e-2"];
+  let lastErr: Error | null = null;
+  for (const model of models) {
+    const response = await fetch(`${baseUrl}/v1/images/generations`, {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "content-type": "application/json",
+        authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({ model, prompt, n: 1, size: "1024x1024" }),
+    });
 
-  if (!response.ok) {
+    if (response.ok) {
+      const result = (await response.json()) as { data: Array<{ b64_json?: string; url?: string }> };
+      const item = result.data?.[0];
+      if (item?.b64_json) return Buffer.from(item.b64_json, "base64");
+      if (item?.url) {
+        const img = await fetch(item.url);
+        if (!img.ok) throw new Error(`Failed to download generated image (${img.status})`);
+        return Buffer.from(await img.arrayBuffer());
+      }
+      throw new Error("No image data returned from the image generation API");
+    }
+
     const detail = await response.text().catch(() => "");
-    throw new Error(
-      `Image generation request failed (${response.status} ${response.statusText})${detail ? `: ${detail}` : ""}`
+    // Model not available for this key → try the next candidate.
+    if (response.status === 400 && /does not exist|do(es)? not have access|unsupported|model/i.test(detail)) {
+      lastErr = new Error(`Model ${model} unavailable: ${detail.slice(0, 200)}`);
+      continue;
+    }
+    // Surface 429 so the retry/router can map it; throw other errors as-is.
+    const err: any = new Error(
+      `Image generation request failed (${response.status} ${response.statusText})${detail ? `: ${detail.slice(0, 300)}` : ""}`
     );
+    err.status = response.status;
+    throw err;
   }
-
-  const result = (await response.json()) as { data: Array<{ b64_json?: string; url?: string }> };
-  const item = result.data?.[0];
-  if (item?.b64_json) {
-    return Buffer.from(item.b64_json, "base64");
-  }
-  if (item?.url) {
-    const img = await fetch(item.url);
-    if (!img.ok) throw new Error(`Failed to download generated image (${img.status})`);
-    return Buffer.from(await img.arrayBuffer());
-  }
-  throw new Error("No image data returned from the image generation API");
+  throw lastErr || new Error("No usable image model available for this OpenAI key");
 }
 
 /** fal.ai synchronous run — FLUX dev by default. Returns hosted image URLs. */

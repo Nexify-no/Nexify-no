@@ -157,30 +157,48 @@ async function withImageRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T>
 
 export async function generateImageWithDallE(prompt: string): Promise<string> {
   try {
-    const response = await withImageRetry(() => imageOpenai.images.generate({
-      model: "dall-e-3",
-      prompt: prompt,
-      n: 1,
-      size: "1024x1024",
-      quality: "standard", // or "hd" for higher quality (costs more)
-    }));
-
-    if (!response.data || response.data.length === 0) {
-      throw new Error("No image data returned from DALL-E 3");
+    // Try the image models this OpenAI key actually has access to (varies by
+    // account): gpt-image-1 first, then dall-e-3/2. Skip a model the key can't use
+    // ("The model '...' does not exist.") instead of failing.
+    const models = ["gpt-image-1", "dall-e-3", "dall-e-2"];
+    let response: any = null;
+    let lastErr: any = null;
+    for (const model of models) {
+      try {
+        response = await withImageRetry(() =>
+          imageOpenai.images.generate({ model, prompt, n: 1, size: "1024x1024" })
+        );
+        break;
+      } catch (e: any) {
+        const msg = String(e?.message || e);
+        const status = e?.status ?? e?.statusCode;
+        if ((status === 400 || status === 404) && /does not exist|not have access|unsupported|model/i.test(msg)) {
+          lastErr = e;
+          continue;
+        }
+        throw e;
+      }
     }
-    
-    const imageUrl = response.data[0]?.url;
-    if (!imageUrl) {
-      throw new Error("No image URL returned from DALL-E 3");
+    if (!response) throw lastErr || new Error("No usable image model for this OpenAI key");
+
+    const item = response.data?.[0];
+    if (!item) {
+      throw new Error("No image data returned from the image API");
     }
 
-    // Download the image and upload to S3
-    const imageResponse = await fetch(imageUrl);
-    if (!imageResponse.ok) {
-      throw new Error(`Failed to download image from DALL-E: ${imageResponse.statusText}`);
+    // gpt-image-1 returns base64; dall-e-* returns a URL — handle both.
+    let imageBuffer: Buffer;
+    if (item.b64_json) {
+      imageBuffer = Buffer.from(item.b64_json, "base64");
+    } else if (item.url) {
+      const imageResponse = await fetch(item.url);
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to download generated image: ${imageResponse.statusText}`);
+      }
+      imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+    } else {
+      throw new Error("No image data (url/b64) returned from the image API");
     }
-
-    const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
     
     // Upload to S3
     const { storagePut } = await import("./storage");
