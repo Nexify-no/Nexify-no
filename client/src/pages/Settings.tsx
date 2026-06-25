@@ -767,36 +767,48 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="linkedin-client-id">
-                  {language === "no" ? "Client ID" : "Client ID"}
-                </Label>
-                <Input
-                  id="linkedin-client-id"
-                  placeholder="77xxxxxxxxxx"
-                  type="text"
-                  value={linkedinClientId}
-                  onChange={(e) => setLinkedinClientId(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="linkedin-client-secret">
-                  {language === "no" ? "Client Secret" : "Client Secret"}
-                </Label>
-                <Input
-                  id="linkedin-client-secret"
-                  placeholder="WPL_AP1.xxxxxxxxxxxx"
-                  type="password"
-                  value={linkedinClientSecret}
-                  onChange={(e) => setLinkedinClientSecret(e.target.value)}
-                />
-              </div>
-              <LinkedInSaveButton 
-                clientId={linkedinClientId}
-                clientSecret={linkedinClientSecret}
-                language={language}
-              />
-              
+              {/* Platform-wide LinkedIn API credentials are an ADMIN-only setup —
+                  regular users only see the "connect" flow below. autoComplete is
+                  disabled so the browser never autofills the user's saved email /
+                  password into these fields. */}
+              {user?.role === "admin" && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="linkedin-client-id">
+                      {language === "no" ? "Client ID (admin)" : "Client ID (admin)"}
+                    </Label>
+                    <Input
+                      id="linkedin-client-id"
+                      name="linkedin_client_id"
+                      placeholder="77xxxxxxxxxx"
+                      type="text"
+                      autoComplete="off"
+                      value={linkedinClientId}
+                      onChange={(e) => setLinkedinClientId(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="linkedin-client-secret">
+                      {language === "no" ? "Client Secret (admin)" : "Client Secret (admin)"}
+                    </Label>
+                    <Input
+                      id="linkedin-client-secret"
+                      name="linkedin_client_secret"
+                      placeholder="WPL_AP1.xxxxxxxxxxxx"
+                      type="password"
+                      autoComplete="new-password"
+                      value={linkedinClientSecret}
+                      onChange={(e) => setLinkedinClientSecret(e.target.value)}
+                    />
+                  </div>
+                  <LinkedInSaveButton
+                    clientId={linkedinClientId}
+                    clientSecret={linkedinClientSecret}
+                    language={language}
+                  />
+                </>
+              )}
+
               <LinkedInConnectionStatus language={language} />
               
               <div className="flex gap-2">
