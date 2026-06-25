@@ -260,6 +260,13 @@
       "when": 1782260242421,
       "tag": "0036_posts_image_url",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "5",
+      "when": 1782260243421,
+      "tag": "0037_series_options",
+      "breakpoints": true
     }
   ]
 }

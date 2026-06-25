@@ -23,6 +23,10 @@ export default function ContentSeries() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [postCount, setPostCount] = useState<number>(3);
+  const [platform, setPlatform] = useState("linkedin");
+  const [tone, setTone] = useState("professional");
+  const [seriesLanguage, setSeriesLanguage] = useState("no");
+  const [generateImage, setGenerateImage] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [seriesIdToDelete, setSeriesIdToDelete] = useState<number | null>(null);
   const [seriesTitleToDelete, setSeriesTitleToDelete] = useState("");
@@ -58,6 +62,10 @@ export default function ContentSeries() {
         if (formData.title) setTitle(formData.title);
         if (formData.description) setDescription(formData.description);
         if (formData.postCount) setPostCount(formData.postCount);
+        if (formData.platform) setPlatform(formData.platform);
+        if (formData.tone) setTone(formData.tone);
+        if (formData.language) setSeriesLanguage(formData.language);
+        if (typeof formData.generateImage === "boolean") setGenerateImage(formData.generateImage);
         toast.info("Utkast gjenopprettet", { duration: 2000 });
       } catch (e) {
         console.error("Failed to parse draft", e);
@@ -77,6 +85,10 @@ export default function ContentSeries() {
         title,
         description,
         postCount,
+        platform,
+        tone,
+        language: seriesLanguage,
+        generateImage,
       });
       
       if (title || description) {
@@ -87,7 +99,7 @@ export default function ContentSeries() {
         });
       }
     }, 1500);
-  }, [title, description, postCount, saveDraftMutation]);
+  }, [title, description, postCount, platform, tone, seriesLanguage, generateImage, saveDraftMutation]);
 
   // Trigger auto-save when form changes
   useEffect(() => {
@@ -116,6 +128,10 @@ export default function ContentSeries() {
       setTitle("");
       setDescription("");
       setPostCount(3);
+      setPlatform("linkedin");
+      setTone("professional");
+      setSeriesLanguage("no");
+      setGenerateImage(false);
       refetch();
     },
     onError: (error: any) => {
@@ -164,7 +180,7 @@ export default function ContentSeries() {
       toast.error("Fyll inn tittel og beskrivelse");
       return;
     }
-    createMutation.mutate({ title, description, postCount });
+    createMutation.mutate({ title, description, postCount, platform, tone, language: seriesLanguage, generateImage });
   };
 
   return (
@@ -262,7 +278,75 @@ export default function ContentSeries() {
                   </Select>
                 </div>
 
+                <div>
+                  <Label>Plattform</Label>
+                  <Select
+                    value={platform}
+                    onValueChange={setPlatform}
+                    disabled={!isPro || createMutation.isPending}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="linkedin">LinkedIn</SelectItem>
+                      <SelectItem value="twitter">Twitter/X</SelectItem>
+                      <SelectItem value="instagram">Instagram</SelectItem>
+                      <SelectItem value="facebook">Facebook</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
+                <div>
+                  <Label>Tone</Label>
+                  <Select
+                    value={tone}
+                    onValueChange={setTone}
+                    disabled={!isPro || createMutation.isPending}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="professional">Profesjonell</SelectItem>
+                      <SelectItem value="casual">Uformell</SelectItem>
+                      <SelectItem value="friendly">Vennlig</SelectItem>
+                      <SelectItem value="formal">Formell</SelectItem>
+                      <SelectItem value="humorous">Humoristisk</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Språk</Label>
+                  <Select
+                    value={seriesLanguage}
+                    onValueChange={setSeriesLanguage}
+                    disabled={!isPro || createMutation.isPending}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="no">Norsk</SelectItem>
+                      <SelectItem value="en">Engelsk</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 rounded-lg border p-3">
+                <input
+                  id="series-generate-image"
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-muted-foreground/40 accent-purple-600"
+                  checked={generateImage}
+                  onChange={(e) => setGenerateImage(e.target.checked)}
+                  disabled={!isPro || createMutation.isPending}
+                />
+                <Label htmlFor="series-generate-image" className="cursor-pointer">
+                  Generer bilde for hver del
+                </Label>
               </div>
 
               <Button

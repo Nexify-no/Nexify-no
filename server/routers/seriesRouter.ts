@@ -44,6 +44,10 @@ export const seriesRouter = router({
         title: z.string(),
         description: z.string(),
         postCount: z.number().min(3).max(10),
+        platform: z.enum(["linkedin", "twitter", "instagram", "facebook"]).default("linkedin"),
+        tone: z.enum(["professional", "casual", "friendly", "formal", "humorous"]).default("professional"),
+        language: z.enum(["no", "en"]).default("no"),
+        generateImage: z.boolean().default(false),
       }))
       .mutation(async ({ ctx, input }) => {
         const { getDb, getUserSubscription } = await import("../db");
@@ -62,6 +66,10 @@ export const seriesRouter = router({
           title: input.title,
           description: input.description,
           totalParts: input.postCount,
+          platform: input.platform,
+          tone: input.tone,
+          language: input.language,
+          generateImage: input.generateImage ? 1 : 0,
           status: "planning",
         });
         
@@ -110,15 +118,35 @@ export const seriesRouter = router({
         
         // Generate next post using LLM
         const postNumber = existingPosts.length + 1;
+
+        // Build "previous parts" context so each new part builds on the prior ones
+        // and the series reads as a coherent, connected whole.
+        const { getPostById } = await import("../db");
+        const previousSummaries: string[] = [];
+        for (const ep of existingPosts) {
+          if (ep.postId == null) continue;
+          const prevPost = await getPostById(ep.postId);
+          const body = prevPost?.generatedContent;
+          if (typeof body === "string" && body.trim()) {
+            const snippet = body.trim().replace(/\s+/g, " ").slice(0, 280);
+            previousSummaries.push(`- Del ${ep.partNumber}: ${snippet}`);
+          }
+        }
+        const previousContext = previousSummaries.length
+          ? `Tidligere deler i serien:\n${previousSummaries.join("\n")}`
+          : "";
+
+        const languageLabel = series.language === "en" ? "engelsk" : "norsk";
+
         const response = await invokeLLM({
           messages: [
             {
               role: "system",
-              content: `Du er en ekspert på sosiale medier-innhold. Skriv ferdig, publiseringsklart innhold på norsk for innlegg ${postNumber} av ${series.totalParts} i en serie. VIKTIG: skriv REN tekst uten markdown — IKKE bruk **, ##, eller punktlister med * eller -. Bruk naturlige avsnitt, gjerne noen relevante emoji, og avslutt med 2-4 relevante hashtags.`,
+              content: `Du er en ekspert på sosiale medier-innhold. Skriv ferdig, publiseringsklart innhold for ${series.platform} på ${languageLabel} i en tone som er ${series.tone}. VIKTIG: skriv REN tekst uten markdown (ingen **, ##, eller punktlister med * eller -). Dette er del ${postNumber} av ${series.totalParts} i en sammenhengende serie — bygg eksplisitt videre på de forrige delene, unngå å gjenta dem, og skap en rød tråd. Avslutt med 2-4 relevante hashtags.`,
             },
             {
               role: "user",
-              content: `Serie: ${series.title}\n\nBeskrivelse: ${series.description}\n\nGenerer innlegg ${postNumber}/${series.totalParts}. Inkluder en kort intro som refererer til serien.`,
+              content: `Serie: ${series.title}\n\nBeskrivelse: ${series.description}\n\n${previousContext}\n\nSkriv del ${postNumber}/${series.totalParts}. Referer kort til serien og de forrige delene der det er naturlig.`,
             },
           ],
         });
@@ -132,13 +160,32 @@ export const seriesRouter = router({
         const { createPost } = await import("../db");
         const savedPost = await createPost({
           userId: ctx.user.id,
-          platform: "linkedin",
-          tone: "professional",
+          platform: series.platform as any,
+          tone: series.tone,
           rawInput: `${series.title} – Del ${postNumber}`,
           generatedContent: content,
           tags: null,
           status: "draft",
         });
+
+        // Optionally generate and attach an image for this part (best-effort:
+        // never fail the post if image generation/storage is unavailable).
+        if (series.generateImage === 1) {
+          try {
+            const { generateImage } = await import("../_core/imageGeneration");
+            const img = await generateImage({ prompt: `${series.title}: ${content.slice(0, 180)}` });
+            if (img?.url && /^https?:\/\//.test(img.url)) {
+              // only persist hosted URLs, never a giant data: URL
+              const { getDb } = await import("../db");
+              const { posts } = await import("../../drizzle/schema");
+              const { eq } = await import("drizzle-orm");
+              const db2 = await getDb();
+              if (db2) await db2.update(posts).set({ imageUrl: img.url }).where(eq(posts.id, savedPost.id));
+            }
+          } catch (err) {
+            console.error("Series image generation failed (non-fatal)", err);
+          }
+        }
 
         // Create series post entry linked to the saved post
         await db.insert(seriesPosts).values({
@@ -155,6 +202,6 @@ export const seriesRouter = router({
           .set({ status: newStatus })
           .where(eq(contentSeries.id, input.seriesId));
         
-        return { success: true, content };
+        return { success: true, content, postId: savedPost.id };
       }),
   });
