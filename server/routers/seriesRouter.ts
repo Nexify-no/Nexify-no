@@ -8,6 +8,18 @@
 import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 
+/** Strip markdown so series posts read like a normal clean social-media post. */
+function stripMarkdown(input: string): string {
+  return input
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/__(.*?)__/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^\s*[*-]\s+/gm, "")
+    .replace(/\*/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export const seriesRouter = router({
     list: protectedProcedure.query(async ({ ctx }) => {
       const { getDb } = await import("../db");
@@ -102,7 +114,7 @@ export const seriesRouter = router({
           messages: [
             {
               role: "system",
-              content: `Du er en ekspert på innhold. Generer innlegg nummer ${postNumber} av ${series.totalParts} i en serie.`,
+              content: `Du er en ekspert på sosiale medier-innhold. Skriv ferdig, publiseringsklart innhold på norsk for innlegg ${postNumber} av ${series.totalParts} i en serie. VIKTIG: skriv REN tekst uten markdown — IKKE bruk **, ##, eller punktlister med * eller -. Bruk naturlige avsnitt, gjerne noen relevante emoji, og avslutt med 2-4 relevante hashtags.`,
             },
             {
               role: "user",
@@ -111,8 +123,9 @@ export const seriesRouter = router({
           ],
         });
         
-        const content = response.choices[0]?.message?.content;
-        if (typeof content !== "string") throw new Error("Kunne ikke generere innlegg");
+        const rawContent = response.choices[0]?.message?.content;
+        if (typeof rawContent !== "string") throw new Error("Kunne ikke generere innlegg");
+        const content = stripMarkdown(rawContent);
 
         // Persist the generated body as a real draft post so it shows in "Mine innlegg"
         // (previously only a metadata row was written and the text was lost).

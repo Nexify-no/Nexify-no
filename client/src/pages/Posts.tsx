@@ -8,7 +8,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Copy, Zap, Trash2, Star, FileText, Plus, Search, Sparkles, Send, Loader2 } from "lucide-react";
+import { Copy, Zap, Trash2, Star, FileText, Plus, Search, Sparkles, Send, Loader2, Pencil, Image as ImageIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,6 +34,9 @@ export default function Posts() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"newest" | "oldest">("newest");
   const [imageOnly, setImageOnly] = useState(false);
+  const [editPostId, setEditPostId] = useState<number | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const [imagingPostId, setImagingPostId] = useState<number | null>(null);
 
   const utils = trpc.useUtils();
   const { data: posts, isLoading } = trpc.content.list.useQuery(undefined, {
@@ -75,6 +78,52 @@ export default function Posts() {
     },
     onError: (e) => toast.error(e.message),
   });
+
+  const updateMutation = trpc.content.update.useMutation({
+    onSuccess: () => {
+      utils.content.list.invalidate();
+      toast.success(language === "no" ? "Innlegg oppdatert" : "Post updated");
+      setEditPostId(null);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const genImageMutation = trpc.content.generateImageNanoBanana.useMutation();
+  const attachImageMutation = trpc.content.attachImage.useMutation();
+
+  const openEdit = (post: any) => {
+    setEditPostId(post.id);
+    setEditContent(post.generatedContent || "");
+  };
+  const saveEdit = () => {
+    if (editPostId != null) updateMutation.mutate({ postId: editPostId, content: editContent });
+  };
+  const generateImageForPost = async (post: any) => {
+    setImagingPostId(post.id);
+    try {
+      const res = await genImageMutation.mutateAsync({
+        topic: (post.rawInput || post.generatedContent || "").slice(0, 200),
+        platform: (post.platform || "linkedin"),
+        tone: (post.tone || "professional"),
+        keywords: [],
+      });
+      if (res?.url) {
+        await attachImageMutation.mutateAsync({ postId: post.id, imageUrl: res.url });
+        utils.content.list.invalidate();
+        toast.success(language === "no" ? "Bilde lagt til" : "Image added");
+      } else {
+        toast.error(language === "no" ? "Kunne ikke generere bilde" : "Could not generate image");
+      }
+    } catch (e: any) {
+      const msg = String(e?.message || "");
+      toast.error(
+        /opptatt|too many|rate|429|transform/i.test(msg)
+          ? (language === "no" ? "Bildegenerering er opptatt — prøv igjen om litt." : "Image generation busy — try again.")
+          : (language === "no" ? "Feil ved bildegenerering." : "Image generation failed.")
+      );
+    } finally {
+      setImagingPostId(null);
+    }
+  };
 
   const openPublishDialog = (post: { id: number; platform: string }) => {
     setPublishPostId(post.id);
@@ -389,6 +438,27 @@ export default function Posts() {
                           >
                             <Send className="h-3.5 w-3.5" />
                           </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEdit(post)}
+                            title={language === "no" ? "Rediger" : "Edit"}
+                            aria-label={language === "no" ? "Rediger innlegg" : "Edit post"}
+                            className="h-8 w-8 p-0 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => generateImageForPost(post)}
+                            disabled={imagingPostId === post.id}
+                            title={language === "no" ? "Generer bilde" : "Generate image"}
+                            aria-label={language === "no" ? "Generer bilde" : "Generate image"}
+                            className="h-8 w-8 p-0 text-slate-400 hover:text-fuchsia-600 hover:bg-fuchsia-50 dark:hover:bg-fuchsia-900/30"
+                          >
+                            {imagingPostId === post.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageIcon className="h-3.5 w-3.5" />}
+                          </Button>
                           <Button 
                             variant="ghost" 
                             size="sm" 
@@ -522,6 +592,33 @@ export default function Posts() {
               ) : (
                 <><Send className="h-4 w-4" /> {language === "no" ? "Publiser" : "Publish"}</>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit post dialog */}
+      <Dialog open={editPostId !== null} onOpenChange={(open) => { if (!open) setEditPostId(null); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{language === "no" ? "Rediger innlegg" : "Edit post"}</DialogTitle>
+            <DialogDescription>
+              {language === "no" ? "Gjør endringer og lagre. Klar til å publisere etterpå." : "Make changes and save. Ready to publish afterwards."}
+            </DialogDescription>
+          </DialogHeader>
+          <textarea
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            rows={14}
+            className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditPostId(null)}>
+              {language === "no" ? "Avbryt" : "Cancel"}
+            </Button>
+            <Button onClick={saveEdit} disabled={updateMutation.isPending || !editContent.trim()}>
+              {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              {language === "no" ? "Lagre" : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
