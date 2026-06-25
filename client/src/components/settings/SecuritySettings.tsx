@@ -5,6 +5,7 @@
  */
 
 import { useState } from 'react';
+import { QRCodeSVG } from "qrcode.react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -83,6 +84,8 @@ export function SecuritySettings({ language }: SecuritySettingsProps) {
       addKeyInstruction: 'Legg til denne nøkkelen i en autentiseringsapp (Google Authenticator, Authy, 1Password):',
       copy: 'Kopier',
       otpauthLink: 'otpauth-lenke',
+      scanQr: 'Skann QR-koden med autentiseringsappen din:',
+      orEnterKey: 'Eller skriv inn nøkkelen manuelt:',
       enterCode: 'Skriv inn den 6-sifrede koden fra appen',
       activate: 'Aktiver',
       enterDisableCode: 'Skriv inn en 6-sifret kode eller en reservekode for å bekrefte',
@@ -134,6 +137,8 @@ export function SecuritySettings({ language }: SecuritySettingsProps) {
       addKeyInstruction: 'Add this key to an authenticator app (Google Authenticator, Authy, 1Password):',
       copy: 'Copy',
       otpauthLink: 'otpauth link',
+      scanQr: 'Scan the QR code with your authenticator app:',
+      orEnterKey: 'Or enter the key manually:',
       enterCode: 'Enter the 6-digit code from the app',
       activate: 'Activate',
       enterDisableCode: 'Enter a 6-digit code or a backup code to confirm',
@@ -351,7 +356,13 @@ export function SecuritySettings({ language }: SecuritySettingsProps) {
           ) : setupData ? (
             /* State: setup in progress */
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">{t.addKeyInstruction}</p>
+              <div className="flex flex-col items-center gap-2">
+                <p className="text-sm text-muted-foreground">{t.scanQr}</p>
+                <div className="rounded-lg bg-white p-3 inline-block">
+                  <QRCodeSVG value={setupData.otpauthUri} size={176} level="M" marginSize={1} />
+                </div>
+                <p className="text-xs text-muted-foreground">{t.orEnterKey}</p>
+              </div>
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <code className="flex-1 select-all break-all rounded-md border bg-gray-50 p-3 font-mono text-sm text-gray-800 dark:bg-gray-900 dark:text-gray-200">

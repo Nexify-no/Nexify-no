@@ -107,6 +107,7 @@
     "papaparse": "^5.5.3",
     "pdfkit": "^0.18.0",
     "rate-limit-redis": "^4",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.1",
     "react-day-picker": "^9.11.1",
     "react-dom": "^19.2.1",
