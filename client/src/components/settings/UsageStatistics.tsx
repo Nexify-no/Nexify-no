@@ -37,11 +37,18 @@ export default function UsageStatistics() {
     );
   }
 
-  const platformUsage = stats?.platformDistribution?.map((p) => ({
-    name: p.platform.charAt(0).toUpperCase() + p.platform.slice(1),
-    value: p.count,
-    percentage: Math.round((p.count / (stats?.totalPosts || 1)) * 100),
-  })) || [];
+  const platformUsage = stats?.platformDistribution?.map((p) => {
+    // count() comes back as a string from mysql2 — coerce to a real number so the
+    // Pie chart (dataKey="value") gets numeric values and renders (a string makes
+    // every slice angle 0 => blank pie, even though the bar version still works).
+    const count = Number(p.count) || 0;
+    const total = Number(stats?.totalPosts) || 1;
+    return {
+      name: p.platform.charAt(0).toUpperCase() + p.platform.slice(1),
+      value: count,
+      percentage: Math.round((count / total) * 100),
+    };
+  }) || [];
 
   const COLORS = ["#3b82f6", "#8b5cf6", "#ec4899", "#f59e0b"];
 
