@@ -235,25 +235,30 @@ export const abRouter = router({
       // Hourly click timeline across all variants of this experiment.
       let timeline: Array<{ hour: string; clicks: number }> = [];
       try {
-      if (variantIds.length > 0) {
-        // Use ONE shared expression in both SELECT and GROUP BY so the rendered
-        // SQL is byte-identical — required by TiDB's only_full_group_by mode.
-        const hourExpr = sql<string>`date_format(${abClickEvents.ts}, '%Y-%m-%d %H:00')`;
-        const rows: any = await db
-          .select({
-            hour: hourExpr,
-            clicks: sql<number>`count(*)`,
-          })
-          .from(abClickEvents)
-          .where(inArray(abClickEvents.variantId, variantIds))
-          .groupBy(hourExpr);
-        timeline = (rows ?? []).map((r: any) => ({
-          hour: String(r.hour),
-          clicks: Number(r.clicks ?? 0),
-        }));
-      }
+        if (variantIds.length > 0) {
+          // Aggregate in JS (only_full_group_by-safe): pull recent click timestamps
+          // and bucket them by hour. The SQL date_format GROUP BY returned empty on
+          // TiDB even though the click rows exist.
+          const events = await db
+            .select({ ts: abClickEvents.ts })
+            .from(abClickEvents)
+            .where(inArray(abClickEvents.variantId, variantIds))
+            .orderBy(abClickEvents.ts)
+            .limit(5000);
+          const buckets = new Map<string, number>();
+          const pad = (n: number) => String(n).padStart(2, "0");
+          for (const e of events) {
+            const d = e.ts ? new Date(e.ts as any) : null;
+            if (!d || isNaN(d.getTime())) continue;
+            const hour = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:00`;
+            buckets.set(hour, (buckets.get(hour) || 0) + 1);
+          }
+          timeline = Array.from(buckets.entries())
+            .map(([hour, clicks]) => ({ hour, clicks }))
+            .sort((a, b) => (a.hour < b.hour ? -1 : a.hour > b.hour ? 1 : 0));
+        }
       } catch (e) {
-        console.error("[ab.get] timeline query failed:", e);
+        console.error("[ab.get] timeline aggregation failed:", e);
       }
 
       const result = { experiment: exp, variants, stats, timeline };
