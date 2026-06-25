@@ -20,6 +20,10 @@ import { getSessionCookieOptions } from "../_core/cookies";
 import { sdk } from "../_core/sdk";
 import { sendVerificationEmail, sendPasswordResetEmail } from "../_core/email";
 import * as db from "../db";
+import { SignJWT, jwtVerify } from "jose";
+
+const CHALLENGE_TTL_S = 5 * 60; // 5 minutes
+function challengeSecret() { return new TextEncoder().encode(process.env.JWT_SECRET || ""); }
 
 const BCRYPT_ROUNDS = 12;
 const VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // 24h
@@ -122,6 +126,14 @@ export function registerEmailAuthRoutes(app: Express) {
       if (!ok) {
         return res.status(401).json({ error: "Feil e-post eller passord." });
       }
+      // If 2FA is on, do NOT issue a session yet — return a short-lived challenge.
+      if ((user as any).twoFactorEnabled) {
+        const challenge = await new SignJWT({ purpose: "2fa", uid: user.id, openId: user.openId })
+          .setProtectedHeader({ alg: "HS256" })
+          .setExpirationTime(`${CHALLENGE_TTL_S}s`)
+          .sign(challengeSecret());
+        return res.json({ requires2fa: true, challenge });
+      }
       const sessionToken = await sdk.createSessionToken(user.openId, {
         name: user.name ?? "",
         expiresInMs: ONE_YEAR_MS,
@@ -130,6 +142,58 @@ export function registerEmailAuthRoutes(app: Express) {
       return res.json({ ok: true });
     } catch (err) {
       console.error("[EmailAuth] login failed:", err);
+      return res.status(500).json({ error: "Det oppstod en feil. Prøv igjen." });
+    }
+  });
+
+  /** POST /api/auth/login/2fa { challenge, code } — completes a 2FA login. */
+  app.post("/api/auth/login/2fa", async (req: Request, res: Response) => {
+    const challenge = typeof req.body?.challenge === "string" ? req.body.challenge : "";
+    const code = typeof req.body?.code === "string" ? req.body.code.trim() : "";
+    if (!challenge || !code) return res.status(400).json({ error: "Ugyldig forespørsel." });
+    try {
+      let uid: number;
+      let openId: string;
+      try {
+        const { payload } = await jwtVerify(challenge, challengeSecret());
+        if (payload.purpose !== "2fa") throw new Error("bad purpose");
+        uid = Number(payload.uid);
+        openId = String(payload.openId);
+      } catch {
+        return res.status(401).json({ error: "Utløpt eller ugyldig forespørsel. Logg inn på nytt." });
+      }
+      const { getDb } = await import("../db");
+      const { users } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const dbi = await getDb();
+      if (!dbi) return res.status(500).json({ error: "Det oppstod en feil." });
+      const [user] = await dbi.select().from(users).where(eq(users.id, uid)).limit(1);
+      if (!user || !user.twoFactorEnabled || !user.twoFactorSecret) {
+        return res.status(401).json({ error: "Feil kode." });
+      }
+      const { decryptSecret } = await import("../_core/tokenCrypto");
+      const { verifyTotp } = await import("../_core/totp");
+      const secret = decryptSecret(user.twoFactorSecret);
+      let valid = !!secret && verifyTotp(secret, code);
+      // Fall back to (and consume) a backup code.
+      if (!valid && user.twoFactorBackupCodes) {
+        const hashes: string[] = JSON.parse(user.twoFactorBackupCodes);
+        let usedIdx = -1;
+        for (let i = 0; i < hashes.length; i++) {
+          if (await bcrypt.compare(code, hashes[i])) { usedIdx = i; break; }
+        }
+        if (usedIdx >= 0) {
+          valid = true;
+          hashes.splice(usedIdx, 1);
+          await dbi.update(users).set({ twoFactorBackupCodes: JSON.stringify(hashes) }).where(eq(users.id, uid));
+        }
+      }
+      if (!valid) return res.status(401).json({ error: "Feil kode." });
+      const sessionToken = await sdk.createSessionToken(openId, { name: user.name ?? "", expiresInMs: ONE_YEAR_MS });
+      setSessionCookie(req, res, sessionToken);
+      return res.json({ ok: true });
+    } catch (err) {
+      console.error("[EmailAuth] 2fa login failed:", err);
       return res.status(500).json({ error: "Det oppstod en feil. Prøv igjen." });
     }
   });

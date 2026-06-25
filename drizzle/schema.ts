@@ -31,6 +31,11 @@ export const users = mysqlTable("users", {
   passwordHash: varchar("passwordHash", { length: 255 }),
   /** Timestamp when the user verified their email; NULL = unverified. */
   emailVerified: timestamp("emailVerified"),
+  /** Encrypted (AES-GCM) base32 TOTP secret for 2FA; NULL = not set up. */
+  twoFactorSecret: varchar("two_factor_secret", { length: 255 }),
+  twoFactorEnabled: tinyint("two_factor_enabled").default(0).notNull(),
+  /** JSON array of bcrypt-hashed one-time backup codes. */
+  twoFactorBackupCodes: text("two_factor_backup_codes"),
 });
 
 /**

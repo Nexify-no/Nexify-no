@@ -7,6 +7,7 @@
 import { router } from "./_core/trpc";
 import { systemRouter } from "./_core/systemRouter";
 import { voiceRouter } from "./voiceRouter";
+import { twoFactorRouter } from "./twoFactorRouter";
 import { langchainRouter } from "./langchainRouter";
 import { analyticsRouter } from "./analyticsRouter";
 import { schedulingRouter } from "./routers/schedulingRouter";
@@ -125,6 +126,7 @@ export const appRouter = router({
 
   templates: templatesRouter,
   presets: presetsRouter,
+  twoFactor: twoFactorRouter,
 });
 
 export type AppRouter = typeof appRouter;
