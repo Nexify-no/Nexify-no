@@ -114,7 +114,7 @@ export const contentRouter = router({
           tone: input.tone ?? "professional",
           rawInput: input.topic,
           generatedContent: content,
-          imageUrl: input.imageUrl ?? null,
+          imageUrl: (input.imageUrl && /^https?:\/\//.test(input.imageUrl)) ? input.imageUrl : null, // only persist hosted URLs, never giant data: URLs
           tags: input.keywords ?? null,
           status: "draft",
         });
@@ -142,6 +142,11 @@ export const contentRouter = router({
         const { eq, and } = await import("drizzle-orm");
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+        // Only persist hosted (R2/http) URLs — never embed a multi-MB data: URL in
+        // the row, or content.list balloons and the page freezes.
+        if (!/^https?:\/\//.test(input.imageUrl)) {
+          return { success: false, reason: "not_hosted" };
+        }
         await db.update(posts).set({ imageUrl: input.imageUrl, updatedAt: new Date() }).where(and(eq(posts.id, input.postId), eq(posts.userId, ctx.user.id)));
         return { success: true };
       }),
