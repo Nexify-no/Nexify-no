@@ -30,6 +30,10 @@ export default function Posts() {
   const [expandedPost, setExpandedPost] = useState<number | null>(null);
   const [publishPostId, setPublishPostId] = useState<number | null>(null);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
+  const [platformFilter, setPlatformFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<"newest" | "oldest">("newest");
+  const [imageOnly, setImageOnly] = useState(false);
 
   const utils = trpc.useUtils();
   const { data: posts, isLoading } = trpc.content.list.useQuery(undefined, {
@@ -98,12 +102,23 @@ export default function Posts() {
 
   const filteredPosts = useMemo(() => {
     if (!posts) return [];
-    if (!searchQuery.trim()) return posts;
-    return posts.filter(post => 
-      post.generatedContent.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      post.rawInput?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [posts, searchQuery]);
+    const q = searchQuery.trim().toLowerCase();
+    const list = posts.filter((post: any) => {
+      const matchesSearch =
+        !q ||
+        post.generatedContent?.toLowerCase().includes(q) ||
+        post.rawInput?.toLowerCase().includes(q);
+      const matchesPlatform = platformFilter === "all" || post.platform === platformFilter;
+      const matchesStatus = statusFilter === "all" || post.status === statusFilter;
+      const matchesImage = !imageOnly || !!post.imageUrl;
+      return matchesSearch && matchesPlatform && matchesStatus && matchesImage;
+    });
+    return [...list].sort((a: any, b: any) => {
+      const ta = new Date(a.createdAt || 0).getTime();
+      const tb = new Date(b.createdAt || 0).getTime();
+      return sortBy === "newest" ? tb - ta : ta - tb;
+    });
+  }, [posts, searchQuery, platformFilter, statusFilter, imageOnly, sortBy]);
 
   if (authLoading || !isAuthenticated) {
     if (!authLoading && !isAuthenticated) {
@@ -200,6 +215,87 @@ export default function Posts() {
                 className="w-full pl-10 pr-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all placeholder:text-slate-400"
               />
             </div>
+          </div>
+        )}
+
+        {/* Filters & sorting */}
+        {posts && posts.length > 0 && (
+          <div className="mb-5 flex flex-col gap-2.5 page-enter" style={{ animationDelay: '0.12s' }}>
+            {/* Platform chips with counts */}
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                { v: "all", label: language === "no" ? "Alle" : "All" },
+                { v: "linkedin", label: "LinkedIn" },
+                { v: "twitter", label: "Twitter/X" },
+                { v: "instagram", label: "Instagram" },
+                { v: "facebook", label: "Facebook" },
+              ].map((opt) => {
+                const count = opt.v === "all" ? posts.length : posts.filter((pp: any) => pp.platform === opt.v).length;
+                if (opt.v !== "all" && count === 0) return null;
+                const active = platformFilter === opt.v;
+                return (
+                  <button
+                    key={opt.v}
+                    onClick={() => setPlatformFilter(opt.v)}
+                    aria-pressed={active}
+                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${active ? "bg-indigo-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"}`}
+                  >
+                    {opt.label} <span className="opacity-70">{count}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {/* Status + image + sort */}
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                { v: "all", label: language === "no" ? "Alle statuser" : "All statuses" },
+                { v: "draft", label: language === "no" ? "Utkast" : "Draft" },
+                { v: "published", label: language === "no" ? "Publisert" : "Published" },
+                { v: "scheduled", label: language === "no" ? "Planlagt" : "Scheduled" },
+              ].map((opt) => {
+                const active = statusFilter === opt.v;
+                return (
+                  <button
+                    key={opt.v}
+                    onClick={() => setStatusFilter(opt.v)}
+                    aria-pressed={active}
+                    className={`rounded-lg px-2.5 py-1 text-xs transition-colors ${active ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"}`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  onClick={() => setImageOnly((v) => !v)}
+                  aria-pressed={imageOnly}
+                  className={`rounded-lg px-2.5 py-1 text-xs transition-colors ${imageOnly ? "bg-emerald-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"}`}
+                >
+                  {language === "no" ? "Med bilde" : "With image"}
+                </button>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as "newest" | "oldest")}
+                  aria-label={language === "no" ? "Sorter" : "Sort"}
+                  className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-xs"
+                >
+                  <option value="newest">{language === "no" ? "Nyeste først" : "Newest first"}</option>
+                  <option value="oldest">{language === "no" ? "Eldste først" : "Oldest first"}</option>
+                </select>
+              </div>
+            </div>
+            {filteredPosts.length !== posts.length && (
+              <p className="text-xs text-muted-foreground">
+                {language === "no" ? `Viser ${filteredPosts.length} av ${posts.length}` : `Showing ${filteredPosts.length} of ${posts.length}`}
+                {" · "}
+                <button
+                  onClick={() => { setPlatformFilter("all"); setStatusFilter("all"); setImageOnly(false); setSearchQuery(""); }}
+                  className="text-indigo-600 dark:text-indigo-400 hover:underline"
+                >
+                  {language === "no" ? "Nullstill filtre" : "Reset filters"}
+                </button>
+              </p>
+            )}
           </div>
         )}
 
