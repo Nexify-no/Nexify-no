@@ -286,14 +286,14 @@ export default function Home() {
             </div>
 
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 leading-[1.1] tracking-tight text-gray-900">
-              Skap innhold som
+              Fra idé til ferdig innlegg
               <span className="block bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent mt-1">
-                engasjerer og konverterer
+                på 30 sekunder
               </span>
             </h1>
             
             <p className="text-lg md:text-xl text-gray-500 mb-10 max-w-2xl mx-auto leading-relaxed">
-              Profesjonelle innlegg med AI-genererte bilder. Ferdig på 30 sekunder.
+              Slutt å bruke timer — Innlegg gjør jobben på minutter.
               <span className="block mt-2 text-gray-700 font-medium">LinkedIn · Twitter · Instagram · Facebook</span>
             </p>
 
