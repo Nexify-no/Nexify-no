@@ -85,7 +85,7 @@ export default function PaymentFailure() {
           </div>
 
           <p className="text-xs text-gray-500 mt-6">
-            Trenger du hjelp? Kontakt oss på support@innlegg.no eller bruk support-systemet vårt.
+            Trenger du hjelp? Kontakt oss på support@penna.no eller bruk support-systemet vårt.
           </p>
         </div>
       </Card>

@@ -219,7 +219,7 @@ export function SecuritySettings({ language }: SecuritySettingsProps) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'nexify-2fa-backup-codes.txt';
+    a.download = 'penna-2fa-backup-codes.txt';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

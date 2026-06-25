@@ -206,8 +206,8 @@ export default function AccountSettings() {
           </ul>
           <p className="text-sm text-muted-foreground mt-4">
             For spørsmål om personvern, kontakt oss på{" "}
-            <a href="mailto:privacy@nexify.no" className="text-primary hover:underline">
-              privacy@nexify.no
+            <a href="mailto:privacy@penna.no" className="text-primary hover:underline">
+              privacy@penna.no
             </a>
           </p>
         </Card>

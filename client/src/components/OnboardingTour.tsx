@@ -11,8 +11,8 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Sparkles, PenTool, CalendarDays, Mic, Rocket, X } from "lucide-react";
 
-const DONE_KEY = "nexify_onboarding_v1_done";
-const START_KEY = "nexify_start_tour";
+const DONE_KEY = "penna_onboarding_v1_done";
+const START_KEY = "penna_start_tour";
 
 type Step = {
   icon: ReactNode;
@@ -23,7 +23,7 @@ type Step = {
 const STEPS: Step[] = [
   {
     icon: <Sparkles className="h-7 w-7 text-white" />,
-    title: { no: "Velkommen til Nexify AI! 🎉", en: "Welcome to Nexify AI! 🎉" },
+    title: { no: "Velkommen til Penna! 🎉", en: "Welcome to Penna! 🎉" },
     body: {
       no: "La oss ta en rask omvisning så du kommer raskt i gang med å lage profesjonelt innhold for sosiale medier.",
       en: "Let's take a quick tour so you can start creating professional social media content right away.",

@@ -239,8 +239,8 @@ export default function Security() {
                 ? "Hvis du har spørsmål om sikkerhet eller personvern, kontakt oss på:"
                 : "If you have questions about security or privacy, contact us at:"}
             </p>
-            <a href="mailto:security@innlegg.no" className="text-primary hover:underline font-semibold">
-              security@innlegg.no
+            <a href="mailto:security@penna.no" className="text-primary hover:underline font-semibold">
+              security@penna.no
             </a>
           </CardContent>
         </Card>

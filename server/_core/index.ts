@@ -323,7 +323,7 @@ async function startServer() {
   // indexed tracking_code, redirect immediately (302), and record the click
   // fire-and-forget (never block or fail the redirect).
   app.get("/r/:code", async (req, res) => {
-    const PUBLIC_SITE_URL = process.env.PUBLIC_SITE_URL || "https://innlegg.no";
+    const PUBLIC_SITE_URL = process.env.PUBLIC_SITE_URL || "https://penna.no";
     try {
       const code = String(req.params.code || "").slice(0, 20);
       if (!code) return res.redirect(302, PUBLIC_SITE_URL);

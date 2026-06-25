@@ -72,7 +72,7 @@ export default function FAQ() {
             Ofte Stilte Spørsmål
           </h1>
           <p className="text-lg text-gray-600">
-            Finn svar på vanlige spørsmål om Innlegg
+            Finn svar på vanlige spørsmål om Penna
           </p>
         </div>
 

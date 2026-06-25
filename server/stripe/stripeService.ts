@@ -5,7 +5,7 @@
  */
 
 /**
- * Stripe Service for Innlegg/Nexify AI
+ * Stripe Service for Penna
  * 
  * Handles checkout sessions, subscriptions, and customer management
  */

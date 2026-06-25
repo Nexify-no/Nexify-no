@@ -91,7 +91,7 @@ export function verifyTotp(base32Secret: string, token: string, window = 1, atMs
 }
 
 /** Build the otpauth:// URI for authenticator apps / QR codes. */
-export function totpUri(base32Secret: string, accountName: string, issuer = "Innlegg"): string {
+export function totpUri(base32Secret: string, accountName: string, issuer = "Penna"): string {
   const label = encodeURIComponent(`${issuer}:${accountName}`);
   const params = new URLSearchParams({ secret: base32Secret, issuer, algorithm: "SHA1", digits: "6", period: "30" });
   return `otpauth://totp/${label}?${params.toString()}`;

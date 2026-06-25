@@ -53,7 +53,7 @@ describe("Invoice PDF Generator", () => {
         end: new Date("2026-05-08"),
       },
       companyName: "Nexify CRM Systems AS",
-      companyEmail: "support@nexify.ai",
+      companyEmail: "support@penna.no",
       companyAddress: "Norway",
     };
   });

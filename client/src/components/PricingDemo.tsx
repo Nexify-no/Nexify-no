@@ -51,7 +51,7 @@ export default function PricingDemo() {
           <div className="grid grid-cols-4 gap-3 mb-3 px-2">
             <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Oppgave</span>
             <span className="text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Uten AI</span>
-            <span className="text-xs font-bold text-primary uppercase tracking-wider text-center">Med Nexify</span>
+            <span className="text-xs font-bold text-primary uppercase tracking-wider text-center">Med Penna</span>
             <span className="text-xs font-bold text-green-600 uppercase tracking-wider text-center">Spart</span>
           </div>
           

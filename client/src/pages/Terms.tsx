@@ -14,13 +14,13 @@ export default function Terms() {
   const norwegianContent = {
     title: "Vilkår for bruk",
     lastUpdated: "Sist oppdatert: 26. januar 2026",
-    intro: "Ved å bruke Innlegg godtar du disse vilkårene. Les dem nøye før du bruker tjenesten.",
+    intro: "Ved å bruke Penna godtar du disse vilkårene. Les dem nøye før du bruker tjenesten.",
     sections: [
       {
         icon: FileText,
         title: "1. Aksept av vilkår",
         content: [
-          "Ved å opprette en konto og bruke Innlegg, godtar du å være bundet av disse vilkårene.",
+          "Ved å opprette en konto og bruke Penna, godtar du å være bundet av disse vilkårene.",
           "Hvis du ikke godtar disse vilkårene, må du ikke bruke tjenesten.",
           "Vi forbeholder oss retten til å endre disse vilkårene når som helst. Endringer trer i kraft umiddelbart etter publisering."
         ]
@@ -41,9 +41,9 @@ export default function Terms() {
         icon: Scale,
         title: "3. Eierskap til innhold",
         content: [
-          "**Ditt innhold**: Du eier 100% av innholdet du genererer med Innlegg",
+          "**Ditt innhold**: Du eier 100% av innholdet du genererer med Penna",
           "**Kommersiell bruk**: Du kan fritt bruke generert innhold til kommersielle formål",
-          "**Ingen rettigheter for oss**: Innlegg gjør ikke krav på noen rettigheter til ditt genererte innhold",
+          "**Ingen rettigheter for oss**: Penna gjør ikke krav på noen rettigheter til ditt genererte innhold",
           "**AI-generert innhold**: Vær oppmerksom på at AI-generert innhold kan ligne på annet innhold. Du er ansvarlig for å sikre at innholdet ditt er unikt."
         ]
       },
@@ -51,7 +51,7 @@ export default function Terms() {
         icon: Ban,
         title: "4. Forbudt bruk",
         content: [
-          "Du samtykker i å **ikke** bruke Innlegg til:",
+          "Du samtykker i å **ikke** bruke Penna til:",
           "- Generere ulovlig, hatefullt eller diskriminerende innhold",
           "- Spre feilinformasjon eller falske nyheter",
           "- Krenke andres opphavsrett eller immaterielle rettigheter",
@@ -64,10 +64,10 @@ export default function Terms() {
         icon: AlertTriangle,
         title: "5. Ansvarsfraskrivelse",
         content: [
-          "**Ingen garanti**: Innlegg leveres \"som den er\" uten garantier av noe slag",
+          "**Ingen garanti**: Penna leveres \"som den er\" uten garantier av noe slag",
           "**AI-nøyaktighet**: Vi garanterer ikke at AI-generert innhold er 100% nøyaktig eller feilfritt",
           "**Ansvar**: Du er ansvarlig for å gjennomgå og redigere innholdet før publisering",
-          "**Ingen ansvar**: Innlegg er ikke ansvarlig for tap eller skade som følge av bruk av tjenesten"
+          "**Ingen ansvar**: Penna er ikke ansvarlig for tap eller skade som følge av bruk av tjenesten"
         ]
       },
       {
@@ -83,20 +83,20 @@ export default function Terms() {
     ],
     contact: {
       title: "Kontakt oss",
-      content: "Hvis du har spørsmål om disse vilkårene, kontakt oss på **support@innlegg.no**"
+      content: "Hvis du har spørsmål om disse vilkårene, kontakt oss på **support@penna.no**"
     }
   };
 
   const englishContent = {
     title: "Terms of Service",
     lastUpdated: "Last updated: January 26, 2026",
-    intro: "By using Innlegg, you agree to these terms. Please read them carefully before using the service.",
+    intro: "By using Penna, you agree to these terms. Please read them carefully before using the service.",
     sections: [
       {
         icon: FileText,
         title: "1. Acceptance of Terms",
         content: [
-          "By creating an account and using Innlegg, you agree to be bound by these terms.",
+          "By creating an account and using Penna, you agree to be bound by these terms.",
           "If you do not agree to these terms, you must not use the service.",
           "We reserve the right to change these terms at any time. Changes take effect immediately upon publication."
         ]
@@ -117,9 +117,9 @@ export default function Terms() {
         icon: Scale,
         title: "3. Content Ownership",
         content: [
-          "**Your Content**: You own 100% of the content you generate with Innlegg",
+          "**Your Content**: You own 100% of the content you generate with Penna",
           "**Commercial Use**: You can freely use generated content for commercial purposes",
-          "**No Rights for Us**: Innlegg makes no claim to any rights to your generated content",
+          "**No Rights for Us**: Penna makes no claim to any rights to your generated content",
           "**AI-Generated Content**: Be aware that AI-generated content may resemble other content. You are responsible for ensuring your content is unique."
         ]
       },
@@ -127,7 +127,7 @@ export default function Terms() {
         icon: Ban,
         title: "4. Prohibited Use",
         content: [
-          "You agree to **not** use Innlegg to:",
+          "You agree to **not** use Penna to:",
           "- Generate illegal, hateful, or discriminatory content",
           "- Spread misinformation or fake news",
           "- Infringe on others' copyright or intellectual property rights",
@@ -140,10 +140,10 @@ export default function Terms() {
         icon: AlertTriangle,
         title: "5. Disclaimer",
         content: [
-          "**No Warranty**: Innlegg is provided \"as is\" without warranties of any kind",
+          "**No Warranty**: Penna is provided \"as is\" without warranties of any kind",
           "**AI Accuracy**: We do not guarantee that AI-generated content is 100% accurate or error-free",
           "**Responsibility**: You are responsible for reviewing and editing content before publishing",
-          "**No Liability**: Innlegg is not liable for any loss or damage resulting from use of the service"
+          "**No Liability**: Penna is not liable for any loss or damage resulting from use of the service"
         ]
       },
       {
@@ -159,7 +159,7 @@ export default function Terms() {
     ],
     contact: {
       title: "Contact Us",
-      content: "If you have questions about these terms, contact us at **support@innlegg.no**"
+      content: "If you have questions about these terms, contact us at **support@penna.no**"
     }
   };
 

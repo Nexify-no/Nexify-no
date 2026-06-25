@@ -67,7 +67,7 @@ export default function SubscriptionSuccess() {
             Gratulerer! 🎉
           </CardTitle>
           <CardDescription className="text-lg mt-2">
-            Du er nå Pro-medlem hos Nexify AI
+            Du er nå Pro-medlem hos Penna
           </CardDescription>
         </CardHeader>
         
@@ -125,8 +125,8 @@ export default function SubscriptionSuccess() {
           {/* Support info */}
           <p className="text-center text-sm text-muted-foreground">
             Har du spørsmål? Kontakt oss på{" "}
-            <a href="mailto:support@nexify.no" className="text-primary hover:underline">
-              support@nexify.no
+            <a href="mailto:support@penna.no" className="text-primary hover:underline">
+              support@penna.no
             </a>
           </p>
         </CardContent>

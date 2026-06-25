@@ -90,7 +90,7 @@ export default function TelegramBot() {
             <div className="flex items-center gap-3">
               <Bot className="h-8 w-8 text-blue-500" />
               <div>
-                <h2 className="font-semibold">@Nexifynorgebot</h2>
+                <h2 className="font-semibold">@PennaNorgeBot</h2>
                 <p className="text-sm text-muted-foreground">
                   {isConnected ? "Koblet til" : "Ikke koblet"}
                 </p>
@@ -136,9 +136,9 @@ export default function TelegramBot() {
                 <div>
                   <p className="font-medium">Åpne Telegram</p>
                   <p className="text-sm text-muted-foreground">
-                    Søk etter <strong>@Nexifynorgebot</strong> eller{" "}
+                    Søk etter <strong>@PennaNorgeBot</strong> eller{" "}
                     <a
-                      href="https://t.me/Nexifynorgebot"
+                      href="https://t.me/PennaNorgeBot"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:underline inline-flex items-center gap-1"
@@ -236,7 +236,7 @@ export default function TelegramBot() {
               <div className="p-4 bg-muted rounded-lg">
                 <p className="font-medium mb-2">💡 Send en idé</p>
                 <p className="text-sm text-muted-foreground">
-                  Åpne Telegram og send en melding til @Nexifynorgebot med idéen din.
+                  Åpne Telegram og send en melding til @PennaNorgeBot med idéen din.
                   Boten genererer automatisk et innlegg basert på idéen.
                 </p>
               </div>
@@ -252,7 +252,7 @@ export default function TelegramBot() {
                 <p className="font-medium mb-2">⚡ Rask og enkelt</p>
                 <p className="text-sm text-muted-foreground">
                   Boten svarer innen få sekunder med et ferdig innlegg som du kan
-                  se og redigere på innlegg.no
+                  se og redigere på penna.no
                 </p>
               </div>
             </div>

@@ -172,10 +172,10 @@ export default function Contact() {
                       Send oss en e-post, vi svarer innen 24 timer
                     </p>
                     <a
-                      href="mailto:support@nexify.no"
+                      href="mailto:support@penna.no"
                       className="text-primary hover:underline font-medium"
                     >
-                      support@nexify.no
+                      support@penna.no
                     </a>
                   </div>
                 </div>

@@ -684,7 +684,7 @@ export type InsertDraft = typeof drafts.$inferInsert;
 
 
 /**
- * Telegram Links table - Connect Telegram users to Innlegg accounts
+ * Telegram Links table - Connect Telegram users to Penna accounts
  * SaaS-level bot: one bot serves all users
  */
 export const telegramLinks = mysqlTable("telegram_links", {

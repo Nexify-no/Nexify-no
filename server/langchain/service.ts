@@ -75,7 +75,7 @@ export function languageLabel(code: string): string {
 }
 
 /**
- * LangChain Service for Innlegg
+ * LangChain Service for Penna
  * Provides AI-powered content generation, analysis, and coaching
  */
 
@@ -223,7 +223,7 @@ Analysis:`);
     conversationHistory?: Array<{ role: string; content: string }>;
   }): Promise<string> {
     try {
-      const systemPrompt = `You are Nexify AI Coach, an expert social media strategist and content creation mentor.
+      const systemPrompt = `You are Penna Coach, an expert social media strategist and content creation mentor.
 
 Your role is to:
 1. Help users improve their content strategy

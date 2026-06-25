@@ -28,7 +28,7 @@ import UserPreferences from "@/components/settings/UserPreferences";
 function RestartTourButton({ language }: { language: "no" | "en" }) {
   const handleRestart = () => {
     try {
-      localStorage.setItem("nexify_start_tour", "1");
+      localStorage.setItem("penna_start_tour", "1");
     } catch {
       /* ignore */
     }
@@ -895,7 +895,7 @@ export default function Settings() {
             <Card>
               <CardHeader>
                 <CardTitle>{language === "no" ? "Ofte Stilte Spørsmål" : "Frequently Asked Questions"}</CardTitle>
-                <CardDescription>{language === "no" ? "Finn svar på vanlige spørsmål om Innlegg" : "Find answers to common questions about Innlegg"}</CardDescription>
+                <CardDescription>{language === "no" ? "Finn svar på vanlige spørsmål om Penna" : "Find answers to common questions about Penna"}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-muted-foreground">{language === "no" ? "Besøk vår FAQ-side for å finne svar på spørsmål dine." : "Visit our FAQ page to find answers to your questions."}</p>

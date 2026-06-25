@@ -38,7 +38,7 @@ export async function sendEmail(
   try {
     const msg = {
       to,
-      from: fromEmail || process.env.SENDGRID_FROM_EMAIL || "noreply@innlegg.no",
+      from: fromEmail || process.env.SENDGRID_FROM_EMAIL || "noreply@penna.no",
       subject,
       html: htmlContent,
     };
@@ -58,20 +58,20 @@ export async function sendEmail(
 export async function sendWelcomeEmail(email: string, name: string): Promise<boolean> {
   const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h1 style="color: #333;">Velkommen til Innlegg!</h1>
+      <h1 style="color: #333;">Velkommen til Penna!</h1>
       <p>Hei ${name},</p>
-      <p>Takk for at du registrerte deg på Innlegg - din AI-drevne innholdsassistent for sosiale medier.</p>
+      <p>Takk for at du registrerte deg på Penna - din AI-drevne innholdsassistent for sosiale medier.</p>
       <p>Du kan nå begynne å generere profesjonelle innlegg for LinkedIn, Twitter, Instagram og Facebook.</p>
-      <a href="${process.env.VITE_APP_URL || "https://innlegg.no"}/dashboard" style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px;">
+      <a href="${process.env.VITE_APP_URL || "https://penna.no"}/dashboard" style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px;">
         Gå til Dashboard
       </a>
       <p style="margin-top: 30px; color: #666; font-size: 12px;">
-        Hvis du har spørsmål, kontakt oss på support@innlegg.no
+        Hvis du har spørsmål, kontakt oss på support@penna.no
       </p>
     </div>
   `;
 
-  return sendEmail(email, "Velkommen til Innlegg!", htmlContent);
+  return sendEmail(email, "Velkommen til Penna!", htmlContent);
 }
 
 /**
@@ -94,7 +94,7 @@ export async function sendSubscriptionConfirmationEmail(
         <p>Beløp: ${amount} NOK</p>
       </div>
       <p>Du har nå full tilgang til alle funksjoner. Lykke til med innholdsgenereringen!</p>
-      <a href="${process.env.VITE_APP_URL || "https://innlegg.no"}/dashboard" style="display: inline-block; padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px;">
+      <a href="${process.env.VITE_APP_URL || "https://penna.no"}/dashboard" style="display: inline-block; padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px;">
         Gå til Dashboard
       </a>
     </div>
@@ -151,7 +151,7 @@ export async function sendSupportTicketReplyEmail(
         <p><strong>Svar:</strong></p>
         <p>${replyMessage}</p>
       </div>
-      <a href="${process.env.VITE_APP_URL || "https://innlegg.no"}/support/tickets/${ticketId}" style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px;">
+      <a href="${process.env.VITE_APP_URL || "https://penna.no"}/support/tickets/${ticketId}" style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px;">
         Vis Ticket
       </a>
     </div>
@@ -172,7 +172,7 @@ export async function sendVerificationEmail(
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h1 style="color: #333;">Bekreft e-postadressen din</h1>
       <p>Hei ${name},</p>
-      <p>Takk for at du registrerte deg på Innlegg. Bekreft e-postadressen din for å fullføre oppsettet.</p>
+      <p>Takk for at du registrerte deg på Penna. Bekreft e-postadressen din for å fullføre oppsettet.</p>
       <a href="${verifyLink}" style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px;">
         Bekreft e-post
       </a>
@@ -235,7 +235,7 @@ export async function sendWeeklyReportEmail(
         <p><strong>Total engasjement:</strong> ${stats.totalEngagement}</p>
         <p><strong>Beste plattform:</strong> ${stats.topPlatform}</p>
       </div>
-      <a href="${process.env.VITE_APP_URL || "https://innlegg.no"}/dashboard" style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px;">
+      <a href="${process.env.VITE_APP_URL || "https://penna.no"}/dashboard" style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px;">
         Se Detaljert Rapport
       </a>
     </div>

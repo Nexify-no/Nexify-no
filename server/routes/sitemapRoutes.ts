@@ -89,11 +89,11 @@ Disallow: /settings
 Crawl-delay: 1
 
 # Sitemap
-Sitemap: https://innlegg.no/sitemap.xml
+Sitemap: https://penna.no/sitemap.xml
 
 # RSS Feed
-# https://innlegg.no/feed.xml
-# https://innlegg.no/atom.xml
+# https://penna.no/feed.xml
+# https://penna.no/atom.xml
 `;
 
   res.header("Content-Type", "text/plain");

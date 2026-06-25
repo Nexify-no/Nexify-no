@@ -20,7 +20,7 @@ export interface AggregatedTrend {
   category?: string;
 }
 
-const UA = "Mozilla/5.0 (compatible; NexifyAI/1.0; +https://nexify-ai.onrender.com)";
+const UA = "Mozilla/5.0 (compatible; PennaAI/1.0; +https://penna.no)";
 const CACHE_MS = 60 * 60 * 1000; // 1 hour
 let cache: { at: number; data: AggregatedTrend[] } | null = null;
 

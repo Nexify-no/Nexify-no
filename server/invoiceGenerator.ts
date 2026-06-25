@@ -119,7 +119,7 @@ export async function generateInvoicePDF(invoiceData: InvoiceData): Promise<Buff
 
     // Footer
     doc.moveDown(3);
-    doc.fontSize(9).fillColor('#999').text('Takk for at du bruker Nexify AI!', { align: 'center' });
+    doc.fontSize(9).fillColor('#999').text('Takk for at du bruker Penna!', { align: 'center' });
     doc.text('Denne fakturaen ble generert automatisk.', { align: 'center' });
 
     doc.end();

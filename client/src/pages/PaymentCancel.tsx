@@ -55,7 +55,7 @@ export function PaymentCancel() {
 
           <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-4">
             <p className="text-xs text-blue-800 dark:text-blue-200">
-              💡 <strong>Tips:</strong> Hvis du har problemer med betalingen, kan du kontakte oss på support@nexify.ai
+              💡 <strong>Tips:</strong> Hvis du har problemer med betalingen, kan du kontakte oss på support@penna.no
             </p>
           </div>
         </CardContent>

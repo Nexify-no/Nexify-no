@@ -223,7 +223,7 @@ export default function Dashboard() {
                   <Rocket className="h-8 w-8 text-white" />
                 </div>
                 <h2 className="text-2xl font-bold mb-3">
-                  {language === "no" ? "Velkommen til Nexify AI!" : "Welcome to Nexify AI!"}
+                  {language === "no" ? "Velkommen til Penna!" : "Welcome to Penna!"}
                 </h2>
                 <p className="text-white/80 mb-6 leading-relaxed">
                   {language === "no" 
@@ -726,7 +726,7 @@ export default function Dashboard() {
               </div>
               <div className="flex-1 text-center md:text-left">
                 <h3 className="text-lg font-bold mb-0.5">
-                  {language === "no" ? "Liker du Nexify AI?" : "Enjoying Nexify AI?"}
+                  {language === "no" ? "Liker du Penna?" : "Enjoying Penna?"}
                 </h3>
                 <p className="text-white/80 text-sm">
                   {language === "no" 

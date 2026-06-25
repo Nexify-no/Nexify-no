@@ -172,7 +172,7 @@ export default function Home() {
     {
       name: "Erik Johansen",
       role: "Markedssjef, TechNorge AS",
-      text: "Nexify AI har halvert tiden vi bruker på innholdsproduksjon. Kvaliteten er imponerende - kollegaene mine tror jeg skriver alt selv!",
+      text: "Penna har halvert tiden vi bruker på innholdsproduksjon. Kvaliteten er imponerende - kollegaene mine tror jeg skriver alt selv!",
       rating: 5,
       initial: "E",
       color: "from-blue-500 to-blue-600"
@@ -205,7 +205,7 @@ export default function Home() {
               <Zap className="h-5 w-5 text-white" />
             </div>
             <span className="text-xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
-              Nexify AI
+              Penna
             </span>
           </div>
           <div className="hidden md:flex items-center gap-8">
@@ -293,7 +293,7 @@ export default function Home() {
             </h1>
             
             <p className="text-lg md:text-xl text-gray-500 mb-10 max-w-2xl mx-auto leading-relaxed">
-              Slutt å bruke timer — Innlegg gjør jobben på minutter.
+              Slutt å bruke timer — Penna gjør jobben på minutter.
               <span className="block mt-2 text-gray-700 font-medium">LinkedIn · Twitter · Instagram · Facebook</span>
             </p>
 
@@ -521,7 +521,7 @@ export default function Home() {
               <span className="text-sm font-medium text-primary">Hva brukerne sier</span>
             </div>
             <h2 className="text-3xl md:text-4xl font-bold mb-4 text-gray-900">Elsket av markedsførere</h2>
-            <p className="text-lg text-gray-500">Se hva andre sier om Nexify AI</p>
+            <p className="text-lg text-gray-500">Se hva andre sier om Penna</p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
@@ -595,7 +595,7 @@ export default function Home() {
             <Accordion type="single" collapsible className="w-full">
               {[
                 {
-                  q: "Hva koster Nexify?",
+                  q: "Hva koster Penna?",
                   a: "Du starter gratis med 2 innlegg – ingen kredittkort. Vil du ha mer, gir Pro-abonnementet ubegrenset generering, AI-bilder og planlegging til en fast månedspris.",
                 },
                 {
@@ -604,11 +604,11 @@ export default function Home() {
                 },
                 {
                   q: "Hvilke plattformer støttes?",
-                  a: "Nexify lager innhold tilpasset LinkedIn, X (Twitter), Instagram og Facebook – med riktig tone og format for hver plattform.",
+                  a: "Penna lager innhold tilpasset LinkedIn, X (Twitter), Instagram og Facebook – med riktig tone og format for hver plattform.",
                 },
                 {
                   q: "Er innholdet på norsk?",
-                  a: "Ja. Nexify er bygget spesielt for norsk språk og tone, så innleggene høres naturlige ut – ikke maskinoversatt.",
+                  a: "Ja. Penna er bygget spesielt for norsk språk og tone, så innleggene høres naturlige ut – ikke maskinoversatt.",
                 },
                 {
                   q: "Hvordan håndteres dataene mine?",
@@ -671,7 +671,7 @@ export default function Home() {
                 <div className="h-8 w-8 bg-gradient-to-br from-primary to-purple-600 rounded-lg flex items-center justify-center">
                   <Zap className="h-4 w-4 text-white" />
                 </div>
-                <span className="text-lg font-bold">Nexify AI</span>
+                <span className="text-lg font-bold">Penna</span>
               </div>
               <p className="text-sm text-gray-400 leading-relaxed">
                 Din AI-assistent for profesjonelt innhold på sosiale medier.
@@ -696,14 +696,14 @@ export default function Home() {
             <div>
               <h4 className="font-semibold mb-4 text-sm uppercase tracking-wider text-gray-300">Kontakt</h4>
               <ul className="space-y-2.5 text-sm text-gray-400">
-                <li><a href="mailto:support@nexify.ai" className="hover:text-white transition-colors">support@nexify.ai</a></li>
+                <li><a href="mailto:support@penna.no" className="hover:text-white transition-colors">support@penna.no</a></li>
                 <li><a href="/about-us" className="hover:text-white transition-colors">Om oss</a></li>
                 <li><a href="/faq" className="hover:text-white transition-colors">FAQ</a></li>
               </ul>
             </div>
           </div>
           <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
-            <p className="text-sm text-gray-500">&copy; {new Date().getFullYear()} Nexify AI. Alle rettigheter reservert.</p>
+            <p className="text-sm text-gray-500">&copy; {new Date().getFullYear()} Penna. Alle rettigheter reservert.</p>
             <p className="text-xs text-gray-600">Nexify CRM Systems AS · Org.nr: 933 660 027</p>
           </div>
         </div>

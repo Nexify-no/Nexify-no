@@ -25,7 +25,7 @@ export interface RSSItem {
  * Generate RSS feed content
  */
 export async function generateRSSFeed(): Promise<string> {
-  const baseUrl = "https://innlegg.no";
+  const baseUrl = "https://penna.no";
   const items: RSSItem[] = [];
 
   // Fetch blog posts
@@ -90,15 +90,15 @@ function generateRSSXml(items: RSSItem[], baseUrl: string): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
   <channel>
-    <title>Innlegg - Din AI Innholdsassistent</title>
+    <title>Penna - Din AI Innholdsassistent</title>
     <link>${baseUrl}</link>
     <description>Oppdag hvordan AI kan hjelpe deg med å lage engasjerende innhold for sosiale medier</description>
     <language>no</language>
-    <copyright>Copyright © ${currentYear} Innlegg. All rights reserved.</copyright>
+    <copyright>Copyright © ${currentYear} Penna. All rights reserved.</copyright>
     <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
     <image>
       <url>${baseUrl}/logo.png</url>
-      <title>Innlegg - Din AI Innholdsassistent</title>
+      <title>Penna - Din AI Innholdsassistent</title>
       <link>${baseUrl}</link>
     </image>
 ${itemsXml}
@@ -123,7 +123,7 @@ function escapeXml(str: string): string {
  * Generate Atom feed (alternative to RSS)
  */
 export async function generateAtomFeed(): Promise<string> {
-  const baseUrl = "https://innlegg.no";
+  const baseUrl = "https://penna.no";
   const items: RSSItem[] = [];
 
   // Fetch blog posts
@@ -184,13 +184,13 @@ function generateAtomXml(items: RSSItem[], baseUrl: string): string {
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
-  <title>Innlegg - Din AI Innholdsassistent</title>
+  <title>Penna - Din AI Innholdsassistent</title>
   <link href="${baseUrl}" />
   <link href="${baseUrl}/feed.xml" rel="self" />
   <id>${baseUrl}</id>
   <updated>${new Date().toISOString()}</updated>
   <author>
-    <name>Innlegg Team</name>
+    <name>Penna Team</name>
   </author>
 ${entriesXml}
 </feed>`;

@@ -36,7 +36,7 @@ export default function CookiePolicy() {
             <div className="bg-muted p-4 rounded-lg">
               <p className="text-sm font-semibold mb-2">Hvorfor bruker vi informasjonskapsler?</p>
               <p className="text-sm text-muted-foreground">
-                Vi bruker informasjonskapsler for å gjøre Nexify AI-tjenesten bedre, sikrere og mer personlig tilpasset for deg.
+                Vi bruker informasjonskapsler for å gjøre Penna-tjenesten bedre, sikrere og mer personlig tilpasset for deg.
               </p>
             </div>
           </CardContent>
@@ -191,14 +191,14 @@ export default function CookiePolicy() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p>
-              Ved å bruke Nexify AI-tjenesten samtykker du til bruk av informasjonskapsler som beskrevet i denne policyen.
+              Ved å bruke Penna-tjenesten samtykker du til bruk av informasjonskapsler som beskrevet i denne policyen.
             </p>
             <div className="bg-muted p-4 rounded-lg">
               <p className="text-sm font-semibold mb-2">Trekke tilbake samtykke</p>
               <p className="text-sm text-muted-foreground">
                 Du kan når som helst trekke tilbake samtykket ditt ved å slette informasjonskapsler i nettleseren eller kontakte oss på{" "}
-                <a href="mailto:privacy@nexify.no" className="text-primary hover:underline">
-                  privacy@nexify.no
+                <a href="mailto:privacy@penna.no" className="text-primary hover:underline">
+                  privacy@penna.no
                 </a>
               </p>
             </div>
@@ -230,8 +230,8 @@ export default function CookiePolicy() {
             <p>Hvis du har spørsmål om vår bruk av informasjonskapsler, kan du kontakte oss:</p>
             <div className="bg-muted p-4 rounded-lg">
               <p className="font-semibold mb-2">Nexify CRM Systems AS</p>
-              <p className="text-sm text-muted-foreground">E-post: privacy@nexify.no</p>
-              <p className="text-sm text-muted-foreground">Nettside: www.nexify.no</p>
+              <p className="text-sm text-muted-foreground">E-post: privacy@penna.no</p>
+              <p className="text-sm text-muted-foreground">Nettside: www.penna.no</p>
             </div>
           </CardContent>
         </Card>

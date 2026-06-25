@@ -85,28 +85,28 @@ export default function BlogPost() {
     },
     "publisher": {
       "@type": "Organization",
-      "name": "Nexify AI",
+      "name": "Penna",
       "logo": {
         "@type": "ImageObject",
-        "url": "https://innlegg.no/logo.png"
+        "url": "https://penna.no/logo.png"
       }
     },
     "mainEntityOfPage": {
       "@type": "WebPage",
-      "@id": `https://innlegg.no/blog/${post.slug}`
+      "@id": `https://penna.no/blog/${post.slug}`
     }
   };
 
   return (
     <>
       <Helmet>
-        <title>{post.title} - Nexify AI Blog</title>
+        <title>{post.title} - Penna Blog</title>
         <meta name="description" content={post.excerpt} />
         <meta property="og:title" content={post.title} />
         <meta property="og:description" content={post.excerpt} />
         <meta property="og:type" content="article" />
         <meta property="og:image" content={post.coverImage || ''} />
-        <meta property="og:url" content={`https://innlegg.no/blog/${post.slug}`} />
+        <meta property="og:url" content={`https://penna.no/blog/${post.slug}`} />
         <meta property="article:published_time" content={new Date(post.createdAt).toISOString()} />
         <meta property="article:modified_time" content={new Date(post.updatedAt).toISOString()} />
         <meta property="article:author" content={post.authorName} />
@@ -117,7 +117,7 @@ export default function BlogPost() {
         <meta name="twitter:image" content={post.coverImage || ''} />
         <meta name="keywords" content={post.tags ? (() => { try { return JSON.parse(post.tags!).join(", "); } catch { return post.tags || ""; } })() : ""} />
         <meta name="author" content={post.authorName} />
-        <link rel="canonical" href={`https://innlegg.no/blog/${post.slug}`} />
+        <link rel="canonical" href={`https://penna.no/blog/${post.slug}`} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaData) }} />
       </Helmet>
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
@@ -202,7 +202,7 @@ export default function BlogPost() {
               <SocialShareButtons
                 title={post.title}
                 description={post.excerpt}
-                url={`https://innlegg.no/blog/${post.slug}`}
+                url={`https://penna.no/blog/${post.slug}`}
                 hashtags={post.tags ? (() => { try { return JSON.parse(post.tags!); } catch { return []; } })() : []}
               />
             </div>
@@ -213,7 +213,7 @@ export default function BlogPost() {
                 <div className="flex-1">
                   <h3 className="font-semibold mb-2">Om forfatteren</h3>
                   <p className="text-sm text-muted-foreground mb-3">
-                    {post.authorName} er {post.authorRole || "content creator"} hos Nexify AI.
+                    {post.authorName} er {post.authorRole || "content creator"} hos Penna.
                   </p>
                   <p className="text-sm text-muted-foreground">
                     Liker å skrive om AI, markedsføring og sosiale medier.

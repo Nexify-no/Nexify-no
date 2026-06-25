@@ -164,7 +164,7 @@ export default function DashboardNav() {
                   <Zap className="h-4.5 w-4.5 text-white" />
                 </div>
                 <span className="text-lg font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
-                  Nexify AI
+                  Penna
                 </span>
               </div>
             </Link>
@@ -316,7 +316,7 @@ export default function DashboardNav() {
                   <Zap className="h-4.5 w-4.5 text-white" />
                 </div>
                 <span className="text-lg font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
-                  Nexify AI
+                  Penna
                 </span>
               </div>
             </Link>

@@ -50,9 +50,9 @@ export async function handleTelegramWebhook(req: Request, res: Response) {
         );
       } else {
         await sendTelegramMessage(chatId,
-          `Velkommen til Innlegg! 🎉\n\n` +
+          `Velkommen til Penna! 🎉\n\n` +
           `For å koble kontoen din:\n` +
-          `1. Logg inn på innlegg.no\n` +
+          `1. Logg inn på penna.no\n` +
           `2. Gå til Telegram Bot-siden\n` +
           `3. Klikk "Generer koblingskode"\n` +
           `4. Send koden hit\n\n` +
@@ -76,7 +76,7 @@ export async function handleTelegramWebhook(req: Request, res: Response) {
       if (linkEntry.length === 0) {
         await sendTelegramMessage(chatId,
           `❌ Ugyldig eller utløpt kode.\n\n` +
-          `Generer en ny kode på innlegg.no`
+          `Generer en ny kode på penna.no`
         );
         return res.json({ ok: true });
       }
@@ -142,7 +142,7 @@ export async function handleTelegramWebhook(req: Request, res: Response) {
       });
 
       // Send result to user with link to dashboard
-      const dashboardUrl = process.env.VITE_FRONTEND_FORGE_API_URL?.replace('/api', '') || 'https://innlegg.no';
+      const dashboardUrl = process.env.VITE_FRONTEND_FORGE_API_URL?.replace('/api', '') || 'https://penna.no';
       await sendTelegramMessage(chatId,
         `✅ Innlegget ditt er klart!\n\n` +
         `${generatedContent}\n\n` +

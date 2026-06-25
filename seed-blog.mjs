@@ -36,7 +36,7 @@ Ved å følge disse fem tipsene vil du raskt se en økning i engasjement på Lin
     coverImage: null,
     category: "tips",
     tags: JSON.stringify(["LinkedIn", "SocialMedia", "ContentMarketing", "Engagement"]),
-    authorName: "Innlegg Team",
+    authorName: "Penna Team",
     authorRole: "Content Strategist",
     readingTime: 4,
     published: 1,
@@ -76,7 +76,7 @@ AI-teknologien utvikler seg raskt, og vi ser bare begynnelsen på hva som er mul
     coverImage: null,
     category: "guides",
     tags: JSON.stringify(["AI", "ContentStrategy", "Marketing", "Automation"]),
-    authorName: "Innlegg Team",
+    authorName: "Penna Team",
     authorRole: "AI Specialist",
     readingTime: 5,
     published: 1,
@@ -85,7 +85,7 @@ AI-teknologien utvikler seg raskt, og vi ser bare begynnelsen på hva som er mul
   {
     title: "Fra idé til ferdig innlegg på 30 sekunder",
     slug: "ide-til-ferdig-innlegg-30-sekunder",
-    excerpt: "En steg-for-steg guide til hvordan du bruker Innlegg for å lage profesjonelt innhold på rekordtid.",
+    excerpt: "En steg-for-steg guide til hvordan du bruker Penna for å lage profesjonelt innhold på rekordtid.",
     content: `Har du noen gang sittet fast og stirret på en tom skjerm, usikker på hvordan du skal formulere tanken din? Med Innlegg kan du gå fra en vag idé til et ferdig, profesjonelt innlegg på bare 30 sekunder. Her er hvordan.
 
 **Steg 1: Skriv ned din råidé (5 sekunder)**
@@ -114,7 +114,7 @@ Med Innlegg handler det ikke lenger om å bruke timer på å formulere det perfe
     coverImage: null,
     category: "guides",
     tags: JSON.stringify(["Tutorial", "Productivity", "ContentCreation", "QuickTips"]),
-    authorName: "Innlegg Team",
+    authorName: "Penna Team",
     authorRole: "Product Manager",
     readingTime: 3,
     published: 1,

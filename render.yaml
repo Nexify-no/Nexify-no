@@ -46,7 +46,7 @@ services:
       # Secrets you MUST set in the Render dashboard (sync:false)
       - key: DATABASE_URL          # mysql://user:pass@gateway.<region>.prod.aws.tidbcloud.com:4000/db?ssl={"rejectUnauthorized":true}
         sync: false
-      - key: PUBLIC_SITE_URL       # e.g. https://nexify-ai.onrender.com (or your custom domain)
+      - key: PUBLIC_SITE_URL       # e.g. https://penna.no (Render custom domain)
         sync: false
       - key: OPENAI_API_KEY        # sk-...
         sync: false

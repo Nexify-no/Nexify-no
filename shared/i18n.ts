@@ -47,12 +47,12 @@ export const translations = {
     // Landing Page
     heroTitle: "Skap profesjonelt innhold på sekunder",
     heroSubtitle: "Med din egen stemme",
-    heroDescription: "Innlegg er din AI-drevne innholdsassistent som hjelper deg med å transformere råe ideer til profesjonelle innlegg klare for sosiale medier.",
+    heroDescription: "Penna er din AI-drevne innholdsassistent som hjelper deg med å transformere råe ideer til profesjonelle innlegg klare for sosiale medier.",
     getStarted: "Kom i gang gratis",
     learnMore: "Lær mer",
     
     // Features
-    featuresTitle: "Hvorfor Innlegg?",
+    featuresTitle: "Hvorfor Penna?",
     feature1Title: "Smart innholdsgenerering",
     feature1Description: "Konverter ideer til profesjonelle innlegg for LinkedIn, Twitter, Instagram og Facebook.",
     feature2Title: "Din egen stemme",
@@ -177,12 +177,12 @@ export const translations = {
     // Landing Page
     heroTitle: "Create professional content in seconds",
     heroSubtitle: "With your own voice",
-    heroDescription: "Innlegg is your AI-powered content assistant that helps you transform raw ideas into professional posts ready for social media.",
+    heroDescription: "Penna is your AI-powered content assistant that helps you transform raw ideas into professional posts ready for social media.",
     getStarted: "Get started free",
     learnMore: "Learn more",
     
     // Features
-    featuresTitle: "Why Innlegg?",
+    featuresTitle: "Why Penna?",
     feature1Title: "Smart content generation",
     feature1Description: "Convert ideas into professional posts for LinkedIn, Twitter, Instagram, and Facebook.",
     feature2Title: "Your own voice",

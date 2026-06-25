@@ -31,13 +31,13 @@ export default function PrivacyPolicy() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p>
-              Nexify CRM Systems AS er behandlingsansvarlig for personopplysninger som samles inn og behandles gjennom Nexify AI-tjenesten.
+              Nexify CRM Systems AS er behandlingsansvarlig for personopplysninger som samles inn og behandles gjennom Penna-tjenesten.
             </p>
             <div className="bg-muted p-4 rounded-lg">
               <p className="font-semibold mb-2">Kontaktinformasjon:</p>
               <p>Nexify CRM Systems AS</p>
-              <p>E-post: privacy@nexify.no</p>
-              <p>Nettside: www.nexify.no</p>
+              <p>E-post: privacy@penna.no</p>
+              <p>Nettside: www.penna.no</p>
             </div>
           </CardContent>
         </Card>
@@ -215,8 +215,8 @@ export default function PrivacyPolicy() {
                 </p>
                 <p>
                   • <strong>Andre forespørsler:</strong> Kontakt oss på{" "}
-                  <a href="mailto:privacy@nexify.no" className="text-primary hover:underline">
-                    privacy@nexify.no
+                  <a href="mailto:privacy@penna.no" className="text-primary hover:underline">
+                    privacy@penna.no
                   </a>
                 </p>
               </div>
@@ -297,7 +297,7 @@ export default function PrivacyPolicy() {
             <p>Vi lagrer personopplysninger så lenge det er nødvendig for formålene de ble samlet inn for:</p>
             <ul className="list-disc list-inside space-y-2 text-muted-foreground">
               <li><strong>Kontodata:</strong> Så lenge kontoen er aktiv + 3 måneder etter sletting</li>
-              <li><strong>Nexify AI og innhold:</strong> Så lenge kontoen er aktiv</li>
+              <li><strong>Penna og innhold:</strong> Så lenge kontoen er aktiv</li>
               <li><strong>Betalingshistorikk:</strong> 5 år (bokføringsloven)</li>
               <li><strong>Loggdata:</strong> 12 måneder</li>
             </ul>
@@ -315,8 +315,8 @@ export default function PrivacyPolicy() {
             <p>Hvis du har spørsmål om denne personvernerklæringen eller hvordan vi behandler personopplysningene dine, kan du kontakte oss:</p>
             <div className="bg-muted p-4 rounded-lg">
               <p className="font-semibold mb-2">Nexify CRM Systems AS</p>
-              <p className="text-sm text-muted-foreground">E-post: privacy@nexify.no</p>
-              <p className="text-sm text-muted-foreground">Nettside: www.nexify.no</p>
+              <p className="text-sm text-muted-foreground">E-post: privacy@penna.no</p>
+              <p className="text-sm text-muted-foreground">Nettside: www.penna.no</p>
             </div>
             <p className="text-sm text-muted-foreground">
               Du har også rett til å klage til Datatilsynet hvis du mener vi ikke overholder personvernreglene.
@@ -336,7 +336,7 @@ export default function PrivacyPolicy() {
               Vi kan oppdatere denne personvernerklæringen fra tid til annen. Vesentlige endringer vil bli kommunisert via e-post eller ved innlogging på tjenesten. Vi oppfordrer deg til å gjennomgå denne erklæringen regelmessig.
             </p>
             <p className="text-sm text-muted-foreground italic">
-              Ved å fortsette å bruke Nexify AI etter endringer er publisert, aksepterer du den oppdaterte personvernerklæringen.
+              Ved å fortsette å bruke Penna etter endringer er publisert, aksepterer du den oppdaterte personvernerklæringen.
             </p>
           </CardContent>
         </Card>

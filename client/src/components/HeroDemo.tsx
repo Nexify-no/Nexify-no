@@ -164,7 +164,7 @@ export default function HeroDemo() {
           </div>
           <div className="flex-1 flex justify-center">
             <div className="bg-white rounded-lg px-4 py-1.5 text-xs text-gray-400 border border-gray-200 min-w-[200px] text-center">
-              nexify.ai/generate
+              penna.no/generate
             </div>
           </div>
         </div>
@@ -363,7 +363,7 @@ export default function HeroDemo() {
       <div className="text-center mt-4">
         <p className="text-xs text-gray-400 flex items-center justify-center gap-1.5">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse"></span>
-          Live demo — slik fungerer Nexify AI
+          Live demo — slik fungerer Penna
         </p>
       </div>
     </div>

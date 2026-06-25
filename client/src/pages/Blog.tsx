@@ -53,13 +53,13 @@ export default function Blog() {
   return (
     <>
       <Helmet>
-        <title>Nexify AI Blog - Tips og guider om innholdsproduksjon med AI</title>
+        <title>Penna Blog - Tips og guider om innholdsproduksjon med AI</title>
         <meta name="description" content="Les våre artikler om hvordan du kan bruke AI til å lage profesjonelt innhold for LinkedIn, Twitter, Instagram og Facebook. Tips, guider og best practices." />
-        <meta property="og:title" content="Nexify AI Blog - Tips og guider om innholdsproduksjon med AI" />
+        <meta property="og:title" content="Penna Blog - Tips og guider om innholdsproduksjon med AI" />
         <meta property="og:description" content="Les våre artikler om hvordan du kan bruke AI til å lage profesjonelt innhold for LinkedIn, Twitter, Instagram og Facebook." />
         <meta property="og:type" content="website" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Nexify AI Blog - Tips og guider om innholdsproduksjon med AI" />
+        <meta name="twitter:title" content="Penna Blog - Tips og guider om innholdsproduksjon med AI" />
         <meta name="twitter:description" content="Les våre artikler om hvordan du kan bruke AI til å lage profesjonelt innhold." />
       </Helmet>
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
@@ -69,7 +69,7 @@ export default function Blog() {
           <div className="max-w-3xl">
             <div className="flex items-center gap-2 mb-4">
               <BookOpen className="h-8 w-8" />
-              <h1 className="text-4xl font-bold">Nexify AI Blog</h1>
+              <h1 className="text-4xl font-bold">Penna Blog</h1>
             </div>
             <p className="text-xl text-blue-100">
               Tips, guider og innsikt om innholdsproduksjon med AI

@@ -14,7 +14,7 @@ export default function Privacy() {
   const norwegianContent = {
     title: "Personvernerklæring",
     lastUpdated: "Sist oppdatert: 26. januar 2026",
-    intro: "Hos Innlegg tar vi personvernet ditt på alvor. Denne personvernerklæringen forklarer hvordan vi samler inn, bruker og beskytter dine personopplysninger i samsvar med GDPR (General Data Protection Regulation).",
+    intro: "Hos Penna tar vi personvernet ditt på alvor. Denne personvernerklæringen forklarer hvordan vi samler inn, bruker og beskytter dine personopplysninger i samsvar med GDPR (General Data Protection Regulation).",
     sections: [
       {
         icon: Database,
@@ -74,7 +74,7 @@ export default function Privacy() {
         title: "6. Kontakt oss",
         content: [
           "Hvis du har spørsmål om personvern eller ønsker å utøve dine GDPR-rettigheter, kontakt oss:",
-          "**E-post**: privacy@innlegg.no",
+          "**E-post**: privacy@penna.no",
           "**Responstid**: Vi svarer innen 30 dager i henhold til GDPR-krav"
         ]
       }
@@ -88,7 +88,7 @@ export default function Privacy() {
   const englishContent = {
     title: "Privacy Policy",
     lastUpdated: "Last updated: January 26, 2026",
-    intro: "At Innlegg, we take your privacy seriously. This privacy policy explains how we collect, use, and protect your personal information in accordance with GDPR (General Data Protection Regulation).",
+    intro: "At Penna, we take your privacy seriously. This privacy policy explains how we collect, use, and protect your personal information in accordance with GDPR (General Data Protection Regulation).",
     sections: [
       {
         icon: Database,
@@ -148,7 +148,7 @@ export default function Privacy() {
         title: "6. Contact Us",
         content: [
           "If you have questions about privacy or wish to exercise your GDPR rights, contact us:",
-          "**Email**: privacy@innlegg.no",
+          "**Email**: privacy@penna.no",
           "**Response Time**: We respond within 30 days in accordance with GDPR requirements"
         ]
       }

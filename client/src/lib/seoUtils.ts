@@ -213,6 +213,6 @@ Disallow: /admin
 Disallow: /api
 Disallow: /private
 
-Sitemap: https://innlegg.no/sitemap.xml
+Sitemap: https://penna.no/sitemap.xml
 `;
 }

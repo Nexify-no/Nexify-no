@@ -5,7 +5,7 @@
  */
 
 /**
- * Payment Router for Innlegg/Nexify AI
+ * Payment Router for Penna
  * 
  * Handles checkout sessions, subscription management, and billing
  */
@@ -51,7 +51,7 @@ export const paymentRouter = router({
             end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
           },
           companyName: "Nexify CRM Systems AS",
-          companyEmail: "support@nexify.ai",
+          companyEmail: "support@penna.no",
           companyAddress: "Norway",
         });
 

@@ -22,7 +22,7 @@ export interface SitemapEntry {
  * Generate sitemap.xml content
  */
 export async function generateSitemap(): Promise<string> {
-  const baseUrl = process.env.PUBLIC_SITE_URL || "https://innlegg.no";
+  const baseUrl = process.env.PUBLIC_SITE_URL || "https://penna.no";
   const entries: SitemapEntry[] = [];
 
   // Static pages

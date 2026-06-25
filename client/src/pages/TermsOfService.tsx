@@ -31,7 +31,7 @@ export default function TermsOfService() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p>
-              Ved å registrere deg, få tilgang til eller bruke Nexify AI-tjenesten ("Tjenesten") som tilbys av Nexify CRM Systems AS ("vi", "oss", "vår"), godtar du å være bundet av disse vilkårene for bruk ("Vilkår").
+              Ved å registrere deg, få tilgang til eller bruke Penna-tjenesten ("Tjenesten") som tilbys av Nexify CRM Systems AS ("vi", "oss", "vår"), godtar du å være bundet av disse vilkårene for bruk ("Vilkår").
             </p>
             <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 p-4 rounded-lg">
               <p className="text-sm font-semibold flex items-center gap-2">
@@ -54,7 +54,7 @@ export default function TermsOfService() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p>
-              Nexify AI er en AI-drevet plattform som hjelper brukere med å generere profesjonelt innhold for sosiale medier, inkludert LinkedIn, Twitter/X, Instagram og Facebook.
+              Penna er en AI-drevet plattform som hjelper brukere med å generere profesjonelt innhold for sosiale medier, inkludert LinkedIn, Twitter/X, Instagram og Facebook.
             </p>
             <div className="space-y-2">
               <h4 className="font-semibold">Tjenesten inkluderer:</h4>
@@ -310,8 +310,8 @@ export default function TermsOfService() {
             <p>Hvis du har spørsmål om disse vilkårene, kan du kontakte oss:</p>
             <div className="bg-muted p-4 rounded-lg">
               <p className="font-semibold mb-2">Nexify CRM Systems AS</p>
-              <p className="text-sm text-muted-foreground">E-post: support@nexify.no</p>
-              <p className="text-sm text-muted-foreground">Nettside: www.nexify.no</p>
+              <p className="text-sm text-muted-foreground">E-post: support@penna.no</p>
+              <p className="text-sm text-muted-foreground">Nettside: www.penna.no</p>
             </div>
           </CardContent>
         </Card>

@@ -7,7 +7,7 @@
 import { PromptTemplate } from "@langchain/core/prompts";
 
 /**
- * LangChain Prompt Templates for Innlegg
+ * LangChain Prompt Templates for Penna
  * These templates are used for content generation, analysis, and AI Coach interactions
  */
 
@@ -96,7 +96,7 @@ Analysis:`,
 // AI Coach Prompts
 // ============================================
 
-export const aiCoachSystemPrompt = `You are Nexify AI Coach, an expert social media strategist and content creation mentor.
+export const aiCoachSystemPrompt = `You are Penna Coach, an expert social media strategist and content creation mentor.
 
 Your role is to:
 1. Help users improve their content strategy

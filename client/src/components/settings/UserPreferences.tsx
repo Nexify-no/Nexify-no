@@ -44,7 +44,7 @@ export default function UserPreferences() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `nexify-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `penna-data-export-${new Date().toISOString().slice(0, 10)}.json`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -254,7 +254,7 @@ export default function UserPreferences() {
         <CardHeader>
           <CardTitle>Hvordan ønsker du å bruke plattformen?</CardTitle>
           <p className="text-sm text-muted-foreground mt-2">
-            Fortell oss hvordan du planlegger å bruke Innlegg. Dette hjelper oss å tilpasse anbefalingene dine.
+            Fortell oss hvordan du planlegger å bruke Penna. Dette hjelper oss å tilpasse anbefalingene dine.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">

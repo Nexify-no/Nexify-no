@@ -45,7 +45,7 @@ export default function AboutUs() {
               Samtidig var AI-teknologien i ferd med å revolusjonere måten vi jobber på.
             </p>
             <p>
-              Resultatet ble <strong>Nexify AI</strong> – vår første AI-drevne løsning som kombinerer 
+              Resultatet ble <strong>Penna</strong> – vår første AI-drevne løsning som kombinerer 
               kraftig innholdsgenerering med personlig coaching. Vi tror ikke bare på å gi deg verktøyene, 
               men også på å hjelpe deg å bli bedre i det du gjør.
             </p>
@@ -176,7 +176,7 @@ export default function AboutUs() {
                     <span className="text-2xl">⚡</span>
                   </div>
                   <div>
-                    <h5 className="font-semibold mb-1">Nexify AI - AI Content Generator</h5>
+                    <h5 className="font-semibold mb-1">Penna - AI Content Generator</h5>
                     <p className="text-muted-foreground">
                       Lag profesjonelt innhold for sosiale medier på 30 sekunder. Med AI Content Coach 
                       som gir deg personlig tilbakemelding og hjelper deg å forbedre ferdighetene dine.
@@ -205,7 +205,7 @@ export default function AboutUs() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-3xl">
               <TrendingUp className="h-8 w-8 text-green-600" />
-              Hvorfor velge Nexify?
+              Hvorfor velge Penna?
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -259,7 +259,7 @@ export default function AboutUs() {
                   <Mail className="h-5 w-5" />
                   <h4 className="font-semibold">E-post</h4>
                 </div>
-                <p>support@nexify.no</p>
+                <p>support@penna.no</p>
                 <p className="text-sm opacity-90 mt-1">For generelle henvendelser og support</p>
               </div>
               <div className="bg-white/10 backdrop-blur-sm p-4 rounded-lg">
@@ -267,7 +267,7 @@ export default function AboutUs() {
                   <Globe className="h-5 w-5" />
                   <h4 className="font-semibold">Nettside</h4>
                 </div>
-                <p>www.nexify.no</p>
+                <p>www.penna.no</p>
                 <p className="text-sm opacity-90 mt-1">Besøk vår hovedside for mer informasjon</p>
               </div>
             </div>
