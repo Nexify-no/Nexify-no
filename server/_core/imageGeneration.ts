@@ -71,21 +71,24 @@ export async function generateImage(
 
 /** OpenAI Images API (DALL·E 3 by default; set IMAGE_MODEL=gpt-image-1 to switch). */
 async function generateWithOpenAI(prompt: string): Promise<Buffer> {
-  if (!ENV.forgeApiKey) {
+  // Images MUST go directly to OpenAI. A text LLM proxy (BUILT_IN_FORGE_API_URL /
+  // LLM_API_URL — Ollama, Gemini, Claude, etc.) does NOT implement
+  // /v1/images/generations, so routing image calls through the forge URL/key 500s.
+  // Mirror the dedicated DALL-E client: OPENAI_API_KEY + api.openai.com + dall-e-3.
+  const apiKey = process.env.OPENAI_API_KEY || ENV.forgeApiKey;
+  if (!apiKey) {
     throw new Error("OPENAI_API_KEY is not configured");
   }
-  // Note: image editing (originalImages) is not supported by dall-e-3 generation
-  // and is ignored here; switch to the edits endpoint / gpt-image-1 if needed.
-  const baseUrl = (ENV.forgeApiUrl || "https://api.openai.com").replace(/\/$/, "");
+  const baseUrl = "https://api.openai.com";
   const response = await fetch(`${baseUrl}/v1/images/generations`, {
     method: "POST",
     headers: {
       accept: "application/json",
       "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
+      authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: ENV.imageModel || "dall-e-3",
+      model: "dall-e-3",
       prompt,
       n: 1,
       size: "1024x1024",

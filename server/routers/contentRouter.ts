@@ -172,6 +172,7 @@ export const contentRouter = router({
         try {
           imageUrl = await generateImageWithDallE(optimizedPrompt.prompt);
         } catch (e: any) {
+          console.error("[image-gen] failed:", e?.status, e?.message);
           if (e?.code === "TOO_MANY_REQUESTS" || e?.status === 429 || /rate.?limit|too many|429/i.test(String(e?.message))) {
             throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Bildegenerering er opptatt \u2014 pr\u00f8v igjen om litt." });
           }
@@ -208,6 +209,7 @@ export const contentRouter = router({
         try {
           result = await generateImage({ prompt });
         } catch (e: any) {
+          console.error("[image-gen] failed:", e?.status, e?.message);
           if (e?.code === "TOO_MANY_REQUESTS" || e?.status === 429 || /rate.?limit|too many|429/i.test(String(e?.message))) {
             throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Bildegenerering er opptatt \u2014 pr\u00f8v igjen om litt." });
           }
