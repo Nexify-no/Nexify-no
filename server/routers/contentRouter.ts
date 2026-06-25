@@ -195,14 +195,37 @@ export const contentRouter = router({
       .mutation(async ({ input }) => {
         const { generateSimplifiedPrompt } = await import("../imagePromptOptimizer");
         const { generateImage } = await import("../_core/imageGeneration");
-        
-        // Generate simplified prompt for Nano Banana/Gemini
-        const prompt = generateSimplifiedPrompt({
+
+        // Build a faithful, concrete visual prompt with the LLM so the image
+        // actually matches the user's topic (which is often Norwegian marketing
+        // prose, not a visual description). Fall back to the template on failure.
+        let prompt = generateSimplifiedPrompt({
           topic: input.topic,
           platform: input.platform,
           tone: input.tone,
           keywords: input.keywords,
         });
+        try {
+          const { invokeLLM } = await import("../_core/llm");
+          const kw = (input.keywords || []).join(", ");
+          const r: any = await invokeLLM({
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You convert a social-media post idea into ONE concise, concrete English prompt for an AI image generator (FLUX). Describe a single vivid, realistic visual scene that directly depicts the subject of the post: main subject, setting, key objects, colors, lighting, mood, and a photographic or illustration style. Do NOT be abstract. The image must contain NO text, letters, words or logos. Max 60 words. Reply with ONLY the prompt, nothing else.",
+              },
+              {
+                role: "user",
+                content: `Platform: ${input.platform}. Tone: ${input.tone}.${kw ? ` Keywords: ${kw}.` : ""} Post idea (may be Norwegian): ${input.topic.slice(0, 400)}`,
+              },
+            ],
+          });
+          const built = String(r?.choices?.[0]?.message?.content || "").trim();
+          if (built.length > 10) prompt = `${built.slice(0, 600)} No text or words in the image.`;
+        } catch (e) {
+          console.warn("[image-gen] prompt LLM failed, using template:", (e as Error)?.message);
+        }
         
         // Generate image (provider errors mapped to clean tRPC errors)
         let result: { url?: string };

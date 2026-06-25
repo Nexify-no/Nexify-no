@@ -156,5 +156,6 @@ export function generateSimplifiedPrompt(input: ImagePromptInput): string {
     humorous: "playful fun"
   };
 
-  return `${platformStyles[platform]} ${toneModifiers[tone]} image about: ${topic.substring(0, 100)}. High quality, no text, modern style.`;
+  // Lead with the actual subject so the model focuses on it, then add style.
+  return `${topic.substring(0, 280)}. Visual style: ${platformStyles[platform]}, ${toneModifiers[tone]}. High quality, realistic, clear focal point, no text or words.`;
 }
