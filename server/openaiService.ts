@@ -200,17 +200,22 @@ export async function generateImageWithDallE(prompt: string): Promise<string> {
       throw new Error("No image data (url/b64) returned from the image API");
     }
     
-    // Upload to S3
+    // Upload to object storage; fall back to an inline data URL if storage is not
+    // configured/reachable so the image still displays.
     const { storagePut } = await import("./storage");
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).substring(7);
-    const { url } = await storagePut(
-      `generated/dalle-${timestamp}-${randomSuffix}.png`,
-      imageBuffer,
-      "image/png"
-    );
-
-    return url;
+    try {
+      const { url } = await storagePut(
+        `generated/dalle-${timestamp}-${randomSuffix}.png`,
+        imageBuffer,
+        "image/png"
+      );
+      return url;
+    } catch (e) {
+      console.warn("[image-gen] storage upload failed, returning data URL:", (e as Error)?.message);
+      return `data:image/png;base64,${imageBuffer.toString("base64")}`;
+    }
   } catch (error: any) {
     console.error("Error generating image with DALL-E 3:", error);
     const status = error?.status ?? error?.statusCode ?? error?.response?.status;

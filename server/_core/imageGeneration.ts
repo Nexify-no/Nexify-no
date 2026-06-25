@@ -64,9 +64,16 @@ export async function generateImage(
       : generateWithOpenAI(options.prompt)
   );
 
-  // Save to S3 (single storage path for every provider).
-  const { url } = await storagePut(`generated/${Date.now()}.png`, buffer, "image/png");
-  return { url };
+  // Save to object storage; if storage isn't configured/reachable (the legacy
+  // forge storage proxy returns 502 on this deploy), fall back to an inline data
+  // URL so the generated image still displays instead of failing the whole request.
+  try {
+    const { url } = await storagePut(`generated/${Date.now()}.png`, buffer, "image/png");
+    return { url };
+  } catch (e) {
+    console.warn("[image-gen] storage upload failed, returning data URL:", (e as Error)?.message);
+    return { url: `data:image/png;base64,${buffer.toString("base64")}` };
+  }
 }
 
 /** OpenAI Images API (DALL·E 3 by default; set IMAGE_MODEL=gpt-image-1 to switch). */
