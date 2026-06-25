@@ -57,8 +57,24 @@ export const contentRouter = router({
         const { generateContent } = await import("../openaiService");
 
         // Single source of truth: checks trial/monthly limit AND reserves the slot
-        // server-side (throws if over quota or subscription unusable).
-        await enforcePostQuota(ctx.user.id);
+        // server-side (throws if over quota or subscription unusable). Map the quota
+        // errors to a clear, user-facing Norwegian message (FORBIDDEN is not
+        // redacted in production, unlike a generic 500).
+        try {
+          await enforcePostQuota(ctx.user.id);
+        } catch (e: any) {
+          const msg = String(e?.message || "");
+          if (/trial limit/i.test(msg)) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "Du har brukt opp de gratis innleggene dine. Oppgrader til Pro for 15 innlegg per måned." });
+          }
+          if (/monthly post limit/i.test(msg)) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "Du har brukt opp månedens innlegg på planen din. Oppgrader planen eller vent til neste måned." });
+          }
+          if (/not active|renew/i.test(msg)) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "Abonnementet ditt er ikke aktivt. Forny abonnementet for å fortsette." });
+          }
+          throw new TRPCError({ code: "FORBIDDEN", message: "Du kan ikke generere flere innlegg akkurat nå. Sjekk abonnementet ditt." });
+        }
 
         // When the user opts in, load their trained voice profile (server-trusted,
         // never client-supplied) and fold it into the prompt.

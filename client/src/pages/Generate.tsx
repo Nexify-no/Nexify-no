@@ -360,11 +360,8 @@ export default function Generate() {
       toast.success("Innhold generert!");
     },
     onError: (error) => {
-      if (error.message.includes("limit")) {
-        toast.error("Du har nådd grensen for gratis innlegg. Oppgrader til Pro!");
-      } else {
-        toast.error(error.message || "Noe gikk galt");
-      }
+      // The server sends a clear Norwegian message (e.g. monthly limit reached).
+      toast.error(error.message || "Noe gikk galt");
     },
   });
 
