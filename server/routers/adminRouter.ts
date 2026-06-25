@@ -24,6 +24,76 @@ const adminProcedure = protectedProcedure.use(async ({ ctx, next }) => {
 });
 
 export const adminRouter = router({
+  // Grant/comp a subscription tier to a user and reset their current usage meter.
+  // Admin-only (e.g. owner comping their own/a customer's account, no Stripe).
+  setSubscription: adminProcedure
+    .input(
+      z.object({
+        userId: z.number().int().positive().optional(),
+        email: z.string().email().optional(),
+        tier: z.enum(["FREE", "PRO", "PREMIUM"]),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { getDb, getUserByEmail, getPlanIdByTier } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      let userId = input.userId;
+      if (!userId && input.email) {
+        const u = await getUserByEmail(input.email);
+        userId = u?.id;
+      }
+      if (!userId) throw new TRPCError({ code: "BAD_REQUEST", message: "User not found (pass userId or email)" });
+
+      const planId = input.tier === "FREE" ? null : await getPlanIdByTier(input.tier);
+      const { subscriptions, userUsageTracking } = await import("../../drizzle/schema");
+      const { eq, and, gte, lte } = await import("drizzle-orm");
+
+      const status = input.tier === "FREE" ? ("trial" as const) : ("active" as const);
+      const endDate = new Date();
+      endDate.setFullYear(endDate.getFullYear() + 1);
+
+      const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).limit(1);
+      if (sub) {
+        await db
+          .update(subscriptions)
+          .set({
+            status,
+            planId: planId ?? null,
+            subscriptionStartDate: new Date(),
+            subscriptionEndDate: input.tier === "FREE" ? null : endDate,
+            updatedAt: new Date(),
+          })
+          .where(eq(subscriptions.id, sub.id));
+      } else {
+        await db.insert(subscriptions).values({
+          userId,
+          status,
+          planId: planId ?? null,
+          postsGenerated: 0,
+          trialPostsLimit: 2,
+          subscriptionStartDate: new Date(),
+          subscriptionEndDate: input.tier === "FREE" ? null : endDate,
+        });
+      }
+
+      // Reset the current-period usage meter so they can generate immediately.
+      const now = new Date();
+      await db
+        .update(userUsageTracking)
+        .set({ postsUsed: 0 })
+        .where(
+          and(
+            eq(userUsageTracking.userId, userId),
+            gte(userUsageTracking.periodEndDate, now),
+            lte(userUsageTracking.periodStartDate, now)
+          )
+        );
+
+      return { success: true, userId, tier: input.tier, planId: planId ?? null };
+    }),
+
   // Get all users with pagination and filtering
   getAllUsers: adminProcedure
     .input(

@@ -117,7 +117,14 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     if (user.role !== undefined) {
       values.role = user.role;
       updateSet.role = user.role;
-    } else if (user.openId === ENV.ownerOpenId) {
+    } else if (
+      (ENV.ownerOpenId && user.openId === ENV.ownerOpenId) ||
+      (process.env.OWNER_EMAIL &&
+        user.email &&
+        user.email.toLowerCase() === process.env.OWNER_EMAIL.toLowerCase())
+    ) {
+      // Owner bootstrap: the account matching OWNER_OPEN_ID or OWNER_EMAIL becomes
+      // admin on login (so the owner can manage users without a DB edit).
       values.role = 'admin';
       updateSet.role = 'admin';
     }
