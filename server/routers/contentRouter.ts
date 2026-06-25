@@ -35,6 +35,9 @@ export const contentOptionsShape = {
   language: z.enum(["no", "en", "ar"]).optional(),
   // When true, the server loads the user's trained voice profile into the prompt.
   useVoiceProfile: z.boolean().optional(),
+  // Optional generated/uploaded image to persist on the post. May be a long
+  // base64 data URL, hence the large max.
+  imageUrl: z.string().max(2_000_000).optional(),
 } as const;
 
 /** Parse a column that may hold a JSON-encoded string array; tolerate junk. */
@@ -99,7 +102,7 @@ export const contentRouter = router({
         }
 
         // Generate content using OpenAI (full expanded option set is forwarded).
-        const { useVoiceProfile: _omit, ...genInput } = input;
+        const { useVoiceProfile: _omit, imageUrl: _img, ...genInput } = input;
         const content = await generateContent({ ...genInput, voiceProfile });
 
         // Persist the generated content as a draft so it shows up under "Mine innlegg".
@@ -111,6 +114,7 @@ export const contentRouter = router({
           tone: input.tone ?? "professional",
           rawInput: input.topic,
           generatedContent: content,
+          imageUrl: input.imageUrl ?? null,
           tags: input.keywords ?? null,
           status: "draft",
         });
@@ -128,6 +132,20 @@ export const contentRouter = router({
         };
       }),
       
+    // Persist a (later-generated) image onto an existing post. Ownership-checked
+    // so a user can only attach to their own posts. Best-effort from the client.
+    attachImage: protectedProcedure
+      .input(z.object({ postId: z.number().int().positive(), imageUrl: z.string().max(2_000_000) }))
+      .mutation(async ({ ctx, input }) => {
+        const { getDb } = await import("../db");
+        const { posts } = await import("../../drizzle/schema");
+        const { eq, and } = await import("drizzle-orm");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+        await db.update(posts).set({ imageUrl: input.imageUrl, updatedAt: new Date() }).where(and(eq(posts.id, input.postId), eq(posts.userId, ctx.user.id)));
+        return { success: true };
+      }),
+
     // Prompt-engineering layer: rewrite a plain idea into a sharper, professional
     // content brief BEFORE generation. Returns the enhanced text for preview/edit;
     // does not consume post quota.

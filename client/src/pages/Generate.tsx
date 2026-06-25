@@ -372,6 +372,8 @@ export default function Generate() {
 
   const dalleImageMutation = trpc.content.generateImageDallE.useMutation();
   const nanoImageMutation = trpc.content.generateImageNanoBanana.useMutation();
+  // Best-effort: persist a later-generated image onto the already-saved post.
+  const attachImageMutation = trpc.content.attachImage.useMutation();
 
   const handleSchedule = (timeLabel: string) => {
     if (!savedPostId) {
@@ -420,7 +422,7 @@ export default function Generate() {
       return;
     }
     if (!topic.trim()) { toast.error("Vennligst skriv inn et emne"); return; }
-    generateMutation.mutate(buildOptions());
+    generateMutation.mutate({ ...buildOptions(), imageUrl: uploadedImage || undefined });
   };
 
   const handleImprove = (type: string) => {
@@ -471,6 +473,10 @@ export default function Generate() {
       if (res?.url) {
         setUploadedImage(res.url);
         setGeneratedImagePrompt(res.prompt || topic);
+        // If the post is already saved, persist the new image onto it (ignore errors).
+        if (savedPostId) {
+          attachImageMutation.mutate({ postId: savedPostId, imageUrl: res.url });
+        }
         toast.success("AI-bilde generert!");
       } else {
         toast.error("Kunne ikke generere bilde");

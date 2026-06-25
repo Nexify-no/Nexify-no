@@ -61,6 +61,7 @@ export const posts = mysqlTable("posts", {
   tone: varchar("tone", { length: 50 }).notNull(), // professional, friendly, motivational, educational
   rawInput: text("raw_input").notNull(),
   generatedContent: text("generated_content").notNull(),
+  imageUrl: text("image_url"),
   tags: json("tags").$type<string[]>(),
   status: mysqlEnum("status", ["draft", "scheduled", "published", "failed"]).default("draft").notNull(),
   scheduledFor: timestamp("scheduled_for"),

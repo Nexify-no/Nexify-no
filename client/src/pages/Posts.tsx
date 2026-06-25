@@ -8,7 +8,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Copy, Zap, Trash2, Star, FileText, Plus, Search, Sparkles } from "lucide-react";
+import { Copy, Zap, Trash2, Star, FileText, Plus, Search, Sparkles, Send, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +28,8 @@ export default function Posts() {
   const [exampleTitle, setExampleTitle] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedPost, setExpandedPost] = useState<number | null>(null);
+  const [publishPostId, setPublishPostId] = useState<number | null>(null);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
 
   const utils = trpc.useUtils();
   const { data: posts, isLoading } = trpc.content.list.useQuery(undefined, {
@@ -55,6 +57,44 @@ export default function Posts() {
       toast.error(error.message || t("errorGeneral"));
     },
   });
+
+  const publishMutation = trpc.platform.publishToSpecific.useMutation({
+    onSuccess: (r) => {
+      if (r.successCount > 0) {
+        toast.success(language === "no" ? `Publisert til ${r.successCount} plattform(er)` : `Published to ${r.successCount} platform(s)`);
+      }
+      if (r.failureCount > 0) {
+        const errs = (r.results || []).filter((x) => !x.success).map((x) => `${x.platform}: ${x.error || "feil"}`).join(", ");
+        toast.error((language === "no" ? "Noen feilet: " : "Some failed: ") + errs);
+      }
+      setPublishPostId(null);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const openPublishDialog = (post: { id: number; platform: string }) => {
+    setPublishPostId(post.id);
+    setSelectedPlatforms([post.platform]);
+  };
+
+  const togglePlatform = (platform: string) => {
+    setSelectedPlatforms((prev) =>
+      prev.includes(platform) ? prev.filter((p) => p !== platform) : [...prev, platform]
+    );
+  };
+
+  const handlePublish = (post: { generatedContent: string; imageUrl?: string | null; rawInput?: string | null }) => {
+    if (selectedPlatforms.length === 0) {
+      toast.error(language === "no" ? "Velg minst én plattform" : "Select at least one platform");
+      return;
+    }
+    publishMutation.mutate({
+      platforms: selectedPlatforms,
+      content: post.generatedContent,
+      imageUrl: post.imageUrl || undefined,
+      title: post.rawInput?.slice(0, 80),
+    });
+  };
 
   const filteredPosts = useMemo(() => {
     if (!posts) return [];
@@ -219,6 +259,15 @@ export default function Posts() {
                           >
                             {post.generatedContent}
                           </div>
+
+                          {post.imageUrl && (
+                            <img
+                              src={post.imageUrl}
+                              alt={language === "no" ? "Generert bilde for innlegget" : "Generated image for the post"}
+                              loading="lazy"
+                              className={`mt-3 rounded-lg border border-slate-200 dark:border-slate-700 w-full object-cover ${isExpanded ? 'max-h-96' : 'max-h-40'}`}
+                            />
+                          )}
                           
                           {post.generatedContent.length > 200 && (
                             <button 
@@ -234,6 +283,16 @@ export default function Posts() {
 
                         {/* Actions */}
                         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => openPublishDialog(post)}
+                            title={language === "no" ? "Publiser" : "Publish"}
+                            aria-label={language === "no" ? "Publiser innlegg" : "Publish post"}
+                            className="h-8 w-8 p-0 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
+                          >
+                            <Send className="h-3.5 w-3.5" />
+                          </Button>
                           <Button 
                             variant="ghost" 
                             size="sm" 
@@ -305,6 +364,73 @@ export default function Posts() {
         </div>
       </main>
       
+      {/* Publish Dialog */}
+      <Dialog open={publishPostId !== null} onOpenChange={(open) => { if (!open) setPublishPostId(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {language === "no" ? "Publiser innlegg" : "Publish post"}
+            </DialogTitle>
+            <DialogDescription>
+              {language === "no"
+                ? "Velg hvilke plattformer innlegget skal publiseres til."
+                : "Choose which platforms to publish this post to."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-2">
+              {(["linkedin", "twitter", "instagram", "facebook"] as const).map((p) => {
+                const active = selectedPlatforms.includes(p);
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    role="checkbox"
+                    aria-checked={active}
+                    aria-label={p}
+                    onClick={() => togglePlatform(p)}
+                    className={`flex items-center justify-between rounded-lg border px-3 py-2.5 text-sm font-medium capitalize transition-all ${
+                      active
+                        ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-500 dark:bg-emerald-900/30 dark:text-emerald-300"
+                        : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600"
+                    }`}
+                  >
+                    {p}
+                    <span className={`h-4 w-4 rounded-full border flex items-center justify-center ${active ? "border-emerald-500 bg-emerald-500" : "border-slate-300 dark:border-slate-600"}`}>
+                      {active && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {language === "no"
+                ? "Koble til kontoer under Innstillinger → Plattformer"
+                : "Connect accounts under Settings → Platforms"}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPublishPostId(null)}>
+              {language === "no" ? "Avbryt" : "Cancel"}
+            </Button>
+            <Button
+              onClick={() => {
+                const post = posts?.find((x) => x.id === publishPostId);
+                if (post) handlePublish(post);
+              }}
+              disabled={publishMutation.isPending || selectedPlatforms.length === 0}
+              className="gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white border-0"
+            >
+              {publishMutation.isPending ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> {language === "no" ? "Publiserer..." : "Publishing..."}</>
+              ) : (
+                <><Send className="h-4 w-4" /> {language === "no" ? "Publiser" : "Publish"}</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Save as Example Dialog */}
       <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
         <DialogContent>
