@@ -73,13 +73,61 @@ function buildAuthHeaders(apiKey: string): HeadersInit {
   return { Authorization: `Bearer ${apiKey}` };
 }
 
+/**
+ * Upload to real S3-compatible object storage (Cloudflare R2 recommended) when
+ * configured via env. Returns the public URL, or null if not configured.
+ * R2:  R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_PUBLIC_URL
+ * S3:  S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, S3_REGION, S3_PUBLIC_URL
+ */
+async function putToObjectStore(
+  key: string,
+  data: Buffer | Uint8Array | string,
+  contentType: string
+): Promise<string | null> {
+  const bucket = process.env.R2_BUCKET || process.env.S3_BUCKET;
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY || process.env.S3_SECRET_ACCESS_KEY;
+  const r2Account = process.env.R2_ACCOUNT_ID;
+  const endpoint =
+    process.env.S3_ENDPOINT ||
+    (r2Account ? `https://${r2Account}.r2.cloudflarestorage.com` : undefined);
+  if (!bucket || !accessKeyId || !secretAccessKey || !endpoint) return null;
+
+  const region = process.env.S3_REGION || "auto";
+  const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
+  const client = new S3Client({
+    region,
+    endpoint,
+    credentials: { accessKeyId, secretAccessKey },
+    forcePathStyle: true,
+  });
+  const body = typeof data === "string" ? Buffer.from(data) : Buffer.from(data as any);
+  await client.send(
+    new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: contentType })
+  );
+
+  const publicBase = process.env.R2_PUBLIC_URL || process.env.S3_PUBLIC_URL;
+  if (publicBase) return `${publicBase.replace(/\/+$/, "")}/${key}`;
+  return `${endpoint.replace(/\/+$/, "")}/${bucket}/${key}`;
+}
+
 export async function storagePut(
   relKey: string,
   data: Buffer | Uint8Array | string,
   contentType = "application/octet-stream"
 ): Promise<{ key: string; url: string }> {
-  const { baseUrl, apiKey } = getStorageConfig();
   const key = normalizeKey(relKey);
+
+  // Prefer real object storage (Cloudflare R2 / S3) when configured.
+  try {
+    const objUrl = await putToObjectStore(key, data, contentType);
+    if (objUrl) return { key, url: objUrl };
+  } catch (e) {
+    console.warn("[storage] object-store upload failed, trying legacy proxy:", (e as Error)?.message);
+  }
+
+  // Legacy storage proxy fallback.
+  const { baseUrl, apiKey } = getStorageConfig();
   const uploadUrl = buildUploadUrl(baseUrl, key);
   const formData = toFormData(data, contentType, key.split("/").pop() ?? key);
   const response = await fetch(uploadUrl, {
