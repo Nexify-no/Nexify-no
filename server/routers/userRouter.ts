@@ -15,15 +15,38 @@ export const userRouter = router({
     getPreference: protectedProcedure.query(async ({ ctx }) => {
       const { getUserPreference, createUserPreference } = await import("../db");
       let preference = await getUserPreference(ctx.user.id);
-      
-      // Create default preference if it doesn't exist
+
+      // Create a default row if none exists. user_preferences.user_id is UNIQUE and
+      // the app fires getPreference from several components on a single page load, so
+      // two concurrent requests can both see "no row" and both INSERT — the loser hits
+      // a duplicate-key error. Catch it and re-fetch the row the winner just created
+      // instead of returning a 500.
       if (!preference) {
-        preference = await createUserPreference({
-          userId: ctx.user.id,
-          language: "no", // Default to Norwegian
-        });
+        try {
+          preference = await createUserPreference({
+            userId: ctx.user.id,
+            language: "no", // Default to Norwegian
+          });
+        } catch {
+          preference = await getUserPreference(ctx.user.id);
+        }
       }
-      
+
+      // Last-resort fallback: never throw — return sane defaults so the UI loads.
+      if (!preference) {
+        return {
+          id: 0,
+          userId: ctx.user.id,
+          language: "no",
+          openaiConsent: 0,
+          consentDate: null,
+          usagePreferences: null,
+          ayrshareApiKey: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as any;
+      }
+
       return preference;
     }),
     
@@ -117,14 +140,32 @@ export const userRouter = router({
       const { getUserSubscription, createSubscription } = await import("../db");
       let subscription = await getUserSubscription(ctx.user.id);
       
-      // Create default trial subscription if it doesn't exist
+      // Create default trial subscription if it doesn't exist. Same concurrent-load
+      // race as getPreference (one user, many simultaneous queries) — tolerate a
+      // duplicate insert by re-fetching instead of 500ing.
       if (!subscription) {
-        subscription = await createSubscription({
+        try {
+          subscription = await createSubscription({
+            userId: ctx.user.id,
+            status: "trial",
+            postsGenerated: 0,
+            trialPostsLimit: 2, // mirrors FREE_POSTS in @shared/pricing
+          });
+        } catch {
+          subscription = await getUserSubscription(ctx.user.id);
+        }
+      }
+      if (!subscription) {
+        return {
           userId: ctx.user.id,
           status: "trial",
           postsGenerated: 0,
-          trialPostsLimit: 2, // mirrors FREE_POSTS in @shared/pricing
-        });
+          trialPostsLimit: 2,
+          planName: "Gratis",
+          postsLimit: 2,
+          postsUsed: 0,
+          postsRemaining: 2,
+        } as any;
       }
 
       // Enrich with the EFFECTIVE limit, plan name and real usage so the UI doesn't
