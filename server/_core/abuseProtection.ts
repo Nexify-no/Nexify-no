@@ -192,6 +192,22 @@ export function checkSuspiciousActivity(
       console.warn(
         `[AbuseProtection] Suspicious activity detected: ${recentRequests.length} requests in 60s from user ${user.id}`
       );
+      // tRPC clients can't transform a non-tRPC JSON body ("Unable to transform
+      // response"); return the tRPC batch error envelope for /api/trpc.
+      const reqUrl = req.originalUrl || req.url || "";
+      if (reqUrl.startsWith("/api/trpc")) {
+        return res.status(429).json([
+          {
+            error: {
+              json: {
+                message: "For mange forespørsler. Vent et øyeblikk og prøv igjen.",
+                code: -32029,
+                data: { code: "TOO_MANY_REQUESTS", httpStatus: 429, path: null },
+              },
+            },
+          },
+        ]);
+      }
       return res.status(429).json({
         error: "Too many requests detected",
         code: "SUSPICIOUS_ACTIVITY",

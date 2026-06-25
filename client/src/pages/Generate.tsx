@@ -484,7 +484,7 @@ export default function Generate() {
       const isBusy =
         code === "TOO_MANY_REQUESTS" ||
         /too many|for mange|opptatt|rate.?limit|429/i.test(msg);
-      const isUnparsable = /not valid json|unexpected token/i.test(msg);
+      const isUnparsable = /not valid json|unexpected token|unable to transform|transform response/i.test(msg);
       if (isBusy || isUnparsable) {
         toast.error("Bildegenerering er opptatt \u2014 pr\u00f8v igjen om litt.");
       } else {
