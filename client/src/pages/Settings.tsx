@@ -120,6 +120,11 @@ function SubscriptionCard({ language }: { language: "no" | "en" }) {
                   : "Ubegrenset"}
               </span>
             </div>
+            <p className="text-sm text-muted-foreground">
+              {language === "no"
+                ? `${(subscription as any)?.postsUsed ?? 0} / ${(subscription as any)?.postsLimit ?? 15} innlegg denne måneden`
+                : `${(subscription as any)?.postsUsed ?? 0} / ${(subscription as any)?.postsLimit ?? 15} posts this month`}
+            </p>
             <Button
               variant="outline"
               onClick={() => getPortalMutation.mutate()}

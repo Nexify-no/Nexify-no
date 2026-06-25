@@ -81,7 +81,7 @@ export default function Dashboard() {
   const postsLimit = subscription?.postsLimit ?? subscription?.trialPostsLimit ?? 2;
   const postsUsed = subscription?.postsUsed ?? subscription?.postsGenerated ?? 0;
   const postsRemaining = subscription?.postsRemaining ?? Math.max(0, postsLimit - postsUsed);
-  const usagePercentage = postsLimit > 0 ? (postsUsed / postsLimit) * 100 : 0;
+  const usagePercentage = postsLimit > 0 ? Math.min(100, (postsUsed / postsLimit) * 100) : 0;
 
   const platformDistribution = useMemo(() => {
     if (!posts) return [];

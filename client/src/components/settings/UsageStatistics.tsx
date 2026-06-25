@@ -28,6 +28,14 @@ import {
 
 export default function UsageStatistics() {
   const { data: stats, isLoading } = trpc.user.getStatistics.useQuery();
+  const { data: subscription } = trpc.user.getSubscription.useQuery();
+
+  // Single source of truth: the enriched subscription (postsLimit/postsUsed come
+  // from @shared/pricing via user.getSubscription) — same numbers Dashboard,
+  // Konto and Fakturering use. Never fall back to the trial cap for paid plans.
+  const postsLimit = (subscription as any)?.postsLimit ?? stats?.subscription?.trialPostsLimit ?? 2;
+  const postsUsed = (subscription as any)?.postsUsed ?? stats?.monthlyPosts ?? 0;
+  const usagePct = postsLimit > 0 ? Math.min(100, Math.round((postsUsed / postsLimit) * 100)) : 0;
 
   if (isLoading) {
     return (
@@ -63,8 +71,8 @@ export default function UsageStatistics() {
                 <p className="text-sm text-muted-foreground mb-1">
                   Innlegg denne måneden
                 </p>
-                <p className="text-3xl font-bold">{stats?.monthlyPosts || 0}</p>
-                <p className="text-xs text-green-600 mt-1">av {stats?.subscription?.trialPostsLimit || 2}</p>
+                <p className="text-3xl font-bold">{postsUsed}</p>
+                <p className="text-xs text-green-600 mt-1">av {postsLimit}</p>
               </div>
               <FileText className="h-10 w-10 text-primary opacity-20" />
             </div>
@@ -128,13 +136,10 @@ export default function UsageStatistics() {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium">Innlegg</span>
                 <span className="text-sm text-muted-foreground">
-                  {stats?.monthlyPosts || 0} / {stats?.subscription?.trialPostsLimit || 2}
+                  {postsUsed} / {postsLimit}
                 </span>
               </div>
-              <Progress 
-                value={(stats?.monthlyPosts || 0) / (stats?.subscription?.trialPostsLimit || 2) * 100} 
-                className="h-2" 
-              />
+              <Progress value={usagePct} className="h-2" />
             </div>
 
             <div>
