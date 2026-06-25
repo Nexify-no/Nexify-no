@@ -997,8 +997,8 @@ export default function Generate() {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="nanoBanana">🍌 Nano Banana</SelectItem>
-                                <SelectItem value="dalle">✨ DALL-E 3</SelectItem>
+                                <SelectItem value="nanoBanana">⚡ FLUX (rask, rimelig)</SelectItem>
+                                <SelectItem value="dalle">✨ OpenAI (GPT Image)</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -1057,7 +1057,7 @@ export default function Generate() {
                         <X className="h-4 w-4" />
                       </button>
                       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent text-white p-2">
-                        <p className="text-xs font-medium">🤖 {imageGenerationType === "dalle" ? "DALL-E 3" : "Nano Banana"}</p>
+                        <p className="text-xs font-medium">🤖 {imageGenerationType === "dalle" ? "OpenAI (GPT Image)" : "FLUX"}</p>
                       </div>
                     </div>
                     <Button onClick={handleGenerateAIImage} disabled={isGeneratingImage} variant="ghost" size="sm" className="w-full mt-1">
