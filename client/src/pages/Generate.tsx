@@ -247,7 +247,7 @@ export default function Generate() {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [generateAIImage, setGenerateAIImage] = useState(false);
-  const [imageGenerationType, setImageGenerationType] = useState<"dalle" | "nanoBanana">("nanoBanana");
+  const [imageGenerationType, setImageGenerationType] = useState<"dalle" | "nanoBanana">("nanoBanana"); // GPT Image disabled — FLUX only
   const [imageStyle, setImageStyle] = useState<"minimalist" | "bold" | "professional" | "creative">("professional");
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [generatedImagePrompt, setGeneratedImagePrompt] = useState<string | null>(null);
@@ -998,7 +998,6 @@ export default function Generate() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="nanoBanana">⚡ FLUX (rask, rimelig)</SelectItem>
-                                <SelectItem value="dalle">✨ OpenAI (GPT Image)</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
