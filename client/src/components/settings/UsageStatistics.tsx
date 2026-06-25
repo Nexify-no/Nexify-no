@@ -200,6 +200,8 @@ export default function UsageStatistics() {
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="value"
+                    nameKey="name"
+                    isAnimationActive={false}
                   >
                     {platformUsage.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
