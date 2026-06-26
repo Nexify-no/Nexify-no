@@ -240,6 +240,30 @@ export function registerEmailAuthRoutes(app: Express) {
     return res.json({ ok: true });
   });
 
+  /** POST /api/auth/resend-verification { email } — re-sends the verification link. */
+  app.post("/api/auth/resend-verification", async (req: Request, res: Response) => {
+    const parsed = forgotSchema.safeParse(req.body);
+    if (!parsed.success) return res.json({ ok: true });
+    const email = parsed.data.email.toLowerCase().trim();
+    try {
+      const user = await db.getUserByEmail(email);
+      if (user && user.passwordHash && !user.emailVerified) {
+        const { raw, hash } = makeToken();
+        await db.createAuthToken({
+          userId: user.id,
+          type: "verify_email",
+          tokenHash: hash,
+          expiresAt: new Date(Date.now() + VERIFY_TTL_MS),
+        });
+        const link = `${siteUrl(req)}/api/auth/verify-email?token=${raw}`;
+        await sendVerificationEmail(email, user.name ?? email.split("@")[0], link);
+      }
+    } catch (err) {
+      console.error("[EmailAuth] resend-verification failed:", err);
+    }
+    return res.json({ ok: true });
+  });
+
   /** POST /api/auth/reset-password { token, password } */
   app.post("/api/auth/reset-password", async (req: Request, res: Response) => {
     const parsed = resetSchema.safeParse(req.body);

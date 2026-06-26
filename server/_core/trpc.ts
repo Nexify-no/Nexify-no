@@ -47,6 +47,15 @@ export const protectedProcedure = t.procedure.use(requireUser);
 // Use for paid AI endpoints (LLM / image generation). Same as protectedProcedure
 // plus a per-user rate-limit backstop against runaway OpenAI cost / abuse.
 export const aiProcedure = protectedProcedure.use(async ({ ctx, next }) => {
+  // Require a verified email for email/password accounts before any paid AI call.
+  // Prevents draining the free tier (DALL·E / Nano Banana cost) via throwaway,
+  // unverified signups. OAuth accounts (Google/Vipps/etc.) are provider-verified
+  // and therefore exempt (their openId is not prefixed "email_").
+  const { getUserById } = await import("../db");
+  const u = await getUserById(ctx.user.id);
+  if (u && !u.emailVerified && typeof u.openId === "string" && u.openId.startsWith("email_")) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "EMAIL_NOT_VERIFIED" });
+  }
   const { enforceAiRateLimit } = await import("./aiRateLimit");
   await enforceAiRateLimit(ctx.user.id);
   return next();

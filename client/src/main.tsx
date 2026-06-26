@@ -16,6 +16,7 @@ import "./index.css";
 import "./animations.css";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { HelmetProvider } from 'react-helmet-async';
+import { toast } from "sonner";
 
 const queryClient = new QueryClient();
 
@@ -43,10 +44,20 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
   window.location.href = getLoginUrl();
 };
 
+const notifyEmailNotVerified = (error: unknown) => {
+  if (!(error instanceof TRPCClientError)) return;
+  if (error.message !== "EMAIL_NOT_VERIFIED") return;
+  toast.error(
+    "Bekreft e-postadressen din for å generere innhold. Sjekk innboksen din (også søppelpost) for bekreftelseslenken.",
+    { id: "email-not-verified", duration: 8000 }
+  );
+};
+
 queryClient.getQueryCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
     const error = event.query.state.error;
     redirectToLoginIfUnauthorized(error);
+    notifyEmailNotVerified(error);
     console.error("[API Query Error]", error);
   }
 });
@@ -55,6 +66,7 @@ queryClient.getMutationCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
     const error = event.mutation.state.error;
     redirectToLoginIfUnauthorized(error);
+    notifyEmailNotVerified(error);
     console.error("[API Mutation Error]", error);
   }
 });
