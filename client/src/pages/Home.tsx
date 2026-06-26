@@ -34,7 +34,8 @@ import {
   Lightbulb,
   PenTool,
   Award,
-  Rocket
+  Rocket,
+  Facebook, Instagram, Twitter, Linkedin,
 } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import HeroDemo from "@/components/HeroDemo";
@@ -633,6 +634,12 @@ export default function Home() {
           </div>
           <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-gray-500">&copy; {new Date().getFullYear()} Penna. Alle rettigheter reservert.</p>
+            <div className="flex items-center gap-5">
+              <a href="https://www.facebook.com/profile.php?id=61591542924941" target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="text-gray-400 hover:text-white transition-colors"><Facebook className="h-5 w-5" /></a>
+              <a href="https://www.instagram.com/penna.no/" target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="text-gray-400 hover:text-white transition-colors"><Instagram className="h-5 w-5" /></a>
+              <a href="https://x.com/Penna0no" target="_blank" rel="noopener noreferrer" aria-label="X" className="text-gray-400 hover:text-white transition-colors"><Twitter className="h-5 w-5" /></a>
+              <a href="https://www.linkedin.com/company/penna-no/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" className="text-gray-400 hover:text-white transition-colors"><Linkedin className="h-5 w-5" /></a>
+            </div>
             <p className="text-xs text-gray-600">Nexify CRM Systems AS · Org.nr: 936 300 278</p>
           </div>
         </div>
