@@ -16,6 +16,21 @@ import {
 } from "@/components/ui/accordion";
 import { Search, X } from "lucide-react";
 
+// Built-in fallback FAQs (shown when the FAQ database is empty, so the page is
+// never blank). Norwegian, grouped by category.
+const FALLBACK_FAQS = [
+  { id: "f1", category: "Komme i gang", question: "Hva er Penna?", answer: "Penna er en norsk AI-tjeneste som hjelper deg å lage profesjonelt innhold til sosiale medier (LinkedIn, X, Instagram og Facebook) på sekunder – med riktig tone for hver plattform." },
+  { id: "f2", category: "Komme i gang", question: "Trenger jeg kredittkort for å prøve?", answer: "Nei. Du får 2 gratis innlegg uten å oppgi betalingsinformasjon, og kan avbryte når som helst." },
+  { id: "f3", category: "Komme i gang", question: "Hvilke plattformer støttes?", answer: "LinkedIn, X (Twitter), Instagram og Facebook. Automatisk publisering til LinkedIn er tilgjengelig nå; flere plattformer kommer." },
+  { id: "f4", category: "Priser og abonnement", question: "Hva koster Penna?", answer: "Pro koster 199 kr/måned (15 innlegg) og Premium 399 kr/måned (30 innlegg) – begge med AI-bilder og planlegging. Alle priser er i NOK og inkluderer mva." },
+  { id: "f5", category: "Priser og abonnement", question: "Kan jeg si opp når som helst?", answer: "Ja. Det er ingen bindingstid. Du sier opp i Innstillinger og beholder tilgangen ut perioden du allerede har betalt for." },
+  { id: "f6", category: "Priser og abonnement", question: "Hvilke betalingsmetoder kan jeg bruke?", answer: "Du kan betale med kort eller Vipps." },
+  { id: "f7", category: "Funksjoner", question: "Lager Penna innhold på norsk?", answer: "Ja. Penna er bygget spesielt for norsk språk og tone, så innholdet høres naturlig ut – ikke maskinoversatt." },
+  { id: "f8", category: "Funksjoner", question: "Kan jeg lære AI-en min egen stemme?", answer: "Ja. Med Stemmetrening (Pro) lærer AI-en din unike stil, slik at innholdet alltid høres ut som deg." },
+  { id: "f9", category: "Funksjoner", question: "Eier jeg innholdet som genereres?", answer: "Ja, du eier 100 % av innholdet du lager med Penna og kan bruke det fritt, også kommersielt." },
+  { id: "f10", category: "Personvern og sikkerhet", question: "Hvordan håndteres personopplysningene mine?", answer: "Vi følger GDPR. Personvernerklæringen vår viser hvilke databehandlere vi bruker og hvilke rettigheter du har. Du kan også klage til Datatilsynet." },
+];
+
 export default function FAQ() {
   const [searchQuery, setSearchQuery] = useState("");
   const [language] = useState("no");
@@ -41,10 +56,19 @@ export default function FAQ() {
   // Legacy fallback categories (for backward compatibility) - kept for reference
 
   // Filter FAQs based on search and category
+  // When the FAQ database is empty, fall back to the built-in list so the page is
+  // never blank, and run search client-side over the fallback set.
+  const usingFallback = !isLoadingFAQs && allFAQs.length === 0;
   const filteredFAQs = useMemo(() => {
-    const result = searchQuery.length > 0 ? searchResults : allFAQs;
-    return result;
-  }, [searchQuery, searchResults, allFAQs]);
+    if (usingFallback) {
+      if (searchQuery.length === 0) return FALLBACK_FAQS;
+      const q = searchQuery.toLowerCase();
+      return FALLBACK_FAQS.filter(
+        (f) => f.question.toLowerCase().includes(q) || f.answer.toLowerCase().includes(q)
+      );
+    }
+    return searchQuery.length > 0 ? searchResults : allFAQs;
+  }, [searchQuery, searchResults, allFAQs, usingFallback]);
 
   // Group FAQs by category
   const groupedFAQs = useMemo(() => {
@@ -162,7 +186,7 @@ export default function FAQ() {
         {!isLoadingFAQs && filteredFAQs.length > 0 && (
           <div className="mt-8 text-center text-gray-600">
             <p>
-              Viser {filteredFAQs.length} av {allFAQs.length} spørsmål
+              Viser {filteredFAQs.length} av {usingFallback ? FALLBACK_FAQS.length : allFAQs.length} spørsmål
             </p>
           </div>
         )}
