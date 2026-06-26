@@ -275,7 +275,7 @@ export default function AboutUs() {
               <h4 className="font-semibold mb-2">Forretningsadresse</h4>
               <p className="text-sm opacity-90">
                 Nexify CRM Systems AS<br />
-                Organisasjonsnummer: [Org.nr]<br />
+                Organisasjonsnummer: 936 300 278<br />
                 Norge
               </p>
             </div>

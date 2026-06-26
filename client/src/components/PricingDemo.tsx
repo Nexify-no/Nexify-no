@@ -26,7 +26,7 @@ export default function PricingDemo() {
     { task: "Skrive 1 innlegg", without: "45 min", with: "30 sek", saved: "44.5 min" },
     { task: "Finne emne/idé", without: "20 min", with: "5 sek", saved: "19.9 min" },
     { task: "Lage bilde", without: "30 min", with: "10 sek", saved: "29.8 min" },
-    { task: "20 innlegg/mnd", without: "31+ timer", with: "10 min", saved: "30+ timer" },
+    { task: "20 innlegg/mnd", without: "15 timer", with: "10 min", saved: "15 timer" },
   ];
 
   return (
@@ -41,7 +41,7 @@ export default function PricingDemo() {
             </div>
             <div className="flex items-center gap-1.5 text-xs font-medium text-green-600 bg-green-50 px-3 py-1 rounded-full border border-green-200">
               <TrendingUp className="h-3 w-3" />
-              Spar 30+ timer/mnd
+              Spar 15 timer/mnd
             </div>
           </div>
         </div>
@@ -80,7 +80,7 @@ export default function PricingDemo() {
               </div>
               <div>
                 <p className="text-sm font-bold text-gray-800">199 kr/mnd = 6,60 kr/dag</p>
-                <p className="text-xs text-gray-500">Billigere enn en kaffe - sparer 30+ timer</p>
+                <p className="text-xs text-gray-500">Billigere enn en kaffe - sparer 15 timer</p>
               </div>
             </div>
             <div className="flex items-center gap-1.5 text-xs font-bold text-green-600">

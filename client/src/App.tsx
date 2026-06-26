@@ -165,6 +165,13 @@ function Router() {
         <Route path={"/engasjement-hjelper"} component={EngagementHelper} />
         <Route path={"/telegram-innlegg"} component={TelegramPosts} />
         <Route path={"/innstillinger"} component={Settings} />
+        {/* Norwegian public-page aliases */}
+        <Route path={"/kontakt"} component={Contact} />
+        <Route path={"/om-oss"} component={AboutUs} />
+        <Route path={"/priser"} component={Pricing} />
+        <Route path={"/personvern"} component={Privacy} />
+        <Route path={"/vilkar"} component={Terms} />
+        <Route path={"/blogg"} component={Blog} />
         <Route path={"/404"} component={NotFound} />
         {/* Final fallback route */}
         <Route component={NotFound} />

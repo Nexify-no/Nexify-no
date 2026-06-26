@@ -61,6 +61,19 @@
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
+      // GDPR/ePrivacy: deny analytics & ad storage by default until the user consents.
+      gtag('consent', 'default', {
+        ad_storage: 'denied',
+        ad_user_data: 'denied',
+        ad_personalization: 'denied',
+        analytics_storage: 'denied',
+        wait_for_update: 500
+      });
+      try {
+        var __c = JSON.parse(localStorage.getItem('cookie-consent') || '{}');
+        if (__c.analytics) gtag('consent','update',{ analytics_storage: 'granted' });
+        if (__c.marketing) gtag('consent','update',{ ad_storage: 'granted', ad_user_data: 'granted', ad_personalization: 'granted' });
+      } catch (e) {}
       (function () {
         var id = "%VITE_GA4_ID%";
         if (id && id.indexOf("%VITE_") !== 0) {

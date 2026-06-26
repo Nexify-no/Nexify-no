@@ -324,7 +324,7 @@ export default function Dashboard() {
                 {Math.round(postsUsed * 0.25)}h
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                ~15 {language === "no" ? "min spart per innlegg" : "min saved per post"}
+                ~45 {language === "no" ? "min spart per innlegg" : "min saved per post"}
               </p>
             </div>
 

@@ -18,6 +18,16 @@ export function reopenCookieSettings() {
   }
 }
 
+function applyConsentMode(prefs: { analytics: boolean; marketing: boolean }) {
+  if (typeof window === "undefined" || typeof (window as any).gtag !== "function") return;
+  (window as any).gtag("consent", "update", {
+    analytics_storage: prefs.analytics ? "granted" : "denied",
+    ad_storage: prefs.marketing ? "granted" : "denied",
+    ad_user_data: prefs.marketing ? "granted" : "denied",
+    ad_personalization: prefs.marketing ? "granted" : "denied",
+  });
+}
+
 export default function CookieConsent() {
   const [showBanner, setShowBanner] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -62,6 +72,7 @@ export default function CookieConsent() {
     };
     localStorage.setItem("cookie-consent", JSON.stringify(allAccepted));
     setPreferences(allAccepted);
+    applyConsentMode({ analytics: true, marketing: true });
     setShowBanner(false);
   };
 
@@ -73,11 +84,13 @@ export default function CookieConsent() {
     };
     localStorage.setItem("cookie-consent", JSON.stringify(onlyNecessary));
     setPreferences(onlyNecessary);
+    applyConsentMode({ analytics: false, marketing: false });
     setShowBanner(false);
   };
 
   const handleSavePreferences = () => {
     localStorage.setItem("cookie-consent", JSON.stringify(preferences));
+    applyConsentMode({ analytics: preferences.analytics, marketing: preferences.marketing });
     setShowBanner(false);
     setShowSettings(false);
   };

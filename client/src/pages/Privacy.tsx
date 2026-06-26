@@ -20,7 +20,7 @@ export default function Privacy() {
         icon: Database,
         title: "1. Hvilke data samler vi inn",
         content: [
-          "**Kontoinformasjon**: Navn, e-postadresse, og profilbilde (via OAuth-pålogging)",
+          "**Kontoinformasjon**: Navn, e-postadresse og profilbilde. Ved OAuth-pålogging (Google/Vipps) hentes dette fra leverandøren; ved registrering med e-post og passord lagres passordet kryptert (bcrypt) – vi ser det aldri i klartekst.",
           "**Innholddata**: Innlegg du genererer, lagrede utkast, og preferanser",
           "**Bruksdata**: Antall genererte innlegg, abonnementsstatus, og språkvalg",
           "**Tekniske data**: IP-adresse, nettlesertype, og enhetsinformasjon (for sikkerhet og feilsøking)"
@@ -103,7 +103,7 @@ export default function Privacy() {
         icon: Database,
         title: "1. What Data We Collect",
         content: [
-          "**Account Information**: Name, email address, and profile picture (via OAuth login)",
+          "**Account Information**: Name, email and profile picture. With OAuth login (Google/Vipps) this comes from the provider; with email/password sign-up the password is stored hashed (bcrypt) – we never see it in plain text.",
           "**Content Data**: Posts you generate, saved drafts, and preferences",
           "**Usage Data**: Number of generated posts, subscription status, and language choice",
           "**Technical Data**: IP address, browser type, and device information (for security and troubleshooting)"
