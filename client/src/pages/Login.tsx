@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
 import { VippsLoginButton } from "@/components/VippsLogin";
+import { PennaMark } from "@/components/PennaMark";
 
 export function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -167,9 +168,7 @@ export function LoginPage() {
         {/* Logo */}
         <div className="text-center">
           <div className="inline-flex items-center gap-2.5 mb-2">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center shadow-lg shadow-primary/20">
-              <Zap className="h-5 w-5 text-white" />
-            </div>
+            <PennaMark className="h-11 w-11" />
             <span className="text-2xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
               Penna
             </span>
