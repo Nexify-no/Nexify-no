@@ -125,6 +125,7 @@ export default function Generate() {
   const { value: generatedContent, set: setGeneratedContent, undo, redo, canUndo, canRedo } = useUndoRedo("");
 
   const [topic, setTopic] = useState("");
+  const [mobileTab, setMobileTab] = useState<"skriv" | "resultat">("skriv"); // mobile-only: Skriv vs Resultat
   const [platform, setPlatform] = useState<"linkedin" | "twitter" | "instagram" | "facebook">("linkedin");
   const [tone, setTone] = useState<"professional" | "casual" | "friendly" | "formal" | "humorous">("professional");
   const [savedPostId, setSavedPostId] = useState<number | null>(null);
@@ -351,6 +352,7 @@ export default function Generate() {
   const generateMutation = trpc.content.generate.useMutation({
     onSuccess: (data) => {
       setGeneratedContent(data.content);
+      setMobileTab("resultat");
       setSavedPostId((data as any).postId ?? null);
       clearDraft();
       if (currentIdeaId) {
@@ -613,6 +615,12 @@ export default function Generate() {
 
           {/* ═══ LEFT COLUMN: Input + Settings (3/5 width) ═══ */}
           <div className="lg:col-span-3 space-y-5">
+            {/* Mobile tab switcher (Skriv / Resultat). On lg+ both halves show stacked. */}
+            <div className="lg:hidden grid grid-cols-2 gap-2 p-1 bg-muted rounded-lg sticky top-2 z-20">
+              <button type="button" onClick={() => setMobileTab("skriv")} className={`py-2 rounded-md text-sm font-medium transition-colors ${mobileTab === "skriv" ? "bg-background shadow text-foreground" : "text-muted-foreground"}`}>✍️ Skriv</button>
+              <button type="button" onClick={() => setMobileTab("resultat")} className={`py-2 rounded-md text-sm font-medium transition-colors ${mobileTab === "resultat" ? "bg-background shadow text-foreground" : "text-muted-foreground"}`}>👁️ Resultat</button>
+            </div>
+            <div className={`space-y-5 ${mobileTab === "resultat" ? "hidden lg:block" : ""}`}>
 
             {/* ── Preset Bar ── */}
             {(presetsQuery.data?.length ?? 0) > 0 && (
@@ -1084,6 +1092,8 @@ export default function Generate() {
               )}
             </Button>
 
+            </div>
+            <div className={`space-y-5 ${mobileTab === "skriv" ? "hidden lg:block" : ""}`}>
             {/* ── Generated Content Output ── */}
             {generatedContent && (
               <Card className="border-green-200 dark:border-green-800">
@@ -1226,6 +1236,7 @@ export default function Generate() {
                 </CardContent>
               </Card>
             )}
+            </div>
           </div>
 
           {/* ═══ RIGHT COLUMN: Inspirasjon & Verktøy (2/5 width) ═══ */}
