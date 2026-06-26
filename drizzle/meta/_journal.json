@@ -274,6 +274,13 @@
       "when": 1782260244421,
       "tag": "0038_user_2fa",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "5",
+      "when": 1782260245421,
+      "tag": "0039_seed_blog_posts",
+      "breakpoints": true
     }
   ]
 }
