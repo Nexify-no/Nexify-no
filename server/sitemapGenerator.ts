@@ -30,7 +30,7 @@ export async function generateSitemap(): Promise<string> {
     { loc: "/", priority: 1.0, changefreq: "weekly" as const },
     { loc: "/blog", priority: 0.9, changefreq: "daily" as const },
     { loc: "/pricing", priority: 0.8, changefreq: "monthly" as const },
-    { loc: "/about", priority: 0.7, changefreq: "monthly" as const },
+    { loc: "/about-us", priority: 0.7, changefreq: "monthly" as const },
     { loc: "/contact", priority: 0.7, changefreq: "monthly" as const },
     { loc: "/faq", priority: 0.8, changefreq: "weekly" as const },
     { loc: "/privacy", priority: 0.5, changefreq: "yearly" as const },
@@ -43,11 +43,12 @@ export async function generateSitemap(): Promise<string> {
   try {
     const db = await getDb();
     if (db) {
-      const posts = await (db as any).query.blogs.findMany({
+      const posts = await (db as any).query.blogPosts.findMany({
         columns: {
           slug: true,
           updatedAt: true,
         },
+        where: (b: any, { eq }: any) => eq(b.published, 1),
       });
 
       posts.forEach((post: any) => {

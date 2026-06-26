@@ -288,6 +288,13 @@
       "when": 1782260246421,
       "tag": "0040_seed_blog_seo_batch",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "5",
+      "when": 1782260247421,
+      "tag": "0041_seed_blog_seo_batch2",
+      "breakpoints": true
     }
   ]
 }
