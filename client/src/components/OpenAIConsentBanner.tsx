@@ -6,8 +6,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { AlertCircle, X } from "lucide-react";
+import { ShieldCheck, CheckCircle2, X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Link } from "wouter";
@@ -15,7 +14,7 @@ import { Link } from "wouter";
 export default function OpenAIConsentBanner() {
   const { language } = useLanguage();
   const [isVisible, setIsVisible] = useState(false);
-  
+
   const { data: preferences } = trpc.user.getPreference.useQuery();
   const updateConsentMutation = trpc.user.updateOpenAIConsent.useMutation({
     onSuccess: () => {
@@ -63,64 +62,72 @@ export default function OpenAIConsentBanner() {
   const content = language === "no" ? norwegianContent : englishContent;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 p-4 animate-in slide-in-from-bottom-5">
-      <Card className="max-w-4xl mx-auto border-orange-200 dark:border-orange-900 bg-orange-50 dark:bg-orange-950/90 backdrop-blur-sm shadow-2xl">
-        <CardContent className="pt-6">
-          <div className="flex gap-4">
-            <div className="flex-shrink-0">
-              <div className="p-2 bg-orange-100 dark:bg-orange-900/50 rounded-lg">
-                <AlertCircle className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+    <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center p-4 sm:p-6 pointer-events-none">
+      <div className="pointer-events-auto w-full max-w-xl animate-in slide-in-from-bottom-5 fade-in duration-300">
+        <div className="relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/95 shadow-2xl ring-1 ring-black/5 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-900/95">
+          {/* Brand accent bar */}
+          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-indigo-500 via-violet-500 to-purple-600" />
+
+          <button
+            onClick={() => setIsVisible(false)}
+            className="absolute right-3 top-3 rounded-full p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+
+          <div className="p-5 sm:p-6">
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-purple-500/20">
+                <ShieldCheck className="h-6 w-6 text-white" />
+              </div>
+
+              <div className="flex-1 pr-4">
+                <h3 className="text-base font-semibold text-zinc-900 dark:text-white">
+                  {content.title}
+                </h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+                  {content.description}
+                </p>
               </div>
             </div>
-            
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-orange-900 dark:text-orange-100 mb-2">
-                {content.title}
-              </h3>
-              <p className="text-sm text-orange-800 dark:text-orange-200 mb-2 leading-relaxed">
-                {content.description}
-              </p>
-              <p className="text-sm font-semibold text-orange-900 dark:text-orange-100 mb-3">
+
+            <div className="mt-4 flex items-center gap-2 rounded-xl bg-zinc-50 px-3.5 py-2.5 dark:bg-zinc-800/60">
+              <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-emerald-500" />
+              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
                 {content.ownership}
-              </p>
-              <p className="text-xs text-orange-700 dark:text-orange-300 mb-4">
-                {content.learnMore}{" "}
-                <Link href="/privacy">
-                  <a className="underline hover:text-orange-900 dark:hover:text-orange-100">
-                    {content.privacyPolicy}
-                  </a>
-                </Link>
-              </p>
-              
-              <div className="flex gap-3">
-                <Button 
-                  onClick={handleAccept}
-                  className="bg-orange-600 hover:bg-orange-700 text-white"
-                  disabled={updateConsentMutation.isPending}
-                >
-                  {content.accept}
-                </Button>
-                <Button 
-                  onClick={handleDecline}
-                  variant="outline"
-                  className="border-orange-300 dark:border-orange-700 hover:bg-orange-100 dark:hover:bg-orange-900/50"
-                  disabled={updateConsentMutation.isPending}
-                >
-                  {content.decline}
-                </Button>
-              </div>
+              </span>
             </div>
-            
-            <button
-              onClick={() => setIsVisible(false)}
-              className="flex-shrink-0 text-orange-600 dark:text-orange-400 hover:text-orange-900 dark:hover:text-orange-100 transition-colors"
-              aria-label="Close"
-            >
-              <X className="h-5 w-5" />
-            </button>
+
+            <p className="mt-3 text-xs text-zinc-400 dark:text-zinc-500">
+              {content.learnMore}{" "}
+              <Link href="/privacy">
+                <a className="font-medium text-indigo-600 underline-offset-2 hover:underline dark:text-indigo-400">
+                  {content.privacyPolicy}
+                </a>
+              </Link>
+            </p>
+
+            <div className="mt-5 flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
+              <Button
+                onClick={handleDecline}
+                variant="ghost"
+                className="text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white"
+                disabled={updateConsentMutation.isPending}
+              >
+                {content.decline}
+              </Button>
+              <Button
+                onClick={handleAccept}
+                className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-purple-500/20 transition-all hover:from-indigo-700 hover:to-purple-700 hover:shadow-lg"
+                disabled={updateConsentMutation.isPending}
+              >
+                {content.accept}
+              </Button>
+            </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
