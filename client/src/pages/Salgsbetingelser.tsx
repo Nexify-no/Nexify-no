@@ -32,7 +32,7 @@ export default function Salgsbetingelser() {
         title: "2. Betaling",
         content: [
           "Alle priser er oppgitt i norske kroner (NOK) og inkluderer merverdiavgift (MVA) der dette er aktuelt.",
-          "**Priser**: Pro 199 NOK/måned, årsabonnement 2149 NOK/år (spar 10%). Gjeldende priser fremgår alltid på prissiden før kjøpet bekreftes.",
+          "**Priser**: Pro 199 NOK/måned (årlig 2149 NOK/år) og Premium 399 NOK/måned (årlig 4309 NOK/år). Årsabonnement gir 10% rabatt. Gjeldende priser fremgår alltid på prissiden før kjøpet bekreftes.",
           "**Betalingsmetoder**: Vi aksepterer betalings-/kredittkort og Vipps.",
           "**Trekk**: Abonnementet er en fast, gjentakende betaling som trekkes automatisk ved starten av hver fakturaperiode (måned eller år) frem til kunden sier opp.",
           "Betaling belastes ved bestilling og deretter ved hver fornyelse."
@@ -120,7 +120,7 @@ export default function Salgsbetingelser() {
         title: "2. Payment",
         content: [
           "All prices are stated in Norwegian kroner (NOK) and include VAT where applicable.",
-          "**Prices**: Pro 199 NOK/month, annual 2149 NOK/year (save 10%). Current prices are always shown on the pricing page before purchase is confirmed.",
+          "**Prices**: Pro 199 NOK/month (annual 2149 NOK/year) and Premium 399 NOK/month (annual 4309 NOK/year). Annual billing saves 10%. Current prices are always shown on the pricing page before purchase is confirmed.",
           "**Payment methods**: We accept debit/credit cards and Vipps.",
           "**Charges**: The subscription is a fixed, recurring payment charged automatically at the start of each billing period (month or year) until the customer cancels.",
           "Payment is charged on order and then on each renewal."
