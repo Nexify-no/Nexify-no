@@ -810,3 +810,9 @@
     background-position: 350% 50%, 350% 50%;
   }
 }
+
+/* Responsive: prevent any stray-wide element from causing horizontal scroll on mobile */
+html, body, #root {
+  overflow-x: clip;   /* prevents horizontal scroll without breaking position: sticky */
+  max-width: 100%;
+}

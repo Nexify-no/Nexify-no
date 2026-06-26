@@ -176,7 +176,8 @@ export function Pricing() {
         <div className="bg-card rounded-xl border p-8 mb-16">
           <h2 className="text-2xl font-bold mb-8">Sammenlign planer</h2>
 
-          <div className="space-y-4">
+          <div className="overflow-x-auto -mx-2 px-2">
+          <div className="space-y-4 min-w-[480px]">
             <div className="grid grid-cols-4 gap-4 pb-3 border-b font-semibold text-sm text-muted-foreground">
               <div>Funksjon</div>
               <div className="text-center">Gratis</div>
@@ -197,6 +198,7 @@ export function Pricing() {
                 <div className="text-center text-sm">{row.premium}</div>
               </div>
             ))}
+          </div>
           </div>
         </div>
 
