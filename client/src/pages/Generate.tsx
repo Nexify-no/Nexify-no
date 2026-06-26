@@ -975,7 +975,7 @@ export default function Generate() {
                       </div>
                     ) : (
                       <>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {/* Style */}
                           <div className="space-y-1.5">
                             <Label className="text-xs">Bildestil</Label>
@@ -1141,7 +1141,7 @@ export default function Generate() {
                   {/* Quick Improve Buttons */}
                   <div>
                     <Label className="text-sm mb-2 block">Hurtigforbedring:</Label>
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       {[
                         { type: "grammar", label: "✍️ Grammatikk" },
                         { type: "engagement", label: "🔥 Engasjement" },
