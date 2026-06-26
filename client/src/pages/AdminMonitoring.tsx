@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useRouter } from "wouter";
+import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -33,7 +33,7 @@ interface Alert {
 
 export default function AdminMonitoring() {
   const { user } = useAuth();
-  const [, navigate] = useRouter() as any;
+  const [, navigate] = useLocation();
   const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,10 +45,11 @@ export default function AdminMonitoring() {
       return;
     }
 
-    if (!user || (user as any).role !== "admin") {
-    navigate("/");
-    return;
-  }   fetchData();
+    if ((user as any).role !== "admin") {
+      navigate("/dashboard");
+      return;
+    }
+    fetchData();
     const interval = setInterval(fetchData, 30000); // Refresh every 30 seconds
 
     return () => clearInterval(interval);
