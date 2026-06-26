@@ -32,4 +32,4 @@ Disallow: /examples
 Disallow: /admin/
 Disallow: /subscription/
 
-Sitemap: https://innlegg.no/sitemap.xml
+Sitemap: https://penna.no/sitemap.xml

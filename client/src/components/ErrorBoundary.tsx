@@ -37,13 +37,18 @@ class ErrorBoundary extends Component<Props, State> {
               className="text-destructive mb-6 flex-shrink-0"
             />
 
-            <h2 className="text-xl mb-4">An unexpected error occurred.</h2>
+            <h2 className="text-xl font-semibold mb-2">Noe gikk galt</h2>
+            <p className="text-sm text-muted-foreground text-center mb-6 max-w-md">
+              Det oppstod en uventet feil. Prøv å laste siden på nytt. Hvis problemet vedvarer, kontakt support@penna.no.
+            </p>
 
-            <div className="p-4 w-full rounded bg-muted overflow-auto mb-6">
-              <pre className="text-sm text-muted-foreground whitespace-break-spaces">
-                {this.state.error?.stack}
-              </pre>
-            </div>
+            {import.meta.env.DEV && this.state.error?.stack && (
+              <div className="p-4 w-full rounded bg-muted overflow-auto mb-6">
+                <pre className="text-sm text-muted-foreground whitespace-break-spaces">
+                  {this.state.error.stack}
+                </pre>
+              </div>
+            )}
 
             <button
               onClick={() => window.location.reload()}

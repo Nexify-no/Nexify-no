@@ -98,7 +98,6 @@ function Router() {
         <Route path={"/reset-password"} component={ResetPassword} />
         <Route path={"/"} component={Home} />
         <Route path={"/landing"} component={Landing} />
-        <Route path={"/aurora"} component={AuroraDemo} />
         <Route path={"/dashboard"} component={Dashboard} />
         <Route path={"/generate"} component={Generate} />
         <Route path={"/posts"} component={Posts} />
@@ -133,7 +132,7 @@ function Router() {
         <Route path={"/payment/success"} component={PaymentSuccess} />
         <Route path={"/payment/failure"} component={PaymentFailure} />
         <Route path={"/payment/cancel"} component={PaymentCancel} />
-        <Route path={"/admin/analytics"} component={Analytics} />
+        <Route path={"/analytics"} component={Analytics} />
         <Route path={"/progress"} component={Progress} />
         <Route path={"/profile"} component={Profile} />
         <Route path="/admin/monitoring" component={AdminMonitoring} />

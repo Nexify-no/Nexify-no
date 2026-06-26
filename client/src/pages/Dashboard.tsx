@@ -125,6 +125,7 @@ export default function Dashboard() {
   const getGreeting = () => {
     const hour = new Date().getHours();
     const name = user?.name?.split(" ")[0] || "";
+    if (hour < 5) return language === "no" ? `God natt, ${name}` : `Good night, ${name}`;
     if (hour < 12) return language === "no" ? `God morgen, ${name}` : `Good morning, ${name}`;
     if (hour < 18) return language === "no" ? `God ettermiddag, ${name}` : `Good afternoon, ${name}`;
     return language === "no" ? `God kveld, ${name}` : `Good evening, ${name}`;

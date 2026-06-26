@@ -106,7 +106,7 @@ function LinkedInStatusBadge() {
         <Linkedin className="h-3.5 w-3.5" />
         <span className="font-medium">LinkedIn ikke tilkoblet</span>
       </div>
-      <Link href="/innstillinger">
+      <Link href="/settings">
         <Button variant="outline" size="sm" className="h-6 text-xs">
           <ExternalLink className="h-3 w-3 mr-1" />Koble til
         </Button>
