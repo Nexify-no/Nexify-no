@@ -23,7 +23,7 @@ export default function Salgsbetingelser() {
           "**Selger** er Nexify CRM Systems AS (\"Penna\", \"vi\", \"oss\"), org.nr 936300278.",
           "**Adresse**: Nedre Sølen 5, 3913 Porsgrunn, Norge.",
           "**E-post**: support@penna.no",
-          "**Telefon**: [fyll inn telefonnummer]",
+          "**Telefon**: +47 921 46 050",
           "**Kjøper** er den forbrukeren eller virksomheten som foretar bestillingen, heretter kalt kunden."
         ]
       },
@@ -95,7 +95,7 @@ export default function Salgsbetingelser() {
     ],
     contact: {
       title: "Firma- og kontaktinformasjon",
-      content: "**Nexify CRM Systems AS** · Org.nr 936300278 · Nedre Sølen 5, 3913 Porsgrunn · E-post: support@penna.no · Telefon: [fyll inn]"
+      content: "**Nexify CRM Systems AS** · Org.nr 936300278 · Nedre Sølen 5, 3913 Porsgrunn · E-post: support@penna.no · Telefon: +47 921 46 050"
     }
   };
 
@@ -111,7 +111,7 @@ export default function Salgsbetingelser() {
           "**Seller** is Nexify CRM Systems AS (\"Penna\", \"we\", \"us\"), company no. 936300278.",
           "**Address**: Nedre Sølen 5, 3913 Porsgrunn, Norway.",
           "**Email**: support@penna.no",
-          "**Phone**: [add phone number]",
+          "**Phone**: +47 921 46 050",
           "**Buyer** is the consumer or business placing the order, hereinafter the customer."
         ]
       },
@@ -183,7 +183,7 @@ export default function Salgsbetingelser() {
     ],
     contact: {
       title: "Company and Contact Information",
-      content: "**Nexify CRM Systems AS** · Company no. 936300278 · Nedre Sølen 5, 3913 Porsgrunn, Norway · Email: support@penna.no · Phone: [add]"
+      content: "**Nexify CRM Systems AS** · Company no. 936300278 · Nedre Sølen 5, 3913 Porsgrunn, Norway · Email: support@penna.no · Phone: +47 921 46 050"
     }
   };
 
