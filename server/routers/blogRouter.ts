@@ -8,6 +8,7 @@
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { storagePut } from "../storage";
+import { submitBlogPostToIndexNow } from "../services/indexNow";
 
 export const blogRouter = router({
     list: publicProcedure.query(async () => {
@@ -60,7 +61,12 @@ export const blogRouter = router({
         }
         
         const { createBlogPost } = await import("../db");
-        return await createBlogPost(input as any);
+        const created = await createBlogPost(input as any);
+        // Notify IndexNow (Bing/Yandex/DuckDuckGo) instantly on publish.
+        if (input.published === 1) {
+          void submitBlogPostToIndexNow(input.slug);
+        }
+        return created;
       }),
       
     update: protectedProcedure
@@ -85,6 +91,10 @@ export const blogRouter = router({
         const { id, ...updates } = input;
         const { updateBlogPostAdmin } = await import("../db");
         await updateBlogPostAdmin(id, updates as any);
+        // Notify IndexNow when an article is (re)published and its slug is known.
+        if (input.published === 1 && input.slug) {
+          void submitBlogPostToIndexNow(input.slug);
+        }
         return { success: true };
       }),
       

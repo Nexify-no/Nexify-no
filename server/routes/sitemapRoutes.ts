@@ -11,6 +11,7 @@
 import { Router, Response } from "express";
 import { generateSitemap } from "../sitemapGenerator";
 import { generateRSSFeed, generateAtomFeed } from "../rssGenerator";
+import { getIndexNowKey } from "../services/indexNow";
 
 const router = Router();
 
@@ -99,6 +100,15 @@ Sitemap: https://penna.no/sitemap.xml
   res.header("Content-Type", "text/plain");
   res.header("Cache-Control", "public, max-age=604800"); // Cache for 1 week
   res.send(robotsTxt);
+});
+
+/**
+ * GET /<key>.txt - IndexNow ownership verification key
+ */
+router.get(`/${getIndexNowKey()}.txt`, (req, res: Response) => {
+  res.header("Content-Type", "text/plain");
+  res.header("Cache-Control", "public, max-age=604800");
+  res.send(getIndexNowKey());
 });
 
 export default router;
