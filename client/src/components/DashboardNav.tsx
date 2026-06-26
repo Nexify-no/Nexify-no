@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import FloatingIdeaButton from "./FloatingIdeaButton";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./ThemeToggle";
+import { PennaMark } from "@/components/PennaMark";
 import {
   Tooltip,
   TooltipContent,
@@ -160,9 +161,7 @@ export default function DashboardNav() {
           {!sidebarCollapsed && (
             <Link href="/dashboard">
               <div className="flex items-center gap-2.5 cursor-pointer group">
-                <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center shadow-md shadow-primary/20 group-hover:shadow-lg group-hover:shadow-primary/30 transition-shadow">
-                  <Zap className="h-4.5 w-4.5 text-white" />
-                </div>
+                <PennaMark className="h-9 w-9" />
                 <span className="text-lg font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
                   Penna
                 </span>
@@ -171,9 +170,7 @@ export default function DashboardNav() {
           )}
           {sidebarCollapsed && (
             <Link href="/dashboard">
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center cursor-pointer shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-shadow">
-                <Zap className="h-4.5 w-4.5 text-white" />
-              </div>
+              <PennaMark className="h-9 w-9 cursor-pointer" />
             </Link>
           )}
           <Button
@@ -312,9 +309,7 @@ export default function DashboardNav() {
           <div className="container flex h-14 items-center justify-between">
             <Link href="/dashboard">
               <div className="flex items-center gap-2 cursor-pointer">
-                <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center shadow-md shadow-primary/20">
-                  <Zap className="h-4.5 w-4.5 text-white" />
-                </div>
+                <PennaMark className="h-9 w-9" />
                 <span className="text-lg font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
                   Penna
                 </span>

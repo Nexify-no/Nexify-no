@@ -44,6 +44,7 @@ import HowItWorksDemo from "@/components/HowItWorksDemo";
 import FeaturesDemo from "@/components/FeaturesDemo";
 import PricingDemo from "@/components/PricingDemo";
 import TestimonialsDemo from "@/components/TestimonialsDemo";
+import { PennaMark } from "@/components/PennaMark";
 
 // Animated counter hook
 function useCountUp(end: number, duration: number = 2000, start: boolean = false) {
@@ -201,9 +202,7 @@ export default function Home() {
       <nav className="border-b border-gray-100 bg-white/95 backdrop-blur-md sticky top-0 z-50">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="h-9 w-9 bg-gradient-to-br from-primary to-purple-600 rounded-xl flex items-center justify-center shadow-md shadow-primary/20">
-              <Zap className="h-5 w-5 text-white" />
-            </div>
+            <PennaMark className="h-10 w-10" />
             <span className="text-xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
               Penna
             </span>
@@ -668,9 +667,7 @@ export default function Home() {
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="h-8 w-8 bg-gradient-to-br from-primary to-purple-600 rounded-lg flex items-center justify-center">
-                  <Zap className="h-4 w-4 text-white" />
-                </div>
+                <PennaMark className="h-9 w-9" />
                 <span className="text-lg font-bold">Penna</span>
               </div>
               <p className="text-sm text-gray-400 leading-relaxed">

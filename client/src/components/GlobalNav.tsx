@@ -10,6 +10,7 @@ import { Menu, X, Zap } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
+import { PennaMark } from "@/components/PennaMark";
 
 export default function GlobalNav() {
   const [location] = useLocation();
@@ -35,9 +36,7 @@ export default function GlobalNav() {
         {/* Logo */}
         <Link href="/">
           <div className="flex items-center gap-2 cursor-pointer">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center">
-              <Zap className="h-5 w-5 text-white" />
-            </div>
+            <PennaMark className="h-9 w-9" />
             <span className="text-xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
               Penna
             </span>
