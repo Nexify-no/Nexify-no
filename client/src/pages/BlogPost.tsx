@@ -97,6 +97,32 @@ export default function BlogPost() {
     }
   };
 
+  // FAQPage schema — parsed from the article's "Vanlige spørsmål" Q&A blocks so the
+  // content is eligible for Google AI Overviews / rich-result FAQ citation.
+  const faqItems: { q: string; a: string }[] = (() => {
+    const out: { q: string; a: string }[] = [];
+    const html = post?.content || "";
+    const re = /<p>\s*<strong>([^<]*\?)<\/strong>\s*<br\s*\/?>([\s\S]*?)<\/p>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(html)) !== null) {
+      const q = m[1].replace(/\s+/g, " ").trim();
+      const a = m[2].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+      if (q && a) out.push({ q, a });
+    }
+    return out;
+  })();
+  const faqSchema = faqItems.length
+    ? {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": faqItems.map((f) => ({
+          "@type": "Question",
+          "name": f.q,
+          "acceptedAnswer": { "@type": "Answer", "text": f.a },
+        })),
+      }
+    : null;
+
   return (
     <>
       <Helmet>
@@ -119,6 +145,7 @@ export default function BlogPost() {
         <meta name="author" content={post.authorName} />
         <link rel="canonical" href={`https://penna.no/blog/${post.slug}`} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaData) }} />
+        {faqSchema && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />}
       </Helmet>
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
         {/* Header */}
