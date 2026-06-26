@@ -26,6 +26,7 @@ const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const Terms = lazy(() => import("./pages/Terms"));
+const Salgsbetingelser = lazy(() => import("./pages/Salgsbetingelser"));
 const CookiePolicy = lazy(() => import("./pages/CookiePolicy"));
 const AboutUs = lazy(() => import("./pages/AboutUs"));
 const FAQ = lazy(() => import("@/pages/FAQ"));
@@ -107,6 +108,7 @@ function Router() {
         <Route path={"/terms-of-service"} component={TermsOfService} />
         <Route path={"/privacy"} component={Privacy} />
         <Route path={"/terms"} component={Terms} />
+        <Route path={"/salgsbetingelser"} component={Salgsbetingelser} />
         <Route path={"/cookie-policy"} component={CookiePolicy} />
         <Route path={"/about-us"} component={AboutUs} />
         <Route path={"/faq"} component={FAQ} />
