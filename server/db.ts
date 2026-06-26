@@ -4,7 +4,7 @@
  * Unauthorized copying, distribution, or use is strictly prohibited.
  */
 
-import { desc, eq, and, count, gte, lte, lt, sql } from "drizzle-orm";
+import { desc, eq, and, count, gte, lte, lt, sql, isNotNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import * as schema from "../drizzle/schema";
 import { sanitizeHtml } from "./_core/sanitizeHtml";
@@ -1628,4 +1628,29 @@ export async function updateTrendingHashtag(hashtagId: number, updates: Partial<
   await db.update(trendingHashtags)
     .set({ ...updates, updatedAt: new Date() })
     .where(eq(trendingHashtags.id, hashtagId));
+}
+
+
+/**
+ * Recipients for the weekly "Monday ritual" email: users with an email who signed
+ * in within the last 60 days and have not opted out (notification_settings.emailNotifications
+ * false or emailFrequency 'never'). A missing settings row counts as opted-in (defaults).
+ */
+export async function getWeeklyRitualRecipients(): Promise<{ email: string; name: string }[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+  const rows = await db
+    .select({
+      email: users.email,
+      name: users.name,
+      emailNotifications: schema.notificationSettings.emailNotifications,
+      emailFrequency: schema.notificationSettings.emailFrequency,
+    })
+    .from(users)
+    .leftJoin(schema.notificationSettings, eq(schema.notificationSettings.userId, users.id))
+    .where(and(isNotNull(users.email), gte(users.lastSignedIn, sixtyDaysAgo)));
+  return rows
+    .filter((r: any) => (r.emailNotifications ?? true) && (r.emailFrequency ?? "daily") !== "never" && !!r.email)
+    .map((r: any) => ({ email: r.email as string, name: r.name || "" }));
 }

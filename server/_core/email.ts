@@ -75,6 +75,32 @@ export async function sendWelcomeEmail(email: string, name: string): Promise<boo
 }
 
 /**
+ * Weekly "Monday ritual" re-engagement email — nudges the user to create the
+ * week's posts. Caller (scheduler) already filtered by notification preferences.
+ */
+export async function sendWeeklyRitualEmail(email: string, name: string): Promise<boolean> {
+  const site = process.env.PUBLIC_SITE_URL || process.env.VITE_APP_URL || "https://penna.no";
+  const firstName = (name || "").split(" ")[0] || "der";
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #0B132B;">
+      <div style="text-align:center; padding: 8px 0 4px;">
+        <span style="font-size: 22px; font-weight: 700; color:#2563EB;">Penna</span>
+      </div>
+      <h1 style="color:#0B132B; font-size: 22px;">Klar for ukens innlegg, ${firstName}? ✍️</h1>
+      <p style="font-size:15px; line-height:1.6; color:#374151;">Ny uke, nytt innhold. Det tar bare et par minutter å lage ukens innlegg for LinkedIn, X, Instagram og Facebook — i din egen stemme.</p>
+      <p style="font-size:15px; line-height:1.6; color:#374151;">Trykk under, skriv en kort idé, og la Penna gjøre resten.</p>
+      <div style="text-align:center; margin: 28px 0;">
+        <a href="${site}/generer" style="display:inline-block; padding:14px 28px; background:linear-gradient(90deg,#2563EB,#7C3AED); color:#ffffff; text-decoration:none; border-radius:10px; font-weight:700; font-size:16px;">Lag ukens innlegg →</a>
+      </div>
+      <p style="font-size:13px; line-height:1.6; color:#6B7280;">Tips: planlegg innleggene i Kalenderen, så publiseres de automatisk på beste tidspunkt.</p>
+      <hr style="border:none; border-top:1px solid #E8EEF7; margin: 28px 0 14px;" />
+      <p style="color:#9AA6BF; font-size:12px; line-height:1.6;">Du får denne e-posten fordi du har en Penna-konto. Vil du ikke ha ukentlige påminnelser? <a href="${site}/innstillinger" style="color:#2563EB;">Endre varslingsinnstillingene</a>.</p>
+    </div>
+  `;
+  return sendEmail(email, "Klar for ukens innlegg? ✍️", htmlContent);
+}
+
+/**
  * Send subscription confirmation email
  */
 export async function sendSubscriptionConfirmationEmail(

@@ -21,6 +21,7 @@ import { notifyOwner } from './_core/notification';
  */
 
 let schedulerTask: cron.ScheduledTask | null = null;
+let weeklyRitualTask: cron.ScheduledTask | null = null;
 
 // In-process overlap guard: a run that exceeds the 5-min interval must not be
 // re-entered by the next tick on the same instance.
@@ -332,7 +333,24 @@ export function startScheduler() {
     }
   });
 
-  console.log('[Scheduler] Started - scheduled posts + A/B every 5 min, Competitor Radar hourly, best-times daily 03:30');
+  // Weekly "Monday ritual" re-engagement email — Mondays 08:00 (Europe/Oslo).
+  weeklyRitualTask = cron.schedule('0 8 * * 1', async () => {
+    try {
+      const { getWeeklyRitualRecipients } = await import('./db');
+      const { sendWeeklyRitualEmail } = await import('./_core/email');
+      const recipients = await getWeeklyRitualRecipients();
+      console.log(`[Scheduler:WeeklyRitual] sending to ${recipients.length} user(s)`);
+      for (const r of recipients) {
+        try { await sendWeeklyRitualEmail(r.email, r.name); }
+        catch (e) { console.error('[Scheduler:WeeklyRitual] send failed for', r.email, e); }
+        await new Promise((res) => setTimeout(res, 200));
+      }
+    } catch (e) {
+      console.error('[Scheduler:WeeklyRitual] job failed', e);
+    }
+  }, { timezone: 'Europe/Oslo' });
+
+  console.log('[Scheduler] Started - scheduled posts + A/B every 5 min, Competitor Radar hourly, best-times daily 03:30, weekly ritual Mon 08:00');
 }
 
 export function stopScheduler() {
@@ -355,6 +373,11 @@ export function stopScheduler() {
     void bestTimesTask.stop();
     bestTimesTask = null;
     console.log('[Scheduler:BestTimes] Stopped');
+  }
+  if (weeklyRitualTask) {
+    void weeklyRitualTask.stop();
+    weeklyRitualTask = null;
+    console.log('[Scheduler:WeeklyRitual] Stopped');
   }
 }
 
