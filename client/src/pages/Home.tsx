@@ -114,7 +114,7 @@ export default function Home() {
       bgLight: "bg-blue-50",
       title: "AI-genererte bilder",
       desc: "Hvert innlegg kommer med et profesjonelt AI-generert bilde. Perfekt for engagement.",
-      tags: ["DALL-E 3", "Nano Banana", "Automatisk"]
+      tags: ["AI-bilder", "Automatisk"]
     },
     {
       icon: Calendar,

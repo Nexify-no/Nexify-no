@@ -676,8 +676,8 @@ export default function Settings() {
                   </CardTitle>
                   <CardDescription>
                     {language === "no"
-                      ? "Konfigurer ChatGPT og Nano Banana for alle brukere"
-                      : "Configure ChatGPT and Nano Banana for all users"}
+                      ? "Konfigurer AI-modeller for alle brukere"
+                      : "Configure AI models for all users"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
