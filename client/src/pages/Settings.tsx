@@ -627,8 +627,8 @@ export default function Settings() {
           {/* Subscription */}
           <SubscriptionCard language={language} />
 
-          {/* Vipps API Credentials */}
-          <VippsCredentialsCard language={language} />
+          {/* Vipps API Credentials — admin-only (platform payment config, not a subscriber setting) */}
+          {user?.role === "admin" && <VippsCredentialsCard language={language} />}
 
           {/* Delete Account */}
           <Card className="border-red-200 dark:border-red-900">
@@ -811,13 +811,15 @@ export default function Settings() {
 
               <LinkedInConnectionStatus language={language} />
               
-              <div className="flex gap-2">
-                <Button variant="outline" asChild>
-                  <a href="https://www.linkedin.com/developers/" target="_blank" rel="noopener noreferrer">
-                    {language === "no" ? "Opprett LinkedIn App" : "Create LinkedIn App"}
-                  </a>
-                </Button>
-              </div>
+              {user?.role === "admin" && (
+                <div className="flex gap-2">
+                  <Button variant="outline" asChild>
+                    <a href="https://www.linkedin.com/developers/" target="_blank" rel="noopener noreferrer">
+                      {language === "no" ? "Opprett LinkedIn App" : "Create LinkedIn App"}
+                    </a>
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
           {/* Twitter */}
