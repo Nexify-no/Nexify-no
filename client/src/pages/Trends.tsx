@@ -41,6 +41,21 @@ const SOURCE_CHIPS: { value: string; label: string; match: (s: string) => boolea
   { value: "social", label: "Social", match: (s) => /social|reddit/i.test(s) },
 ];
 
+// Bransje (industry) filters — keyword matchers against the trend's title /
+// description / category, so users can see only trends relevant to their field.
+const BRANSJE_FILTERS: { value: string; label: string; match: (s: string) => boolean }[] = [
+  { value: "all", label: "Alle bransjer", match: () => true },
+  { value: "teknologi", label: "Teknologi & IT", match: (s) => /teknolog|kunstig intelligens|\bai\b|\bdata\b|\bapp\b|digital|software|programvare|startup|cyber|robot/i.test(s) },
+  { value: "handel", label: "Varehandel & e-handel", match: (s) => /handel|butikk|netthandel|e-handel|shopping|forbruker|nettbutikk|\bsalg\b/i.test(s) },
+  { value: "finans", label: "Finans & økonomi", match: (s) => /finans|\bbank\b|aksje|børs|økonomi|rente|krypto|bitcoin|investor|\bskatt\b|valuta/i.test(s) },
+  { value: "helse", label: "Helse & trening", match: (s) => /helse|medisin|trening|kosthold|psyk|sykehus|\blege\b|velvære|mental/i.test(s) },
+  { value: "reiseliv", label: "Reiseliv & opplevelser", match: (s) => /reise|ferie|hotell|\bfly\b|turist|opplevelse/i.test(s) },
+  { value: "bygg", label: "Bygg & eiendom", match: (s) => /\bbygg|eiendom|bolig|håndverk|entreprenør|arkitekt|renover|leilighet/i.test(s) },
+  { value: "marked", label: "Markedsføring & media", match: (s) => /markedsf|reklame|sosiale medier|innhold|merkevare|kampanje|\bmedia\b|influenser/i.test(s) },
+  { value: "utdanning", label: "Utdanning & karriere", match: (s) => /utdanning|skole|universitet|\bkurs\b|karriere|\bjobb\b|rekruttering|læring|student/i.test(s) },
+  { value: "mat", label: "Mat & drikke", match: (s) => /\bmat\b|drikke|oppskrift|restaurant|kafé|matvare|\bkokk\b|servering/i.test(s) },
+]
+
 const PAGE_SIZE = 9;
 
 function relativeTime(dateStr?: string): string {
@@ -78,6 +93,7 @@ export default function Trends() {
   const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSource, setActiveSource] = useState("all");
+  const [activeBransje, setActiveBransje] = useState("all");
   const [sortBy, setSortBy] = useState<"score" | "newest" | "source">("score");
   const [view, setView] = useState<"expanded" | "compact">("expanded");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -105,6 +121,7 @@ export default function Trends() {
           date: trend.date as string | undefined,
           trendScore: Math.max(60, 96 - index * 3),
           traffic: trend.traffic || "",
+          category: trend.category || "",
           suggestedPlatforms: ["linkedin", "twitter", "instagram", "facebook"],
         }));
     } catch (error) {
@@ -121,13 +138,15 @@ export default function Trends() {
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     const chip = SOURCE_CHIPS.find((c) => c.value === activeSource) || SOURCE_CHIPS[0];
+    const bransje = BRANSJE_FILTERS.find((b) => b.value === activeBransje) || BRANSJE_FILTERS[0];
     return trendingTopics.filter((topic: any) => {
       const haystack = `${topic.title} ${topic.description}`.toLowerCase();
       const matchesSearch = q === "" || q.split(/\s+/).some((w) => w.length > 0 && haystack.includes(w));
       const matchesSource = chip.match(String(topic.source || ""));
-      return matchesSearch && matchesSource;
+      const matchesBransje = bransje.match(`${topic.title} ${topic.description} ${topic.category || ""}`);
+      return matchesSearch && matchesSource && matchesBransje;
     });
-  }, [trendingTopics, searchQuery, activeSource]);
+  }, [trendingTopics, searchQuery, activeSource, activeBransje]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
@@ -352,6 +371,16 @@ export default function Trends() {
                   })}
                 </div>
                 <div className="flex items-center gap-2 lg:ml-auto">
+                  <Select value={activeBransje} onValueChange={(v) => { setActiveBransje(v); resetPaging(); }}>
+                    <SelectTrigger className="h-9 w-[170px]">
+                      <SelectValue placeholder="Bransje" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BRANSJE_FILTERS.map((b) => (
+                        <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Select value={sortBy} onValueChange={(v) => setSortBy(v as any)}>
                     <SelectTrigger className="h-9 w-[150px]">
                       <SelectValue placeholder="Sorter" />
