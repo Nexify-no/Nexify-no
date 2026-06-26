@@ -90,9 +90,6 @@ export default function Home() {
   const howItWorksSection = useInView(0.1);
   const testimonialsSection = useInView(0.1);
 
-  const usersCount = useCountUp(10, 2000, true);
-  const postsCount = useCountUp(250, 2500, true);
-  const hoursCount = useCountUp(5, 1500, true);
 
   const features = [
     {
@@ -169,32 +166,6 @@ export default function Home() {
     }
   ];
 
-  const testimonials = [
-    {
-      name: "Erik Johansen",
-      role: "Markedssjef, TechNorge AS",
-      text: "Penna har halvert tiden vi bruker på innholdsproduksjon. Kvaliteten er imponerende - kollegaene mine tror jeg skriver alt selv!",
-      rating: 5,
-      initial: "E",
-      color: "from-blue-500 to-blue-600"
-    },
-    {
-      name: "Sara Lindberg",
-      role: "Gründer & Konsulent",
-      text: "Endelig en AI-verktøy som faktisk forstår norsk kontekst. Stemmefunksjonen er genial - innleggene høres ut som meg.",
-      rating: 5,
-      initial: "S",
-      color: "from-purple-500 to-purple-600"
-    },
-    {
-      name: "Magnus Olsen",
-      role: "Frilanser, Digital Markedsføring",
-      text: "Fra 2 timer til 5 minutter per innlegg. Jeg kan nå ta på meg flere kunder uten å jobbe mer. Verdt hver krone.",
-      rating: 5,
-      initial: "M",
-      color: "from-green-500 to-green-600"
-    }
-  ];
 
   return (
     <div className="min-h-screen bg-white">
@@ -216,9 +187,6 @@ export default function Home() {
             </a>
             <a href="#pricing" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
               Priser
-            </a>
-            <a href="#testimonials" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
-              Anmeldelser
             </a>
           </div>
           <div className="flex items-center gap-3">
@@ -348,16 +316,16 @@ export default function Home() {
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto">
             <div className="text-center">
-              <div className="text-3xl md:text-4xl font-bold text-primary mb-1">{usersCount.toLocaleString()}+</div>
-              <div className="text-sm text-gray-500 font-medium">Fornøyde brukere</div>
+              <div className="text-3xl md:text-4xl font-bold text-primary mb-1">4</div>
+              <div className="text-sm text-gray-500 font-medium">Plattformer</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl md:text-4xl font-bold text-primary mb-1">{postsCount.toLocaleString()}+</div>
-              <div className="text-sm text-gray-500 font-medium">Innlegg generert</div>
+              <div className="text-3xl md:text-4xl font-bold text-primary mb-1">~30 sek</div>
+              <div className="text-sm text-gray-500 font-medium">Per innlegg</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl md:text-4xl font-bold text-primary mb-1">{hoursCount}+ timer</div>
-              <div className="text-sm text-gray-500 font-medium">Spart per uke</div>
+              <div className="text-3xl md:text-4xl font-bold text-primary mb-1">100%</div>
+              <div className="text-sm text-gray-500 font-medium">Ditt innhold</div>
             </div>
             <div className="text-center">
               <div className="flex items-center justify-center gap-0.5 mb-1">
@@ -511,46 +479,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section id="testimonials" className="py-20 bg-white" ref={testimonialsSection.ref}>
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 mb-4 bg-primary/5 border border-primary/10 px-4 py-1.5 rounded-full">
-              <Quote className="h-3.5 w-3.5 text-primary" />
-              <span className="text-sm font-medium text-primary">Hva brukerne sier</span>
-            </div>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-gray-900">Elsket av markedsførere</h2>
-            <p className="text-lg text-gray-500">Se hva andre sier om Penna</p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            {testimonials.map((testimonial, i) => (
-              <div key={i} className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
-                <div className="flex items-center gap-1 mb-4">
-                  {[...Array(testimonial.rating)].map((_, j) => (
-                    <Star key={j} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                  ))}
-                </div>
-                <p className="text-sm text-gray-600 mb-6 leading-relaxed">
-                  "{testimonial.text}"
-                </p>
-                <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
-                  <div className={`h-10 w-10 rounded-full bg-gradient-to-br ${testimonial.color} flex items-center justify-center shadow-sm`}>
-                    <span className="text-sm font-bold text-white">{testimonial.initial}</span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">{testimonial.name}</p>
-                    <p className="text-xs text-gray-500">{testimonial.role}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Results Demo */}
-          <TestimonialsDemo />
-        </div>
-      </section>
 
       {/* Pricing */}
       <section id="pricing" className="py-20 bg-gray-50" ref={pricingSection.ref}>
@@ -574,7 +502,7 @@ export default function Home() {
           <div className="mt-12 text-center">
             <div className="inline-flex items-center gap-3 bg-green-50 border border-green-200 rounded-full px-6 py-3">
               <Shield className="h-5 w-5 text-green-600" />
-              <span className="text-sm font-medium text-green-800">30-dagers pengene-tilbake-garanti — Ingen spørsmål</span>
+              <span className="text-sm font-medium text-green-800">Ingen bindingstid — avbryt når som helst</span>
             </div>
           </div>
 
