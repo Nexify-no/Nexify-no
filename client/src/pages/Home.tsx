@@ -705,7 +705,7 @@ export default function Home() {
           </div>
           <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-gray-500">&copy; {new Date().getFullYear()} Penna. Alle rettigheter reservert.</p>
-            <p className="text-xs text-gray-600">Nexify CRM Systems AS · Org.nr: 933 660 027</p>
+            <p className="text-xs text-gray-600">Nexify CRM Systems AS · Org.nr: 936 300 278</p>
           </div>
         </div>
       </footer>
