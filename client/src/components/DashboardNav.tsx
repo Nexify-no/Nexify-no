@@ -46,8 +46,8 @@ export default function DashboardNav() {
   // Primary navigation items
   const primaryNavItems = [
     { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-    { label: "Generer", href: "/generate", icon: Sparkles },
-    { label: "Mine innlegg", href: "/posts", icon: FileText },
+    { label: "Generer", href: "/generer", icon: Sparkles },
+    { label: "Mine innlegg", href: "/innlegg", icon: FileText },
   ];
 
   // Sidebar navigation items
@@ -56,23 +56,23 @@ export default function DashboardNav() {
       title: "Planlegging",
       items: [
         { label: "Kalender", href: "/kalender", icon: Calendar },
-        { label: "Beste Tid", href: "/best-time", icon: Clock },
-        { label: "Gjenbruk", href: "/repurpose", icon: Recycle },
-        { label: "Innholds-Serier", href: "/content-series", icon: List },
-        { label: "Idé-Bank", href: "/idea-bank", icon: Lightbulb },
+        { label: "Beste Tid", href: "/beste-tid", icon: Clock },
+        { label: "Gjenbruk", href: "/gjenbruk", icon: Recycle },
+        { label: "Innholds-Serier", href: "/innholdsserier", icon: List },
+        { label: "Idé-Bank", href: "/ide-bank", icon: Lightbulb },
       ]
     },
     {
       title: "Inspirasjon",
       items: [
-        { label: "Trender", href: "/trends", icon: Flame },
-        { label: "Eksempler", href: "/examples", icon: Lightbulb },
+        { label: "Trender", href: "/trender", icon: Flame },
+        { label: "Eksempler", href: "/eksempler", icon: Lightbulb },
       ]
     },
     {
       title: "Tilpasning",
       items: [
-        { label: "Stemme", href: "/voice-training", icon: Mic },
+        { label: "Stemme", href: "/stemme", icon: Mic },
         { label: "Coach", href: "/coach", icon: MessageSquare },
       ]
     },
@@ -80,11 +80,11 @@ export default function DashboardNav() {
       title: "Avansert",
       items: [
         { label: "Telegram Bot", href: "/telegram-bot", icon: Send },
-        { label: "Telegram Innlegg", href: "/telegram-posts", icon: MessageSquare },
-        { label: "Konkurrent-Radar", href: "/competitor-radar", icon: Target },
+        { label: "Telegram Innlegg", href: "/telegram-innlegg", icon: MessageSquare },
+        { label: "Konkurrent-Radar", href: "/konkurrent-radar", icon: Target },
         { label: "A/B Testing", href: "/ab-testing", icon: FlaskConical },
-        { label: "Ukentlig Rapport", href: "/weekly-report", icon: Mail },
-        { label: "Engasjement-Hjelper", href: "/engagement-helper", icon: MessageSquare },
+        { label: "Ukentlig Rapport", href: "/ukentlig-rapport", icon: Mail },
+        { label: "Engasjement-Hjelper", href: "/engasjement-hjelper", icon: MessageSquare },
       ]
     },
   ];
@@ -230,7 +230,7 @@ export default function DashboardNav() {
         {/* Bottom Section */}
         <div className={cn("border-t border-border/50 p-2 space-y-0.5", sidebarCollapsed && "flex flex-col items-center")}>
           <NavItem 
-            item={{ label: "Innstillinger", href: "/settings", icon: SettingsIcon }} 
+            item={{ label: "Innstillinger", href: "/innstillinger", icon: SettingsIcon }} 
             collapsed={sidebarCollapsed} 
           />
           {user?.role === "admin" && (

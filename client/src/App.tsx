@@ -150,6 +150,21 @@ function Router() {
         <Route path={"/weekly-report"} component={WeeklyReport} />
         <Route path={"/engagement-helper"} component={EngagementHelper} />
         <Route path={"/idea-bank"} component={IdeaBank} />
+        {/* Norwegian user-facing aliases (English paths kept for redirects/integrations) */}
+        <Route path={"/generer"} component={Generate} />
+        <Route path={"/innlegg"} component={Posts} />
+        <Route path={"/beste-tid"} component={BestTime} />
+        <Route path={"/gjenbruk"} component={ContentRepurpose} />
+        <Route path={"/innholdsserier"} component={ContentSeries} />
+        <Route path={"/ide-bank"} component={IdeaBank} />
+        <Route path={"/trender"} component={Trends} />
+        <Route path={"/eksempler"} component={Examples} />
+        <Route path={"/stemme"} component={VoiceTraining} />
+        <Route path={"/konkurrent-radar"} component={CompetitorRadar} />
+        <Route path={"/ukentlig-rapport"} component={WeeklyReport} />
+        <Route path={"/engasjement-hjelper"} component={EngagementHelper} />
+        <Route path={"/telegram-innlegg"} component={TelegramPosts} />
+        <Route path={"/innstillinger"} component={Settings} />
         <Route path={"/404"} component={NotFound} />
         {/* Final fallback route */}
         <Route component={NotFound} />
