@@ -12,7 +12,7 @@ import { XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveCont
 import { FileText, Zap, TrendingUp, Clock, Target, Sparkles, Search, ChevronLeft, ChevronRight, ArrowRight, Plus, Eye, Edit, Copy, Rocket, Gift, LayoutDashboard, Crown, Activity, Shield, BarChart3 } from "lucide-react";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
-// import OnboardingTour from "@/components/OnboardingTour"; // Removed: react-joyride dependency removed
+import OnboardingTour from "@/components/OnboardingTour";
 import { useState, useMemo } from "react";
 import { SkeletonCard } from "@/components/SkeletonLoader";
 import { EmptyStateWithImage } from "@/components/EmptyState";
@@ -746,7 +746,7 @@ export default function Dashboard() {
           </div>
         )}
       </main>
-      {/* <OnboardingTour /> - Removed: react-joyride dependency removed */}
+      <OnboardingTour />
     </div>
   );
 }
