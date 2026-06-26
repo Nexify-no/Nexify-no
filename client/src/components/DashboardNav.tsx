@@ -34,6 +34,8 @@ export default function DashboardNav() {
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_COLLAPSED_KEY, sidebarCollapsed.toString());
+    // Notify the layout instantly so the content margin reflows in sync (no polling lag).
+    window.dispatchEvent(new CustomEvent("sidebar-collapsed-change", { detail: sidebarCollapsed }));
   }, [sidebarCollapsed]);
 
   const logoutMutation = trpc.auth.logout.useMutation({

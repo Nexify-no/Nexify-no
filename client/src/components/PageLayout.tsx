@@ -22,20 +22,22 @@ export default function PageLayout({ children }: PageLayoutProps) {
     return saved === "true";
   });
 
-  // Listen for sidebar state changes from localStorage
+  // Keep the content margin in sync with the sidebar. Same-tab: a CustomEvent from
+  // DashboardNav updates instantly (storage events don't fire in the same tab).
+  // Cross-tab: the storage event keeps other tabs aligned.
   useEffect(() => {
     const handleStorage = () => {
       const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
       setSidebarCollapsed(saved === "true");
     };
-    
-    // Check periodically for changes (since storage events don't fire in same tab)
-    const interval = setInterval(handleStorage, 300);
+    const handleCustom = (e: Event) => {
+      setSidebarCollapsed(Boolean((e as CustomEvent).detail));
+    };
     window.addEventListener("storage", handleStorage);
-    
+    window.addEventListener("sidebar-collapsed-change", handleCustom as EventListener);
     return () => {
-      clearInterval(interval);
       window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("sidebar-collapsed-change", handleCustom as EventListener);
     };
   }, []);
   
