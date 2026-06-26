@@ -13,7 +13,7 @@ export default function Privacy() {
 
   const norwegianContent = {
     title: "Personvernerklæring",
-    lastUpdated: "Sist oppdatert: 26. januar 2026",
+    lastUpdated: "Sist oppdatert: 26. juni 2026",
     intro: "Hos Penna tar vi personvernet ditt på alvor. Denne personvernerklæringen forklarer hvordan vi samler inn, bruker og beskytter dine personopplysninger i samsvar med GDPR (General Data Protection Regulation).",
     sections: [
       {
@@ -33,7 +33,15 @@ export default function Privacy() {
           "**Tjenesteleveranse**: For å generere innhold og levere funksjonaliteten du har bedt om",
           "**AI-behandling**: Vi sender dine tekstforespørsler til OpenAI (USA) for innholdsgenerering. OpenAI lagrer ikke dataene dine permanent etter behandling.",
           "**Forbedring**: For å analysere bruksmønstre og forbedre tjenesten",
-          "**Kommunikasjon**: For å sende viktige oppdateringer om tjenesten (ikke markedsføring uten samtykke)"
+          "**Kommunikasjon**: For å sende viktige oppdateringer om tjenesten (ikke markedsføring uten samtykke)",
+          "**Databehandlere vi deler nødvendige data med:**",
+          "- **OpenAI** (USA) – AI-tekstgenerering. Sertifisert under EU-US Data Privacy Framework.",
+          "- **Google (Gemini «Nano Banana») og OpenAI (DALL·E)** – AI-bildegenerering.",
+          "- **Stripe** og **Vipps** – betalingsbehandling for abonnement.",
+          "- **LinkedIn** – publisering av innlegg når du selv kobler til kontoen din.",
+          "- **SendGrid** – utsending av konto- og tjenstemeldinger på e-post.",
+          "- **TiDB Cloud** (database), **Amazon S3** (bildelagring) og **Sentry** (feilovervåking) – teknisk drift.",
+          "Vi selger aldri personopplysningene dine, og deler kun det som er nødvendig for å levere tjenesten."
         ]
       },
       {
@@ -53,7 +61,8 @@ export default function Privacy() {
           "**Rett til innsyn**: Du kan når som helst be om en kopi av dine data",
           "**Rett til sletting**: Du kan slette kontoen din og alle tilknyttede data fra Innstillinger",
           "**Rett til dataportabilitet**: Du kan eksportere innleggene dine i JSON-format",
-          "**Rett til å trekke tilbake samtykke**: Du kan når som helst trekke tilbake samtykket ditt til AI-behandling"
+          "**Rett til å trekke tilbake samtykke**: Du kan når som helst trekke tilbake samtykket ditt til AI-behandling",
+          "**Rett til å klage**: Du kan klage til Datatilsynet (datatilsynet.no) dersom du mener at vi behandler personopplysningene dine i strid med personvernregelverket."
         ]
       },
       {
@@ -87,7 +96,7 @@ export default function Privacy() {
 
   const englishContent = {
     title: "Privacy Policy",
-    lastUpdated: "Last updated: January 26, 2026",
+    lastUpdated: "Last updated: 26 June 2026",
     intro: "At Penna, we take your privacy seriously. This privacy policy explains how we collect, use, and protect your personal information in accordance with GDPR (General Data Protection Regulation).",
     sections: [
       {
@@ -107,7 +116,15 @@ export default function Privacy() {
           "**Service Delivery**: To generate content and deliver the functionality you requested",
           "**AI Processing**: We send your text requests to OpenAI (USA) for content generation. OpenAI does not permanently store your data after processing.",
           "**Improvement**: To analyze usage patterns and improve the service",
-          "**Communication**: To send important service updates (no marketing without consent)"
+          "**Communication**: To send important service updates (no marketing without consent)",
+          "**Processors we share necessary data with:**",
+          "- **OpenAI** (USA) – AI text generation. Certified under the EU-US Data Privacy Framework.",
+          "- **Google (Gemini 'Nano Banana') and OpenAI (DALL·E)** – AI image generation.",
+          "- **Stripe** and **Vipps** – payment processing for subscriptions.",
+          "- **LinkedIn** – publishing posts when you connect your own account.",
+          "- **SendGrid** – sending account and service emails.",
+          "- **TiDB Cloud** (database), **Amazon S3** (image storage) and **Sentry** (error monitoring) – technical operations.",
+          "We never sell your personal data and only share what is necessary to provide the service."
         ]
       },
       {
@@ -127,7 +144,8 @@ export default function Privacy() {
           "**Right to Access**: You can request a copy of your data at any time",
           "**Right to Deletion**: You can delete your account and all associated data from Settings",
           "**Right to Data Portability**: You can export your posts in JSON format",
-          "**Right to Withdraw Consent**: You can withdraw your consent to AI processing at any time"
+          "**Right to Withdraw Consent**: You can withdraw your consent to AI processing at any time",
+          "**Right to Complain**: You may lodge a complaint with the Norwegian Data Protection Authority (Datatilsynet, datatilsynet.no) if you believe we process your personal data unlawfully."
         ]
       },
       {
