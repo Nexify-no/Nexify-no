@@ -687,6 +687,7 @@ export default function Home() {
               <ul className="space-y-2.5 text-sm text-gray-400">
                 <li><a href="/privacy" className="hover:text-white transition-colors">Personvern</a></li>
                 <li><a href="/terms" className="hover:text-white transition-colors">Vilkår</a></li>
+                <li><a href="/salgsbetingelser" className="hover:text-white transition-colors">Salgsbetingelser</a></li>
                 <li><a href="/cookie-policy" className="hover:text-white transition-colors">Informasjonskapsler</a></li>
               </ul>
             </div>
@@ -694,6 +695,9 @@ export default function Home() {
               <h4 className="font-semibold mb-4 text-sm uppercase tracking-wider text-gray-300">Kontakt</h4>
               <ul className="space-y-2.5 text-sm text-gray-400">
                 <li><a href="mailto:support@penna.no" className="hover:text-white transition-colors">support@penna.no</a></li>
+                <li><a href="tel:+4792146050" className="hover:text-white transition-colors">+47 921 46 050</a></li>
+                <li className="pt-1 text-gray-500">Nexify CRM Systems AS</li>
+                <li className="text-gray-500">Nedre Sølen 5, 3913 Porsgrunn</li>
                 <li><a href="/about-us" className="hover:text-white transition-colors">Om oss</a></li>
                 <li><a href="/faq" className="hover:text-white transition-colors">FAQ</a></li>
               </ul>
