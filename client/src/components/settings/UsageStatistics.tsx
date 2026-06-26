@@ -146,7 +146,7 @@ export default function UsageStatistics() {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium">AI Coach Chat</span>
                 <span className="text-sm text-muted-foreground">
-                  Ubegrenset
+                  Inkludert
                 </span>
               </div>
               <Badge className="bg-green-100 text-green-800">Aktiv</Badge>
@@ -156,7 +156,7 @@ export default function UsageStatistics() {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium">Lagrede eksempler</span>
                 <span className="text-sm text-muted-foreground">
-                  Ubegrenset
+                  Inkludert
                 </span>
               </div>
               <Badge className="bg-green-100 text-green-800">Aktiv</Badge>

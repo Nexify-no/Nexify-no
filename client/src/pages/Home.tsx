@@ -523,7 +523,7 @@ export default function Home() {
               {[
                 {
                   q: "Hva koster Penna?",
-                  a: "Du starter gratis med 2 innlegg – ingen kredittkort. Vil du ha mer, gir Pro-abonnementet ubegrenset generering, AI-bilder og planlegging til en fast månedspris.",
+                  a: "Du starter gratis med 2 innlegg – ingen kredittkort. Vil du ha mer, gir Pro 15 innlegg/måned og Premium 30 innlegg/måned, med AI-bilder og planlegging til en fast månedspris.",
                 },
                 {
                   q: "Trenger jeg kredittkort for å prøve?",

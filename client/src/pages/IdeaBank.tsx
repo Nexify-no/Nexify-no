@@ -528,7 +528,7 @@ export default function IdeaBank() {
               <div className="flex-1">
                 <h3 className="font-semibold">Oppgrader til Pro</h3>
                 <p className="text-sm text-muted-foreground">
-                  Få ubegrenset lagring av ideer og avanserte funksjoner
+                  Få mer lagring av ideer og avanserte funksjoner
                 </p>
               </div>
               <Button

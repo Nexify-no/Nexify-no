@@ -13,7 +13,7 @@ export default function Terms() {
 
   const norwegianContent = {
     title: "Vilkår for bruk",
-    lastUpdated: "Sist oppdatert: 26. januar 2026",
+    lastUpdated: "Sist oppdatert: 26. juni 2026",
     intro: "Ved å bruke Penna godtar du disse vilkårene. Les dem nøye før du bruker tjenesten.",
     sections: [
       {
@@ -29,12 +29,11 @@ export default function Terms() {
         icon: CreditCard,
         title: "2. Abonnement og betaling",
         content: [
-          "**Gratis prøveperiode**: Nye brukere får 14 dagers gratis prøveperiode med 2 innlegg",
-          "**Pro-abonnement**: 199 NOK/måned for ubegrenset innholdsgenerering",
-          "**Årsabonnement**: 2149 NOK/år (spar 10%)",
-          "**Fakturering**: Abonnementer fornyes automatisk hver måned/år",
-          "**Betalingsmetoder**: Vi aksepterer kredittkort, debetkort og Vipps",
-          "**Refusjon**: Ingen refusjon for ubrukte deler av abonnementsperioden"
+          "**Priser**: Pro 199 NOK/måned (2149 NOK/år) og Premium 399 NOK/måned (4309 NOK/år). Alle priser er i NOK og inkluderer mva.",
+          "**Inkludert**: Pro gir 15 innlegg per måned, Premium gir 30 innlegg per måned. Nye brukere får en gratis prøveperiode med 2 innlegg.",
+          "**Fakturering**: Abonnementer fornyes automatisk som en fast, gjentakende betaling hver måned/år til de sies opp. Ingen bindingstid.",
+          "**Betalingsmetoder**: Vi aksepterer kredittkort, debetkort og Vipps.",
+          "**Angrerett og refusjon**: Reguleres av våre salgsbetingelser (penna.no/salgsbetingelser). Forbrukere har angrerett etter angrerettloven; for digitale tjenester som starter umiddelbart kan angreretten bortfalle ved bruk."
         ]
       },
       {
@@ -67,7 +66,8 @@ export default function Terms() {
           "**Ingen garanti**: Penna leveres \"som den er\" uten garantier av noe slag",
           "**AI-nøyaktighet**: Vi garanterer ikke at AI-generert innhold er 100% nøyaktig eller feilfritt",
           "**Ansvar**: Du er ansvarlig for å gjennomgå og redigere innholdet før publisering",
-          "**Ingen ansvar**: Penna er ikke ansvarlig for tap eller skade som følge av bruk av tjenesten"
+          "**Ingen ansvar**: Penna er ikke ansvarlig for tap eller skade som følge av bruk av tjenesten",
+          "**Lovvalg og tvister**: Disse vilkårene og bruken av tjenesten er underlagt norsk rett, med verneting i norske domstoler. Forbrukere kan klage til Forbrukertilsynet."
         ]
       },
       {
@@ -89,7 +89,7 @@ export default function Terms() {
 
   const englishContent = {
     title: "Terms of Service",
-    lastUpdated: "Last updated: January 26, 2026",
+    lastUpdated: "Last updated: 26 June 2026",
     intro: "By using Penna, you agree to these terms. Please read them carefully before using the service.",
     sections: [
       {
@@ -105,12 +105,11 @@ export default function Terms() {
         icon: CreditCard,
         title: "2. Subscription and Payment",
         content: [
-          "**Free Trial**: New users get a 14-day free trial with 2 posts",
-          "**Pro Subscription**: 199 NOK/month for unlimited content generation",
-          "**Annual Subscription**: 2149 NOK/year (save 10%)",
-          "**Billing**: Subscriptions renew automatically every month/year",
-          "**Payment Methods**: We accept credit cards, debit cards, and Vipps",
-          "**Refunds**: No refunds for unused portions of the subscription period"
+          "**Prices**: Pro 199 NOK/month (2149 NOK/year) and Premium 399 NOK/month (4309 NOK/year). All prices are in NOK and include VAT.",
+          "**Included**: Pro includes 15 posts per month, Premium includes 30 posts per month. New users get a free trial with 2 posts.",
+          "**Billing**: Subscriptions renew automatically as a fixed, recurring payment every month/year until cancelled. No lock-in period.",
+          "**Payment Methods**: We accept credit cards, debit cards, and Vipps.",
+          "**Right of withdrawal & refunds**: Governed by our Terms of Sale (penna.no/salgsbetingelser). Consumers have a statutory right of withdrawal; for digital services that start immediately this right may lapse upon use."
         ]
       },
       {
@@ -143,7 +142,8 @@ export default function Terms() {
           "**No Warranty**: Penna is provided \"as is\" without warranties of any kind",
           "**AI Accuracy**: We do not guarantee that AI-generated content is 100% accurate or error-free",
           "**Responsibility**: You are responsible for reviewing and editing content before publishing",
-          "**No Liability**: Penna is not liable for any loss or damage resulting from use of the service"
+          "**No Liability**: Penna is not liable for any loss or damage resulting from use of the service",
+          "**Governing law & disputes**: These terms and use of the service are governed by Norwegian law, with venue in Norwegian courts. Consumers may complain to the Norwegian Consumer Authority (Forbrukertilsynet)."
         ]
       },
       {

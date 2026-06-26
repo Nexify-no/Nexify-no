@@ -57,8 +57,8 @@ const STEPS: Step[] = [
     icon: <Rocket className="h-7 w-7 text-white" />,
     title: { no: "Klar til å begynne!", en: "Ready to go!" },
     body: {
-      no: "Du har 2 gratis innlegg. Vil du ha ubegrenset generering, AI-bilder og planlegging? Oppgrader til Pro i Innstillinger.",
-      en: "You have 2 free posts. Want unlimited generation, AI images and scheduling? Upgrade to Pro in Settings.",
+      no: "Du har 2 gratis innlegg. Vil du ha flere innlegg (15–30 per måned), AI-bilder og planlegging? Oppgrader i Innstillinger.",
+      en: "You have 2 free posts. Want more posts (15–30 per month), AI images and scheduling? Upgrade in Settings.",
     },
   },
 ];
