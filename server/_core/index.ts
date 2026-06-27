@@ -28,6 +28,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import sitemapRoutes from "../routes/sitemapRoutes";
 import blogSsrRoutes from "../routes/blogSsr";
+import marketingSsrRoutes from "../routes/marketingSsr";
 import cookieParser from "cookie-parser";
 import { ipRateLimiter, userRateLimiter, checkSubscriptionLimit, checkPlanLimit } from "./rateLimiter";
 import { checkRequestSize, validateContentMiddleware, checkSuspiciousActivity } from "./abuseProtection";
@@ -321,6 +322,9 @@ async function startServer() {
   // MUST be before serveStatic/setupVite so crawlers & AI engines get real
   // HTML content instead of the empty SPA shell. Prod-only; dev falls through.
   app.use("/", blogSsrRoutes);
+
+  // SSR for the public marketing surface (/, /pricing, /faq, /about-us, /contact).
+  app.use("/", marketingSsrRoutes);
 
   // A/B tracking redirect — short links for variant click attribution.
   // MUST be registered AFTER cookieParser and BEFORE serveStatic (the SPA
