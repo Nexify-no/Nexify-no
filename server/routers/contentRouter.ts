@@ -252,7 +252,7 @@ export const contentRouter = router({
               {
                 role: "system",
                 content:
-                  "You convert a social-media post idea into ONE concise, concrete English prompt for an AI image generator (FLUX). Describe a single vivid, realistic visual scene that directly depicts the subject of the post: main subject, setting, key objects, colors, lighting, mood, and a photographic or illustration style. Do NOT be abstract. The image must contain NO text, letters, words or logos. Max 60 words. Reply with ONLY the prompt, nothing else.",
+                  "You convert a social-media post idea into ONE concise, concrete English prompt for an AI image generator (FLUX). Describe a single vivid, realistic visual scene that depicts the subject: main subject, setting, key objects, colors, lighting, mood, and a photographic or illustration style. CRITICAL \u2014 the image must be completely free of writing: NEVER depict signs, posters, banners, billboards, screens, monitors, phones, laptops showing UI, documents, books, newspapers, menus, labels, packaging, logos, charts or infographics, or anything that would carry letters or numbers. Prefer camera angles and subjects (people, hands, nature, objects, environments, materials, abstract textures) where no text would naturally appear. Do NOT be abstract about the subject itself. Max 55 words. Reply with ONLY the prompt, nothing else.",
               },
               {
                 role: "user",
@@ -261,7 +261,7 @@ export const contentRouter = router({
             ],
           });
           const built = String(r?.choices?.[0]?.message?.content || "").trim();
-          if (built.length > 10) prompt = `${built.slice(0, 600)} No text or words in the image.`;
+          if (built.length > 10) prompt = `${built.slice(0, 600)} Photorealistic, clean composition with smooth unmarked surfaces and no signs, screens, logos or writing anywhere.`;
         } catch (e) {
           console.warn("[image-gen] prompt LLM failed, using template:", (e as Error)?.message);
         }

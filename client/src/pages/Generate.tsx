@@ -360,6 +360,12 @@ export default function Generate() {
         setCurrentIdeaId(null);
       }
       toast.success("Innhold generert!");
+      // One-click flow: if "Generer bilde med AI" is enabled, generate the image
+      // right after the text (Pro only), attached to the freshly-created post.
+      // Runs in the background so it never blocks showing the generated text.
+      if (generateAIImage && subscription?.status !== "trial") {
+        void runImageGeneration((data as any).postId ?? null);
+      }
     },
     onError: (error) => {
       // The server sends a clear Norwegian message (e.g. monthly limit reached).
@@ -466,7 +472,7 @@ export default function Generate() {
     setGeneratedImagePrompt(null);
   };
 
-  const handleGenerateAIImage = async () => {
+  const runImageGeneration = async (postIdOverride?: number | null) => {
     if (!topic.trim()) { toast.error("Skriv inn et emne f\u00f8rst"); return; }
     setIsGeneratingImage(true);
     try {
@@ -475,9 +481,11 @@ export default function Generate() {
       if (res?.url) {
         setUploadedImage(res.url);
         setGeneratedImagePrompt(res.prompt || topic);
-        // If the post is already saved, persist the new image onto it (ignore errors).
-        if (savedPostId) {
-          attachImageMutation.mutate({ postId: savedPostId, imageUrl: res.url });
+        // Persist the image onto the saved post — the freshly-created one when
+        // auto-generating, otherwise the already-saved post. Errors are non-fatal.
+        const pid = postIdOverride ?? savedPostId;
+        if (pid) {
+          attachImageMutation.mutate({ postId: pid, imageUrl: res.url });
         }
         toast.success("AI-bilde generert!");
       } else {
@@ -499,6 +507,8 @@ export default function Generate() {
       setIsGeneratingImage(false);
     }
   };
+
+  const handleGenerateAIImage = () => runImageGeneration();
 
   // Auth guard
   if (authLoading) {

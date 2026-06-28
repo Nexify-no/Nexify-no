@@ -157,5 +157,5 @@ export function generateSimplifiedPrompt(input: ImagePromptInput): string {
   };
 
   // Lead with the actual subject so the model focuses on it, then add style.
-  return `${topic.substring(0, 280)}. Visual style: ${platformStyles[platform]}, ${toneModifiers[tone]}. High quality, realistic, clear focal point, no text or words.`;
+  return `${topic.substring(0, 280)}. Visual style: ${platformStyles[platform]}, ${toneModifiers[tone]}. High quality, realistic, clear focal point. A clean scene with no signs, screens, logos, labels or writing of any kind.`;
 }

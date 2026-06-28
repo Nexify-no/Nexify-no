@@ -7,6 +7,7 @@
 import { useLocation } from "wouter";
 import GlobalNav from "./GlobalNav";
 import DashboardNav from "./DashboardNav";
+import { RouteErrorBoundary } from "./RouteErrorBoundary";
 import { useState, useEffect } from "react";
 
 const SIDEBAR_COLLAPSED_KEY = "sidebar-collapsed";
@@ -91,7 +92,9 @@ export default function PageLayout({ children }: PageLayoutProps) {
             : ""
         }
       >
-        {children}
+        <RouteErrorBoundary resetKey={location}>
+          {children}
+        </RouteErrorBoundary>
       </div>
     </>
   );
