@@ -162,8 +162,7 @@ function renderHome(): string {
     `</main>`;
   // Homepage shell already has correct title/meta + SoftwareApplication LD.
   // Just add Organization LD and inject the body content.
-  let html = injectHead(shell, ld(ORGANIZATION));
-  html = injectBody(html, body);
+  let html = injectBody(shell, body);
   return html;
 }
 
@@ -241,7 +240,7 @@ function renderAbout(): string {
       title: "Om oss — Penna",
       desc: "Penna er en norsk AI-tjeneste for innhold til sosiale medier, utviklet av Nexify CRM Systems AS i Porsgrunn. Vår misjon: hjelpe norske bedrifter å lage bedre innhold på kortere tid.",
       url,
-    }) + ld(ORGANIZATION);
+    });
   const body =
     `<main data-ssr="about">` +
     `<h1>Om Penna</h1>` +

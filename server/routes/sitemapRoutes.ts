@@ -79,7 +79,23 @@ router.get("/atom.xml", async (req, res: Response) => {
  * GET /robots.txt - Robots file for search engines
  */
 router.get("/robots.txt", (req, res: Response) => {
-  const robotsTxt = `User-agent: *
+  const robotsTxt = `# AI answer engines explicitly allowed (AEO)
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: *
 Allow: /
 Disallow: /admin
 Disallow: /api

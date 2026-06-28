@@ -163,6 +163,16 @@ function renderArticle(post: any): string {
     `\n    <meta property="twitter:image" content="${escAttr(img)}" />` +
     `\n    <script type="application/ld+json">${JSON.stringify(articleLd)}</script>`;
   if (faqLd) head += `\n    <script type="application/ld+json">${JSON.stringify(faqLd)}</script>`;
+  const breadcrumbLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Hjem", item: SITE + "/" },
+      { "@type": "ListItem", position: 2, name: "Blogg", item: SITE + "/blog" },
+      { "@type": "ListItem", position: 3, name: post.title, item: url },
+    ],
+  };
+  head += `\n    <script type="application/ld+json">${JSON.stringify(breadcrumbLd)}</script>`;
 
   const tagHtml = tags.length
     ? `<p class="ssr-tags">Emner: ${tags.map(escText).join(", ")}</p>`
