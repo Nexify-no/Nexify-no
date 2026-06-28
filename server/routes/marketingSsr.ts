@@ -281,6 +281,29 @@ function renderContact(): string {
   return html;
 }
 
+// ---- Legal pages (correct per-page meta + canonical; React renders full text) ----
+function legalPage(opts: { path: string; title: string; desc: string; h1: string; intro: string }): string {
+  const shell = readShell();
+  if (!shell) return "";
+  const url = `${SITE}${opts.path}`;
+  const head = metaBlock({ title: opts.title, desc: opts.desc, url });
+  const body =
+    `<main data-ssr="legal">` +
+    `<h1>${escText(opts.h1)}</h1>` +
+    `<p>${escText(opts.intro)}</p>` +
+    `<p>Nexify CRM Systems AS, org.nr 936 300 278, Nedre Sølen 5, 3913 Porsgrunn. ` +
+    `Kontakt: <a href="mailto:support@penna.no">support@penna.no</a> · +47 921 46 050.</p>` +
+    `<p><a href="/">Til forsiden</a> · <a href="/pricing">Se priser</a></p>` +
+    `</main>`;
+  let html = injectHead(stripHomepageHead(shell), head);
+  html = injectBody(html, body);
+  return html;
+}
+function renderPrivacy() { return legalPage({ path: "/privacy", title: "Personvernerklæring — Penna", desc: "Personvernerklæring for Penna: hvilke personopplysninger vi behandler, hvorfor, hvilke databehandlere vi bruker og hvilke rettigheter du har etter GDPR.", h1: "Personvernerklæring", intro: "Denne erklæringen forklarer hvordan Penna (Nexify CRM Systems AS) behandler personopplysninger i samsvar med personvernforordningen (GDPR) og norsk personvernlovgivning." }); }
+function renderTerms() { return legalPage({ path: "/terms", title: "Vilkår for bruk — Penna", desc: "Vilkår for bruk av Penna — abonnement, ansvar, rettigheter og bruk av tjenesten.", h1: "Vilkår for bruk", intro: "Disse vilkårene regulerer bruken av Penna. Ved å opprette en konto eller bruke tjenesten godtar du vilkårene." }); }
+function renderCookies() { return legalPage({ path: "/cookie-policy", title: "Informasjonskapsler (cookies) — Penna", desc: "Slik bruker Penna informasjonskapsler (cookies), og hvordan du styrer samtykke etter norsk lov og GDPR.", h1: "Informasjonskapsler", intro: "Penna bruker informasjonskapsler for å få nettstedet til å fungere og, med ditt samtykke, til statistikk. Du kan når som helst endre samtykket ditt." }); }
+function renderSalg() { return legalPage({ path: "/salgsbetingelser", title: "Salgsbetingelser — Penna", desc: "Salgsbetingelser for Penna: abonnement, priser i NOK, betaling med kort eller Vipps, angrerett og oppsigelse.", h1: "Salgsbetingelser", intro: "Salgsbetingelsene gjelder kjøp av abonnement på Penna. Alle priser er i norske kroner og inkluderer mva. Du kan si opp når som helst." }); }
+
 function makeHandler(render: () => string) {
   return (_req: Request, res: Response, next: NextFunction) => {
     try {
@@ -300,5 +323,9 @@ router.get("/pricing", makeHandler(renderPricing));
 router.get("/faq", makeHandler(renderFaq));
 router.get("/about-us", makeHandler(renderAbout));
 router.get("/contact", makeHandler(renderContact));
+router.get("/privacy", makeHandler(renderPrivacy));
+router.get("/terms", makeHandler(renderTerms));
+router.get("/cookie-policy", makeHandler(renderCookies));
+router.get("/salgsbetingelser", makeHandler(renderSalg));
 
 export default router;
