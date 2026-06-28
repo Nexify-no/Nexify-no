@@ -28,40 +28,17 @@ export class LinkedInPublisher {
     try {
       const postContent = this.formatContent(content);
 
-      const response = await fetch("https://api.linkedin.com/v2/ugcPosts", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-          "LinkedIn-Version": "202401",
-        },
-        body: JSON.stringify({
-          author: "urn:li:person:me",
-          lifecycleState: "PUBLISHED",
-          specificContent: {
-            "com.linkedin.ugc.ShareContent": {
-              shareCommentary: {
-                text: postContent,
-              },
-              shareMediaCategory: "NONE",
-            },
-          },
-          visibility: {
-            "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC",
-          },
-        }),
-      });
+      // Delegate to the canonical Posts API implementation (/rest/posts). This also
+      // resolves the correct author URN — the previous "urn:li:person:me" was never
+      // a valid author, and /v2/ugcPosts is deprecated.
+      const { getLinkedInProfile, createLinkedInPost } = await import("../linkedinService");
+      const profile = await getLinkedInProfile(accessToken);
+      const result = await createLinkedInPost(accessToken, profile.sub, postContent);
 
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`LinkedIn API error: ${error}`);
-      }
-
-      const data = await response.json() as { id: string };
       return {
         platform: "linkedin",
         success: true,
-        postId: data.id,
+        postId: result.id,
         timestamp: new Date(),
       };
     } catch (error) {

@@ -91,51 +91,69 @@ export async function getLinkedInProfile(accessToken: string): Promise<LinkedInP
   return response.json();
 }
 
+/** Versioned LinkedIn API version (YYYYMM). Override with LINKEDIN_API_VERSION. */
+export function getLinkedInApiVersion(): string {
+  return process.env.LINKEDIN_API_VERSION || "202606";
+}
+
 /**
- * Create a post on LinkedIn
- * Uses LinkedIn Share API v2
+ * Escape text for the LinkedIn Posts API "little text" format. Reserved
+ * characters must be backslash-escaped or the API rejects / mis-renders the post.
+ * '#' is intentionally left unescaped so hashtags still render as hashtags.
+ */
+export function escapeLinkedInCommentary(text: string): string {
+  return text.replace(/[\\<>{}()\[\]@|~_*]/g, (c) => `\\${c}`);
+}
+
+/**
+ * Create a text post on LinkedIn using the versioned Posts API (/rest/posts),
+ * which replaces the deprecated /v2/ugcPosts endpoint.
  */
 export async function createLinkedInPost(
   accessToken: string,
   personUrn: string,
   content: string
 ): Promise<{ id: string; url: string }> {
-  const response = await fetch("https://api.linkedin.com/v2/ugcPosts", {
+  // The stored identifier is the OpenID `sub`; normalise it into a full person URN.
+  const author = personUrn.startsWith("urn:li:")
+    ? personUrn
+    : `urn:li:person:${personUrn}`;
+
+  const response = await fetch("https://api.linkedin.com/rest/posts", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
       "X-Restli-Protocol-Version": "2.0.0",
+      "LinkedIn-Version": getLinkedInApiVersion(),
     },
     body: JSON.stringify({
-      author: personUrn,
+      author,
+      commentary: escapeLinkedInCommentary(content),
+      visibility: "PUBLIC",
+      distribution: {
+        feedDistribution: "MAIN_FEED",
+        targetEntities: [],
+        thirdPartyDistributionChannels: [],
+      },
       lifecycleState: "PUBLISHED",
-      specificContent: {
-        "com.linkedin.ugc.ShareContent": {
-          shareCommentary: {
-            text: content,
-          },
-          shareMediaCategory: "NONE",
-        },
-      },
-      visibility: {
-        "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC",
-      },
+      isReshareDisabledByAuthor: false,
     }),
   });
 
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`LinkedIn post creation failed: ${error}`);
+    throw new Error(`LinkedIn post creation failed (${response.status}): ${error}`);
   }
 
-  const data = await response.json();
-  
-  // Extract post ID from response
-  const postId = data.id;
-  const postUrl = `https://www.linkedin.com/feed/update/${postId}`;
+  // The Posts API returns the new post's URN in the `x-restli-id` response header
+  // (201 Created) — NOT in the body. Headers.get() is case-insensitive.
+  const postUrn = response.headers.get("x-restli-id") ?? "";
+  const postUrl = postUrn
+    ? `https://www.linkedin.com/feed/update/${postUrn}/`
+    : "https://www.linkedin.com/feed/";
 
-  return { id: postId, url: postUrl };
+  return { id: postUrn, url: postUrl };
 }
 
 /**
