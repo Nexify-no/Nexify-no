@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+      content="width=device-width, initial-scale=1.0" />
     
     <!-- Primary Meta Tags -->
     <title>Penna - Din AI Innholdsassistent | Lag Profesjonelle Innlegg på Sekunder</title>
@@ -55,7 +55,9 @@
     </script>    
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- Non-render-blocking Google Fonts: paint immediately with fallback (display=swap), apply web fonts on load. Improves mobile FCP/LCP. -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" /></noscript>
     
     <!-- Google Analytics 4 — only loaded when VITE_GA4_ID is actually configured. -->
     <script>
