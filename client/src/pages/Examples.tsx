@@ -212,6 +212,11 @@ export default function Examples() {
           </div>
         </div>
 
+        {/* Illustrative-examples disclaimer (compliance: not real results) */}
+        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+          📌 <strong>Merk:</strong> Eksemplene under er fiktive illustrasjoner laget for å vise format og stil. Tall, resultater og engasjement (likes, prosenter o.l.) er ikke reelle kundedata.
+        </div>
+
         {/* Category Filter */}
         <div className="flex flex-wrap gap-2 mb-8">
           {categories.map((category) => (

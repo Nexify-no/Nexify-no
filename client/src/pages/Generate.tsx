@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
-import { takeEditorHandoff } from "@/lib/editorHandoff";
+import { takeEditorHandoff, setAbTestHandoff } from "@/lib/editorHandoff";
 import { Copy, Loader2, Sparkles, Wand2, Upload, X, Image as ImageIcon, Mic, Flame, Save, Cloud } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
@@ -1215,11 +1215,10 @@ export default function Generate() {
                     variant="outline"
                     className="w-full mt-2"
                     onClick={() => {
-                      const params = new URLSearchParams();
-                      if (savedPostId) params.set("postId", String(savedPostId));
-                      params.set("platform", platform);
-                      params.set("body", generatedContent);
-                      setLocation(`/ab-testing?${params.toString()}`);
+                      // Pass via memory, not the URL, so the full post body never
+                      // leaks into browser history or server logs.
+                      setAbTestHandoff({ body: generatedContent, platform, postId: savedPostId ?? undefined });
+                      setLocation("/ab-testing");
                     }}
                   >
                     <Sparkles className="h-4 w-4 mr-2" />

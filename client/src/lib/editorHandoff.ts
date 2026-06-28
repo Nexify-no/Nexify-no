@@ -36,3 +36,22 @@ export function takeEditorHandoff(): EditorHandoff | null {
   pending = null;
   return h;
 }
+
+/** Hand-off for the A/B test page (Generate -> /ab-testing) — same no-URL-leak rationale. */
+export interface AbTestHandoff {
+  body: string;
+  platform?: string;
+  postId?: number;
+}
+
+let pendingAb: AbTestHandoff | null = null;
+
+export function setAbTestHandoff(h: AbTestHandoff): void {
+  pendingAb = h;
+}
+
+export function takeAbTestHandoff(): AbTestHandoff | null {
+  const h = pendingAb;
+  pendingAb = null;
+  return h;
+}

@@ -31,7 +31,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useLocation } from "wouter";
-import { setEditorHandoff } from "@/lib/editorHandoff";
+import { setEditorHandoff, takeAbTestHandoff } from "@/lib/editorHandoff";
 import {
   Zap,
   Trophy,
@@ -92,10 +92,13 @@ export default function ABTesting() {
 
   // Prefill from Generate.tsx hand-off (?postId=&platform=&body=)
   useEffect(() => {
+    // Prefer the in-memory hand-off (no URL leak); fall back to query params for
+    // any older bookmarked links.
+    const handoff = takeAbTestHandoff();
     const params = new URLSearchParams(window.location.search);
-    const body = params.get("body");
-    const pid = params.get("postId");
-    const plat = params.get("platform");
+    const body = handoff?.body ?? params.get("body");
+    const pid = handoff?.postId != null ? String(handoff.postId) : params.get("postId");
+    const plat = handoff?.platform ?? params.get("platform");
     if (body || pid) {
       if (plat && (PLATFORMS as readonly string[]).includes(plat)) setPlatform(plat);
       if (pid && !Number.isNaN(Number(pid))) setPostId(Number(pid));

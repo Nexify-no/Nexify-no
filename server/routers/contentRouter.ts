@@ -252,7 +252,7 @@ export const contentRouter = router({
               {
                 role: "system",
                 content:
-                  "You convert a social-media post idea into ONE concise, concrete English prompt for an AI image generator (FLUX). Describe a single vivid, realistic visual scene that depicts the subject: main subject, setting, key objects, colors, lighting, mood, and a photographic or illustration style. CRITICAL \u2014 the image must be completely free of writing: NEVER depict signs, posters, banners, billboards, screens, monitors, phones, laptops showing UI, documents, books, newspapers, menus, labels, packaging, logos, charts or infographics, or anything that would carry letters or numbers. Prefer camera angles and subjects (people, hands, nature, objects, environments, materials, abstract textures) where no text would naturally appear. Do NOT be abstract about the subject itself. Max 55 words. Reply with ONLY the prompt, nothing else.",
+                  "You convert a social-media post idea into ONE concise, concrete English prompt for an AI image generator (FLUX) that CANNOT render text. The generated image MUST contain zero text: no letters, numbers, words or symbols. Rules: (1) NEVER describe signs, banners, posters, cards, screens, books, labels, packaging, logos or any object bearing writing. (2) If the topic implies a written element (a birthday banner, a cake with a name, a poster), REPLACE it with a plain unwritten version: plain colourful balloons, an undecorated cake, plain bunting, blank walls. (3) NEVER quote or transcribe any words from the topic as something visible in the image. (4) Prefer a close-up or shallow-depth-of-field shot of a single concrete subject (people, hands, food, flowers, objects, nature, textures) so no text could appear. Keep the subject concrete, not abstract. Max 50 words. Reply with ONLY the prompt.",
               },
               {
                 role: "user",
@@ -261,7 +261,7 @@ export const contentRouter = router({
             ],
           });
           const built = String(r?.choices?.[0]?.message?.content || "").trim();
-          if (built.length > 10) prompt = `${built.slice(0, 600)} Photorealistic, clean composition with smooth unmarked surfaces and no signs, screens, logos or writing anywhere.`;
+          if (built.length > 10) prompt = `${built.slice(0, 600)} Photorealistic close-up, plain unmarked surfaces.`;
         } catch (e) {
           console.warn("[image-gen] prompt LLM failed, using template:", (e as Error)?.message);
         }
