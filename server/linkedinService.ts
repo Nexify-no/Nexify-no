@@ -29,6 +29,24 @@ export interface LinkedInProfile {
 }
 
 /**
+ * Resolve the LinkedIn app credentials. Prefers environment variables
+ * (LINKEDIN_CLIENT_ID / LINKEDIN_CLIENT_SECRET) — the recommended, more secure
+ * source (a managed secret store, never written to the DB or shown in the UI) —
+ * and falls back to credentials saved in the database via admin Settings.
+ */
+export function resolveLinkedInCredentials(
+  dbCreds?: { clientId: string; clientSecret: string } | null
+): { clientId: string; clientSecret: string } | null {
+  const envId = process.env.LINKEDIN_CLIENT_ID;
+  const envSecret = process.env.LINKEDIN_CLIENT_SECRET;
+  if (envId && envSecret) return { clientId: envId, clientSecret: envSecret };
+  if (dbCreds?.clientId && dbCreds?.clientSecret) {
+    return { clientId: dbCreds.clientId, clientSecret: dbCreds.clientSecret };
+  }
+  return null;
+}
+
+/**
  * Generate LinkedIn OAuth authorization URL
  */
 export function getLinkedInAuthUrl(credentials: LinkedInCredentials, redirectUri: string, state: string): string {

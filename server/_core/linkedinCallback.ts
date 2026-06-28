@@ -44,7 +44,9 @@ export function registerLinkedInCallback(app: Express) {
       const { eq } = await import("drizzle-orm");
 
       const credentials = await db.select().from(linkedinAppCredentials).limit(1);
-      if (credentials.length === 0) {
+      const { resolveLinkedInCredentials } = await import("../linkedinService");
+      const appCreds = resolveLinkedInCredentials(credentials[0] ?? null);
+      if (!appCreds) {
         console.error("[LinkedIn OAuth] No credentials configured");
         return res.redirect("/?linkedin_error=no_credentials");
       }
@@ -54,10 +56,7 @@ export function registerLinkedInCallback(app: Express) {
       const redirectUri = `${req.protocol}://${req.get("host")}/api/linkedin/callback`;
 
       const tokenResponse = await exchangeCodeForToken(
-        {
-          clientId: credentials[0].clientId,
-          clientSecret: credentials[0].clientSecret,
-        },
+        appCreds,
         code as string,
         redirectUri
       );

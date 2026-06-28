@@ -48,6 +48,10 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
     // Get LinkedIn app credentials (admin only)
     getCredentials: protectedProcedure.query(async ({ ctx }) => {
       if ((ctx.user as any)?.role !== "admin") throw new Error("Unauthorized");
+      // Env vars (set in Render) take priority and need no DB row.
+      if (process.env.LINKEDIN_CLIENT_ID && process.env.LINKEDIN_CLIENT_SECRET) {
+        return { clientId: process.env.LINKEDIN_CLIENT_ID, configured: true };
+      }
       const { getDb } = await import("../db");
       const db = await getDb();
       if (!db) throw new Error("Database not available");
@@ -72,11 +76,11 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
       const db = await getDb();
       if (!db) throw new Error("Database not available");
       const { linkedinAppCredentials } = await import("../../drizzle/schema");
-      const { getLinkedInAuthUrl } = await import("../linkedinService");
+      const { getLinkedInAuthUrl, resolveLinkedInCredentials } = await import("../linkedinService");
       
       const credentials = await db.select().from(linkedinAppCredentials).limit(1);
-      
-      if (credentials.length === 0) {
+      const appCreds = resolveLinkedInCredentials(credentials[0] ?? null);
+      if (!appCreds) {
         throw new Error("LinkedIn credentials not configured");
       }
       
@@ -84,14 +88,7 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
       const { signOAuthState } = await import("../_core/oauthState");
       const state = signOAuthState(ctx.user.id); // HMAC-signed, tamper-proof CSRF state
       
-      const authUrl = getLinkedInAuthUrl(
-        {
-          clientId: credentials[0].clientId,
-          clientSecret: credentials[0].clientSecret,
-        },
-        redirectUri,
-        state
-      );
+      const authUrl = getLinkedInAuthUrl(appCreds, redirectUri, state);
       
       return { url: authUrl, state };
     }),
