@@ -13,6 +13,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
+import { setEditorHandoff } from "@/lib/editorHandoff";
 import { PageHeader } from "@/components/PageHeader";
 import { PAGE_DESCRIPTIONS } from "@/lib/pageDescriptions";
 import { Breadcrumb } from "@/components/Breadcrumb";
@@ -103,7 +104,10 @@ export default function ContentRepurpose() {
     onSuccess: (data: any) => {
       toast.success("Innhold gjenbrukt!");
       clearDraft();
-      setLocation(`/generate?content=${encodeURIComponent(data.content)}`);
+      // Hand the repurposed content to the editor via memory (no URL leak), and
+      // carry the chosen target platform so the editor opens in sync.
+      setEditorHandoff({ content: data.content, platform: targetPlatform, source: "repurpose" });
+      setLocation("/generate");
     },
     onError: () => {
       toast.error("Kunne ikke gjenbruke innhold");
@@ -143,21 +147,18 @@ export default function ContentRepurpose() {
       repurposed: { platform: "Twitter", content: "5 tweets med key takeaways" },
       type: "platform_adapt",
       typeLabel: "Plattformtilpasning",
-      engagement: "+45%",
     },
     {
       original: { platform: "Instagram", content: "Visuell guide til produktivitet" },
       repurposed: { platform: "LinkedIn", content: "Profesjonell artikkel med data" },
       type: "audience_shift",
       typeLabel: "Målgruppebytte",
-      engagement: "+67%",
     },
     {
       original: { platform: "Facebook", content: "Kundehistorie fra 2025" },
       repurposed: { platform: "LinkedIn", content: "Oppdatert case study 2026" },
       type: "update",
       typeLabel: "Oppdatering",
-      engagement: "+89%",
     },
   ];
 
@@ -491,9 +492,9 @@ export default function ContentRepurpose() {
                     <TrendingUp className="h-4 w-4 text-amber-600" />
                   </div>
                   <div>
-                    <CardTitle className="text-sm">Suksesshistorier</CardTitle>
+                    <CardTitle className="text-sm">Eksempler på gjenbruk</CardTitle>
                     <CardDescription className="text-xs">
-                      Eksempler på vellykket gjenbruk
+                      Vanlige måter å gjenbruke et innlegg på
                     </CardDescription>
                   </div>
                 </div>
@@ -509,9 +510,6 @@ export default function ContentRepurpose() {
                         <ArrowRight className="h-3 w-3 text-muted-foreground" />
                         <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${platformColors[example.repurposed.platform] || ""}`}>
                           {example.repurposed.platform}
-                        </Badge>
-                        <Badge className="ml-auto bg-emerald-100 text-emerald-700 text-[10px] px-1.5 py-0 hover:bg-emerald-100">
-                          {example.engagement}
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">

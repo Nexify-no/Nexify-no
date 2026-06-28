@@ -204,7 +204,7 @@ export default function Examples() {
               <Lightbulb className="h-6 w-6 text-white" />
             </div>
             <div>
-              <PageHeader title="Eksempler" description={PAGE_DESCRIPTIONS.examples} />
+              <PageHeader title="Eksempler" description={`${PAGE_DESCRIPTIONS.examples} Eksemplene er illustrative.`} />
               <p className="text-muted-foreground">
                 Profesjonelle innlegg som fungerer - bruk dem som inspirasjon
               </p>

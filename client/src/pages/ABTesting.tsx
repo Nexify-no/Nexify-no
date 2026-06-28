@@ -31,6 +31,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useLocation } from "wouter";
+import { setEditorHandoff } from "@/lib/editorHandoff";
 import {
   Zap,
   Trophy,
@@ -566,7 +567,9 @@ function ExperimentDetail({
   const useWinner = () => {
     const w = variants.find((v: any) => v.id === winnerId);
     if (!w) return;
-    setLocation(`/generate?topic=${encodeURIComponent(w.body)}`);
+    // Pass the winning variant to the editor via memory, not the URL (no leak).
+    setEditorHandoff({ topic: w.body, source: "abtest" });
+    setLocation("/generate");
   };
 
   return (

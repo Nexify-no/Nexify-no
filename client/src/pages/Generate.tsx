@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
+import { takeEditorHandoff } from "@/lib/editorHandoff";
 import { Copy, Loader2, Sparkles, Wand2, Upload, X, Image as ImageIcon, Mic, Flame, Save, Cloud } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
@@ -322,8 +323,29 @@ export default function Generate() {
     setLastSavedAt(null);
   };
 
-  // Handle URL parameters from Trends page or Idea Bank
+  // Handle in-app handoff (Gjenbruk / A/B winner) + URL parameters (Trends / Idea Bank)
   useEffect(() => {
+    // In-app handoff is passed via memory (never the URL) so full post content
+    // never leaks into browser history or server logs. It also keeps the editor
+    // in sync — loading the content and platform instead of a stale autosaved draft.
+    const handoff = takeEditorHandoff();
+    if (handoff) {
+      fromUrlRef.current = true;
+      clearDraft();
+      if (handoff.platform) {
+        const validPlatforms = ['linkedin', 'twitter', 'instagram', 'facebook'];
+        const p = String(handoff.platform).toLowerCase();
+        if (validPlatforms.includes(p)) setPlatform(p as any);
+      }
+      if (handoff.topic) setTopic(handoff.topic);
+      if (handoff.content) {
+        setGeneratedContent(handoff.content);
+        setMobileTab("resultat");
+      }
+      toast.success(handoff.source === "repurpose" ? "Gjenbrukt innhold lastet inn!" : "Innhold lastet inn!");
+      return;
+    }
+
     const urlParams = new URLSearchParams(window.location.search);
     const topicParam = urlParams.get('topic');
     const ideaParam = urlParams.get('idea');
