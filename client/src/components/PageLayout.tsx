@@ -41,56 +41,44 @@ export default function PageLayout({ children }: PageLayoutProps) {
     };
   }, []);
   
-  // Pages that show DashboardNav (authenticated internal pages)
-  const dashboardPages = [
-    "/dashboard",
-    "/generate",
-    "/posts",
-    "/coach",
-    "/settings",
-    "/account-settings",
-    "/trends",
-    "/voice-training",
-    "/kalender",
-    "/kalender-old",
-    "/best-time",
-    "/repurpose",
-    "/telegram-bot",
-    "/telegram-posts",
-    "/competitor-radar",
-    "/content-series",
-    "/ab-testing",
-    "/weekly-report",
-    "/engagement-helper",
-    "/idea-bank",
-    "/examples",
-    "/admin/analytics",
-    "/admin/blog",
-    "/admin/settings",
-    "/admin/members",
-    "/pricing",
-    "/analytics",
-    "/progress",
-    "/subscription/success",
-    "/subscription/cancel",
-    "/profile"
-  ];
-  
-  // Pages that show GlobalNav (public pages)
-  const publicPages = [
-    "/blog",
-    "/about-us",
+  // Public / auth / standalone pages that must NOT show the app sidebar.
+  // Everything ELSE — the whole authenticated app, including every Norwegian
+  // route alias (/generer, /innlegg, /trender, /priser, ...) and all /admin
+  // and /payment pages — shows DashboardNav. Using a blacklist (instead of a
+  // whitelist) guarantees the sidebar stays fixed on every app page, and that
+  // new pages get it automatically.
+  const noSidebarExact = new Set([
+    "/", "/landing", "/login", "/reset-password", "/404",
+    "/blog", "/blogg",
+    "/about-us", "/om-oss",
     "/faq",
-    "/contact",
-    "/privacy-policy",
-    "/terms-of-service",
-    "/cookie-policy",
-    "/privacy",
-    "/terms"
-  ];
-  
-  const shouldShowDashboardNav = dashboardPages.some(path => location.startsWith(path));
-  const shouldShowGlobalNav = publicPages.some(path => location.startsWith(path));
+    "/contact", "/kontakt",
+    "/privacy", "/privacy-policy", "/personvern",
+    "/terms", "/terms-of-service", "/vilkar",
+    "/cookie-policy", "/salgsbetingelser",
+  ]);
+  const noSidebarPrefixes = ["/blog/", "/blogg/"];
+  const isNoSidebar =
+    noSidebarExact.has(location) ||
+    noSidebarPrefixes.some((path) => location.startsWith(path));
+
+  // Public marketing pages that show the public top nav (GlobalNav).
+  const publicNavExact = new Set([
+    "/blog", "/blogg",
+    "/about-us", "/om-oss",
+    "/faq",
+    "/contact", "/kontakt",
+    "/privacy", "/privacy-policy", "/personvern",
+    "/terms", "/terms-of-service", "/vilkar",
+    "/cookie-policy", "/salgsbetingelser",
+  ]);
+  const publicNavPrefixes = ["/blog/", "/blogg/"];
+
+  // Sidebar is fixed on every app page; public/auth pages are the only exceptions.
+  const shouldShowDashboardNav = !isNoSidebar;
+  const shouldShowGlobalNav =
+    publicNavExact.has(location) ||
+    publicNavPrefixes.some((path) => location.startsWith(path));
   
   return (
     <>
