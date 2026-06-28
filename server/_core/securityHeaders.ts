@@ -53,6 +53,7 @@ export function configureSecurityHeaders(app: any) {
 
     // Add custom security headers
     res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), browsing-topics=()");
     res.setHeader("X-Frame-Options", "DENY");
     res.setHeader("X-XSS-Protection", "1; mode=block");
     if (process.env.DISABLE_HTTPS_REDIRECT !== "true") {
