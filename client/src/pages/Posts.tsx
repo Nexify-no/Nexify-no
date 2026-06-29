@@ -107,9 +107,18 @@ export default function Posts() {
         keywords: [],
       });
       if (res?.url) {
-        await attachImageMutation.mutateAsync({ postId: post.id, imageUrl: res.url });
-        utils.content.list.invalidate();
-        toast.success(language === "no" ? "Bilde lagt til" : "Image added");
+        // attachImage only persists hosted (https) URLs; a data: URL means object
+        // storage failed, so report honestly instead of a false "image added".
+        const att = await attachImageMutation.mutateAsync({ postId: post.id, imageUrl: res.url });
+        if ((att as any)?.success) {
+          utils.content.list.invalidate();
+          toast.success(language === "no" ? "Bilde lagt til" : "Image added");
+        } else {
+          console.warn("[image] not saved:", (att as any)?.reason);
+          toast.error(language === "no"
+            ? "Bildet ble laget, men kunne ikke lagres akkurat nå. Prøv igjen senere."
+            : "Image was created but could not be saved right now. Try again later.");
+        }
       } else {
         toast.error(language === "no" ? "Kunne ikke generere bilde" : "Could not generate image");
       }
