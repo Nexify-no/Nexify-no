@@ -118,18 +118,27 @@ export const stripeRouter = router({
     }),
 
     cancelSubscription: protectedProcedure.mutation(async ({ ctx }) => {
-      const { getUserSubscription, updateSubscriptionStatus } = await import("../db");
+      const { getUserSubscription, updateSubscription } = await import("../db");
       const { cancelSubscription } = await import("../stripe/stripeService");
-      
+
       const subscription = await getUserSubscription(ctx.user.id);
-      
+
       if (!subscription?.stripeSubscriptionId) {
         throw new Error("Ingen aktiv abonnement funnet");
       }
-      
-      await cancelSubscription(subscription.stripeSubscriptionId);
-      await updateSubscriptionStatus(ctx.user.id, "cancelled");
-      
-      return { success: true, message: "Abonnementet er kansellert" };
+
+      // Schedule cancellation at period end (no further charges); the customer keeps
+      // access until then. Do NOT flip status to "cancelled" now — the webhook
+      // (customer.subscription.deleted) does that at period end. Record the end date.
+      const updated = await cancelSubscription(subscription.stripeSubscriptionId);
+      const periodEnd = (updated as any)?.current_period_end
+        ? new Date((updated as any).current_period_end * 1000)
+        : null;
+      if (periodEnd) await updateSubscription(ctx.user.id, { subscriptionEndDate: periodEnd });
+
+      return {
+        success: true,
+        message: "Abonnementet er sagt opp. Du beholder tilgangen ut den betalte perioden, og det trekkes ingen ytterligere beløp.",
+      };
     }),
   });

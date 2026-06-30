@@ -102,7 +102,11 @@ export async function getCheckoutSession(sessionId: string): Promise<Stripe.Chec
  * Cancel a subscription
  */
 export async function cancelSubscription(subscriptionId: string): Promise<Stripe.Subscription> {
-  return stripe.subscriptions.cancel(subscriptionId);
+  // Cancel at period end: NO further charges, but the customer keeps the access
+  // they already paid for until the period ends (matches our salgsbetingelser).
+  // Stripe emits customer.subscription.deleted at period end, which our webhook
+  // turns into a cancelled/expired status.
+  return stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: true });
 }
 
 /**

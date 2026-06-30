@@ -230,12 +230,15 @@ export const paymentRouter = router({
 
         // Cancel the Stripe subscription
         const { cancelSubscription } = await import("../stripe/stripeService");
-        await cancelSubscription(subscription.stripeSubscriptionId);
-
-        // Update database
-        await updateSubscription(ctx.user.id, {
-          status: "cancelled",
-        });
+        // Cancel at period end: no further charges, access continues until the paid
+        // period ends. The Stripe webhook flips status to cancelled at period end.
+        const updated = await cancelSubscription(subscription.stripeSubscriptionId);
+        const periodEnd = (updated as any)?.current_period_end
+          ? new Date((updated as any).current_period_end * 1000)
+          : null;
+        if (periodEnd) {
+          await updateSubscription(ctx.user.id, { subscriptionEndDate: periodEnd });
+        }
 
         // Log cancellation reason
         if (input.reason) {

@@ -1646,11 +1646,18 @@ export async function getWeeklyRitualRecipients(): Promise<{ email: string; name
       name: users.name,
       emailNotifications: schema.notificationSettings.emailNotifications,
       emailFrequency: schema.notificationSettings.emailFrequency,
+      subStatus: subscriptions.status,
     })
     .from(users)
     .leftJoin(schema.notificationSettings, eq(schema.notificationSettings.userId, users.id))
+    .leftJoin(subscriptions, eq(subscriptions.userId, users.id))
     .where(and(isNotNull(users.email), gte(users.lastSignedIn, sixtyDaysAgo)));
   return rows
-    .filter((r: any) => (r.emailNotifications ?? true) && (r.emailFrequency ?? "daily") !== "never" && !!r.email)
+    .filter((r: any) =>
+      (r.emailNotifications ?? true) &&
+      (r.emailFrequency ?? "daily") !== "never" &&
+      !!r.email &&
+      // Stop re-engagement/marketing emails to accounts that ended their subscription.
+      r.subStatus !== "cancelled" && r.subStatus !== "expired")
     .map((r: any) => ({ email: r.email as string, name: r.name || "" }));
 }
