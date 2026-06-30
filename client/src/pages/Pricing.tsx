@@ -7,8 +7,8 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, Smartphone, TrendingUp, Sparkles } from "lucide-react";
-import { VippsPaymentDialog } from "@/components/VippsPayment";
+import { Check, CreditCard, TrendingUp, Sparkles } from "lucide-react";
+import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
@@ -25,8 +25,18 @@ export function Pricing() {
   const [, setLocation] = useLocation();
   const [billing, setBilling] = useState<Billing>("monthly");
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
-  const [showVippsPayment, setShowVippsPayment] = useState(false);
-  const [isLoading] = useState(false);
+  // Card payments via Stripe Checkout (Vipps is added separately once configured)
+  const createCheckout = trpc.stripe.createCheckoutSession.useMutation({
+    onSuccess: (data) => {
+      // Redirect to Stripe's hosted, PCI-compliant card checkout
+      window.location.href = data.url;
+    },
+    onError: (error) => {
+      toast.error(error.message || "Kunne ikke starte betaling. Prøv igjen.");
+      setSelectedPlan(null);
+    },
+  });
+  const isLoading = createCheckout.isPending;
 
   const { data: currentSubscription } = trpc.payment.getCurrentSubscription.useQuery(
     undefined,
@@ -42,8 +52,11 @@ export function Pricing() {
       setLocation("/");
       return;
     }
+    const productKey = `${backendTier(planKey)}_${
+      billing === "yearly" ? "YEARLY" : "MONTHLY"
+    }` as "PRO_MONTHLY" | "PRO_YEARLY" | "ENTERPRISE_MONTHLY" | "ENTERPRISE_YEARLY";
     setSelectedPlan(planKey);
-    setShowVippsPayment(true);
+    createCheckout.mutate({ productKey });
   };
 
   return (
@@ -150,10 +163,12 @@ export function Pricing() {
                   >
                     {isCurrentPlan ? (
                       "Din plan"
+                    ) : createCheckout.isPending && selectedPlan === plan.key ? (
+                      "Behandler…"
                     ) : (
                       <>
                         {plan.key === "FREE" ? "Start gratis" : `Velg ${plan.name}`}
-                        {plan.key !== "FREE" && <Smartphone className="ml-2 h-4 w-4" />}
+                        {plan.key !== "FREE" && <CreditCard className="ml-2 h-4 w-4" />}
                       </>
                     )}
                   </Button>
@@ -237,25 +252,6 @@ export function Pricing() {
         </div>
       </main>
 
-      {/* Vipps Payment Modal */}
-      {showVippsPayment && selectedPlan && (() => {
-        const plan = PLANS.find((p) => p.key === selectedPlan);
-        if (!plan) return null;
-        const amountNOK = billing === "yearly" ? yearlyNOK(plan.monthlyNOK) : plan.monthlyNOK;
-        return (
-          <VippsPaymentDialog
-            amount={amountNOK * 100}
-            description={`${plan.name}-abonnement (${billing === "yearly" ? "årlig" : "månedlig"})`}
-            onClose={() => {
-              setShowVippsPayment(false);
-              setSelectedPlan(null);
-            }}
-            onSuccess={() => {
-              setLocation("/payment/success");
-            }}
-          />
-        );
-      })()}
     </div>
   );
 }
