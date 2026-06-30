@@ -82,9 +82,15 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
   // navigating to /login for logged-out visitors.
   const path = window.location.pathname;
   const PUBLIC_PATHS = new Set([
-    "/", "/login", "/landing", "/pricing", "/about-us", "/faq", "/contact",
-    "/privacy", "/terms", "/privacy-policy", "/terms-of-service",
-    "/cookie-policy", "/reset-password",
+    "/", "/login", "/landing", "/reset-password",
+    "/pricing", "/priser",
+    "/about-us", "/om-oss",
+    "/faq",
+    "/contact", "/kontakt",
+    "/privacy", "/privacy-policy", "/personvern",
+    "/terms", "/terms-of-service", "/vilkar",
+    "/cookie-policy",
+    "/salgsbetingelser",
   ]);
   const isPublicPath = PUBLIC_PATHS.has(path) || path.startsWith("/blog");
   if (isPublicPath) return;
