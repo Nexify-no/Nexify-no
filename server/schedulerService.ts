@@ -5,8 +5,8 @@
  */
 
 import * as cron from 'node-cron';
-import { posts, scheduledPosts, linkedinConnections } from '../drizzle/schema';
-import { eq, and, lte, lt } from 'drizzle-orm';
+import { posts, scheduledPosts, linkedinConnections, users } from '../drizzle/schema';
+import { eq, and, lte, lt, gte } from 'drizzle-orm';
 import { createLinkedInPost } from './linkedinService';
 import { getDb as getDatabase, recordPostAnalytics } from './db';
 import { notifyOwner } from './_core/notification';
@@ -22,6 +22,7 @@ import { notifyOwner } from './_core/notification';
 
 let schedulerTask: cron.ScheduledTask | null = null;
 let weeklyRitualTask: cron.ScheduledTask | null = null;
+let linkedinExpiryTask: cron.ScheduledTask | null = null;
 
 // In-process overlap guard: a run that exceeds the 5-min interval must not be
 // re-entered by the next tick on the same instance.
@@ -299,6 +300,44 @@ async function processCompetitorRadar() {
 }
 
 /**
+ * Remind users whose LinkedIn access token is about to expire (LinkedIn member
+ * tokens last ~60 days with no auto-refresh). Daily cron + a 1-day match window
+ * (4-5 days before expiry) means each connection gets ~one reminder.
+ */
+async function remindExpiringLinkedInTokens() {
+  const db = await getDatabase();
+  if (!db) return;
+  const now = Date.now();
+  const lo = new Date(now + 4 * 24 * 60 * 60 * 1000);
+  const hi = new Date(now + 5 * 24 * 60 * 60 * 1000);
+  const conns = await db
+    .select()
+    .from(linkedinConnections)
+    .where(and(gte(linkedinConnections.expiresAt, lo), lte(linkedinConnections.expiresAt, hi)));
+  if (conns.length === 0) return;
+  const { sendLinkedInExpiryReminderEmail } = await import('./_core/email');
+  let sent = 0;
+  for (const c of conns) {
+    let email = c.profileEmail || '';
+    let name = c.profileName || '';
+    try {
+      const [u] = await db.select().from(users).where(eq(users.id, c.userId)).limit(1);
+      if (u?.email) email = u.email;
+      if (u?.name) name = u.name;
+    } catch { /* fall back to profile email/name */ }
+    if (!email) continue;
+    try {
+      await sendLinkedInExpiryReminderEmail(email, name, c.expiresAt);
+      sent++;
+    } catch (e) {
+      console.error('[Scheduler:LinkedInExpiry] send failed for', email, e);
+    }
+    await new Promise((res) => setTimeout(res, 200));
+  }
+  console.log(`[Scheduler:LinkedInExpiry] reminders sent: ${sent}/${conns.length}`);
+}
+
+/**
  * Start the scheduler — runs every 5 minutes to check for due posts.
  */
 export function startScheduler() {
@@ -350,6 +389,13 @@ export function startScheduler() {
     }
   }, { timezone: 'Europe/Oslo' });
 
+  // LinkedIn token-expiry reminder — daily 09:00 (Europe/Oslo). Tokens last ~60
+  // days with no auto-refresh, so warn before auto-posting silently stops.
+  linkedinExpiryTask = cron.schedule('0 9 * * *', async () => {
+    try { await remindExpiringLinkedInTokens(); }
+    catch (e) { console.error('[Scheduler:LinkedInExpiry] job failed', e); }
+  }, { timezone: 'Europe/Oslo' });
+
   console.log('[Scheduler] Started - scheduled posts + A/B every 5 min, Competitor Radar hourly, best-times daily 03:30, weekly ritual Mon 08:00');
 }
 
@@ -378,6 +424,11 @@ export function stopScheduler() {
     void weeklyRitualTask.stop();
     weeklyRitualTask = null;
     console.log('[Scheduler:WeeklyRitual] Stopped');
+  }
+  if (linkedinExpiryTask) {
+    void linkedinExpiryTask.stop();
+    linkedinExpiryTask = null;
+    console.log('[Scheduler:LinkedInExpiry] Stopped');
   }
 }
 

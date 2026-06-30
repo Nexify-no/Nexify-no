@@ -101,6 +101,33 @@ export async function sendWeeklyRitualEmail(email: string, name: string): Promis
 }
 
 /**
+ * Remind a user that their LinkedIn connection is about to expire (or has).
+ */
+export async function sendLinkedInExpiryReminderEmail(email: string, name: string, expiresAt: Date): Promise<boolean> {
+  const site = process.env.PUBLIC_SITE_URL || process.env.VITE_APP_URL || "https://penna.no";
+  const firstName = (name || "").split(" ")[0] || "der";
+  const days = Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86_400_000));
+  const when = days <= 0 ? "har utl\u00f8pt" : `utl\u00f8per om ${days} ${days === 1 ? "dag" : "dager"}`;
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #0B132B;">
+      <div style="text-align:center; padding: 8px 0 4px;">
+        <span style="font-size: 22px; font-weight: 700; color:#2563EB;">Penna</span>
+      </div>
+      <h1 style="color:#0B132B; font-size: 22px;">LinkedIn-tilkoblingen din ${when}</h1>
+      <p style="font-size:15px; line-height:1.6; color:#374151;">Hei ${firstName}! LinkedIn-tilgangen som lar Penna publisere innlegg for deg, varer i 60 dager og fornyes ikke automatisk. For at automatisk publisering skal fortsette \u00e5 virke, m\u00e5 du koble til LinkedIn p\u00e5 nytt.</p>
+      <div style="text-align:center; margin: 28px 0;">
+        <a href="${site}/innstillinger" style="display:inline-block; padding:14px 28px; background:linear-gradient(90deg,#2563EB,#7C3AED); color:#ffffff; text-decoration:none; border-radius:10px; font-weight:700; font-size:16px;">Koble til LinkedIn p\u00e5 nytt \u2192</a>
+      </div>
+      <p style="font-size:13px; line-height:1.6; color:#6B7280;">Det tar bare noen sekunder. Frem til du kobler til p\u00e5 nytt, blir innlegg ikke publisert automatisk til LinkedIn.</p>
+      <hr style="border:none; border-top:1px solid #E8EEF7; margin: 28px 0 14px;" />
+      <p style="color:#9AA6BF; font-size:12px; line-height:1.6;">Du f\u00e5r denne e-posten fordi du har koblet LinkedIn til Penna-kontoen din.</p>
+    </div>
+  `;
+  const subject = days <= 0 ? "LinkedIn-tilkoblingen din er utl\u00f8pt" : "LinkedIn-tilkoblingen din utl\u00f8per snart";
+  return sendEmail(email, subject, htmlContent);
+}
+
+/**
  * Send subscription confirmation email
  */
 export async function sendSubscriptionConfirmationEmail(
