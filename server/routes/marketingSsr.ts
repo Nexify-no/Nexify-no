@@ -301,7 +301,55 @@ function legalPage(opts: { path: string; title: string; desc: string; h1: string
 function renderPrivacy() { return legalPage({ path: "/privacy", title: "Personvernerklæring — Penna", desc: "Personvernerklæring for Penna: hvilke personopplysninger vi behandler, hvorfor, hvilke databehandlere vi bruker og hvilke rettigheter du har etter GDPR.", h1: "Personvernerklæring", intro: "Denne erklæringen forklarer hvordan Penna (Nexify CRM Systems AS) behandler personopplysninger i samsvar med personvernforordningen (GDPR) og norsk personvernlovgivning." }); }
 function renderTerms() { return legalPage({ path: "/terms", title: "Vilkår for bruk — Penna", desc: "Vilkår for bruk av Penna — abonnement, ansvar, rettigheter og bruk av tjenesten.", h1: "Vilkår for bruk", intro: "Disse vilkårene regulerer bruken av Penna. Ved å opprette en konto eller bruke tjenesten godtar du vilkårene." }); }
 function renderCookies() { return legalPage({ path: "/cookie-policy", title: "Informasjonskapsler (cookies) — Penna", desc: "Slik bruker Penna informasjonskapsler (cookies), og hvordan du styrer samtykke etter norsk lov og GDPR.", h1: "Informasjonskapsler", intro: "Penna bruker informasjonskapsler for å få nettstedet til å fungere og, med ditt samtykke, til statistikk. Du kan når som helst endre samtykket ditt." }); }
-function renderSalg() { return legalPage({ path: "/salgsbetingelser", title: "Salgsbetingelser — Penna", desc: "Salgsbetingelser for Penna: abonnement, priser i NOK, betaling med kort eller Vipps, angrerett og oppsigelse.", h1: "Salgsbetingelser", intro: "Salgsbetingelsene gjelder kjøp av abonnement på Penna. Alle priser er i norske kroner og inkluderer mva. Du kan si opp når som helst." }); }
+function renderSalg(): string {
+  const shell = readShell();
+  if (!shell) return "";
+  const path = "/salgsbetingelser";
+  const url = `${SITE}${path}`;
+  const head = metaBlock({
+    title: "Salgsbetingelser \u2014 Penna",
+    desc: "Salgsbetingelser for Penna: abonnement, priser i NOK, gjentakende automatisk betaling, angrerett, bindingstid og oppsigelse.",
+    url,
+  });
+  const body =
+    `<main data-ssr="legal">` +
+    `<h1>Salgsbetingelser</h1>` +
+    `<p><em>Sist oppdatert: 26. juni 2026</em></p>` +
+    `<p>Disse salgsbetingelsene gjelder for kj\u00f8p av abonnement og tjenester fra Penna. Betingelsene er utarbeidet med utgangspunkt i Forbrukertilsynets standard salgsbetingelser, tilpasset salg av en digital abonnementstjeneste.</p>` +
+    `<h2>1. Parter</h2>` +
+    `<p><strong>Selger</strong> er Nexify CRM Systems AS ("Penna", "vi", "oss"), org.nr 936300278.</p>` +
+    `<p><strong>Adresse</strong>: Nedre S\u00f8len 5, 3913 Porsgrunn, Norge.</p>` +
+    `<p><strong>E-post</strong>: <a href="mailto:support@penna.no">support@penna.no</a> &middot; <strong>Telefon</strong>: +47 921 46 050.</p>` +
+    `<p><strong>Kj\u00f8per</strong> er den forbrukeren eller virksomheten som foretar bestillingen, heretter kalt kunden.</p>` +
+    `<h2>2. Betaling</h2>` +
+    `<p>Alle priser er oppgitt i norske kroner (NOK) og inkluderer merverdiavgift (MVA) der dette er aktuelt.</p>` +
+    `<p><strong>Priser</strong>: Pro 199 NOK/m\u00e5ned (\u00e5rlig 2149 NOK/\u00e5r) og Premium 399 NOK/m\u00e5ned (\u00e5rlig 4309 NOK/\u00e5r). \u00c5rsabonnement gir 10% rabatt. Gjeldende priser fremg\u00e5r alltid p\u00e5 prissiden f\u00f8r kj\u00f8pet bekreftes.</p>` +
+    `<p><strong>Betalingsmetoder</strong>: Vi aksepterer betalings-/kredittkort og Vipps.</p>` +
+    `<p><strong>Trekk</strong>: Abonnementet er en fast, gjentakende betaling som trekkes automatisk ved starten av hver fakturaperiode (m\u00e5ned eller \u00e5r) frem til kunden sier opp. Betaling belastes ved bestilling og deretter ved hver fornyelse.</p>` +
+    `<h2>3. Levering</h2>` +
+    `<p>Penna er en digital tjeneste. Levering skjer ved at kunden f\u00e5r tilgang til tjenesten umiddelbart etter at kontoen er opprettet og betalingen er gjennomf\u00f8rt. Det sendes ingen fysiske varer. Tilgangen er tilgjengelig via nettstedet penna.no s\u00e5 lenge abonnementet er aktivt.</p>` +
+    `<h2>4. Angrerett</h2>` +
+    `<p>Forbrukere har som hovedregel 14 dagers angrerett etter angrerettloven ved kj\u00f8p p\u00e5 nett.</p>` +
+    `<p><strong>Digitale tjenester</strong>: Penna leveres digitalt og starter umiddelbart. Ved kj\u00f8pet samtykker kunden uttrykkelig til at leveringen starter med en gang, og bekrefter \u00e5 forst\u00e5 at angreretten da bortfaller n\u00e5r tjenesten er tatt i bruk, jf. angrerettloven \u00a7 22 bokstav n. Dersom tjenesten ikke er tatt i bruk, kan kunden benytte angreretten innen 14 dager ved \u00e5 kontakte support@penna.no. Standardisert angreskjema er tilgjengelig hos Forbrukertilsynet.</p>` +
+    `<h2>5. Retur</h2>` +
+    `<p>Ettersom Penna er en digital tjeneste uten fysiske varer, finnes det ingen fysisk retur. Eventuell tilbakebetaling h\u00e5ndteres i samsvar med angreretten (punkt 4) og reklamasjonsreglene (punkt 6). Det gis ikke refusjon for ubrukte deler av en allerede p\u00e5begynt abonnementsperiode utover det som f\u00f8lger av tvingende lovgivning.</p>` +
+    `<h2>6. Reklamasjonsh\u00e5ndtering</h2>` +
+    `<p>Dersom det foreligger en feil eller mangel ved tjenesten, kan kunden reklamere ved \u00e5 kontakte oss p\u00e5 <a href="mailto:support@penna.no">support@penna.no</a>. Reklamasjon skal skje innen rimelig tid etter at mangelen ble oppdaget, i samsvar med forbrukerkj\u00f8psloven. Vi bekrefter mottak av henvendelser s\u00e5 raskt som mulig, normalt innen 2 virkedager, og s\u00f8ker \u00e5 finne en l\u00f8sning gjennom retting, ny levering eller eventuelt prisavslag/heving der vilk\u00e5rene for dette er oppfylt.</p>` +
+    `<h2>7. Konfliktl\u00f8sning</h2>` +
+    `<p>Klager rettes til oss innen rimelig tid, jf. punkt 6. Vi vil fors\u00f8ke \u00e5 l\u00f8se eventuelle tvister i minnelighet. Dersom vi ikke kommer til enighet, kan forbrukeren ta kontakt med <strong>Forbrukertilsynet / Forbrukerr\u00e5det</strong> for mekling. Forbrukere kan ogs\u00e5 benytte EU-kommisjonens nettbaserte klageportal (ODR): <a href="https://ec.europa.eu/odr">https://ec.europa.eu/odr</a>. Tvister er underlagt norsk rett og norske domstoler.</p>` +
+    `<h2>8. Abonnement, bindingstid og oppsigelse</h2>` +
+    `<p><strong>Bindingstid</strong>: Abonnementet har <strong>ingen bindingstid</strong>. M\u00e5nedsabonnement l\u00f8per m\u00e5ned for m\u00e5ned; \u00e5rsabonnement l\u00f8per for den betalte perioden.</p>` +
+    `<p><strong>Oppsigelse</strong>: Kunden kan <strong>n\u00e5r som helst</strong> si opp abonnementet under Innstillinger (Innstillinger \u2192 Abonnement), eller ved \u00e5 kontakte support@penna.no. Oppsigelsen trer i kraft ved utl\u00f8pet av inneva\u0308rende, allerede betalte fakturaperiode.</p>` +
+    `<p><strong>Endring</strong>: Kunden kan oppgradere eller nedgradere abonnementet under Innstillinger. Endringer i pris varsles i god tid f\u00f8r de trer i kraft.</p>` +
+    `<p><strong>Etter oppsigelse</strong>: Tilgangen opph\u00f8rer ved slutten av gjeldende fakturaperiode, og det skjer <strong>ingen ytterligere trekk</strong>.</p>` +
+    `<h2>Firma- og kontaktinformasjon</h2>` +
+    `<p><strong>Nexify CRM Systems AS</strong> &middot; Org.nr 936300278 &middot; Nedre S\u00f8len 5, 3913 Porsgrunn &middot; E-post: <a href="mailto:support@penna.no">support@penna.no</a> &middot; Telefon: +47 921 46 050.</p>` +
+    `<p><a href="/">Til forsiden</a> &middot; <a href="/pricing">Se priser</a></p>` +
+    `</main>`;
+  let html = injectHead(stripHomepageHead(shell), head);
+  html = injectBody(html, body);
+  return html;
+}
 
 function makeHandler(render: () => string) {
   return (_req: Request, res: Response, next: NextFunction) => {
