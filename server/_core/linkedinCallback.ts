@@ -53,7 +53,10 @@ export function registerLinkedInCallback(app: Express) {
 
       // Exchange code for token
       const { exchangeCodeForToken, getLinkedInProfile, calculateExpirationDate } = await import("../linkedinService");
-      const redirectUri = `${req.protocol}://${req.get("host")}/api/linkedin/callback`;
+      // Must EXACTLY match the redirect_uri used in getAuthUrl (and the value
+      // registered in the LinkedIn app). Prefer the env, else host + https.
+      const redirectUri = process.env.LINKEDIN_REDIRECT_URI
+        || `https://${req.get("host") || "penna.no"}/api/linkedin/callback`;
 
       const tokenResponse = await exchangeCodeForToken(
         appCreds,

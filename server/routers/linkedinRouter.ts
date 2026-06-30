@@ -84,7 +84,11 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
         throw new Error("LinkedIn credentials not configured");
       }
       
-      const redirectUri = `${ctx.req.headers.origin}/api/linkedin/callback`;
+      // Build an ABSOLUTE https callback that LinkedIn will accept. The Origin
+      // header is often absent on the tRPC request (=> "undefined/..."), so derive
+      // from the Host header (or the configured env) and force https.
+      const redirectUri = process.env.LINKEDIN_REDIRECT_URI
+        || `https://${ctx.req.headers.host || "penna.no"}/api/linkedin/callback`;
       const { signOAuthState } = await import("../_core/oauthState");
       const state = signOAuthState(ctx.user.id); // HMAC-signed, tamper-proof CSRF state
       
