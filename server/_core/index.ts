@@ -20,6 +20,7 @@ import { initializeSendGrid } from "./email";
 import { registerTelegramWebhook } from "./telegramWebhookRoute";
 import { registerLinkedInCallback } from "./linkedinCallback";
 import { registerGoogleOAuthRoutes } from "../routes/googleOAuthRoutes";
+import { registerLinkedInLoginRoutes } from "../routes/linkedinLoginRoutes";
 import { registerEmailAuthRoutes } from "../routes/emailAuthRoutes";
 import { registerMonitoringRoutes } from "../routes/monitoringRoutes";
 import { appRouter } from "../routers";
@@ -227,6 +228,7 @@ async function startServer() {
   
   // Google OAuth routes (standalone, sets the app session cookie)
   registerGoogleOAuthRoutes(app);
+  registerLinkedInLoginRoutes(app);
   registerEmailAuthRoutes(app);
   
   // Demo/dev login — gated behind an explicit opt-in flag (ENABLE_DEV_LOGIN).
