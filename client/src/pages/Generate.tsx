@@ -313,15 +313,24 @@ export default function Generate() {
   }, [existingDraft]);
 
   // Auto-save with debounce
+  const lastSavedFormDataRef = useRef<string>("");
   const autoSaveDraft = useCallback(() => {
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
+      if (!topic.trim()) return;
       const formData = JSON.stringify({ topic, platform, tone, length, keywords, useVoiceProfile, generateAIImage, imageStyle });
-      if (topic.trim()) {
-        saveDraftMutation.mutate({ pageType: "generate", formData, title: topic.substring(0, 50) || "Utkast" });
-      }
+      // Skip if nothing changed since the last save. Without this guard the auto-save
+      // loops: each save flips draftSaved and changes the mutation object ref, which
+      // re-runs the trigger effect and fires another save ~every 1.5s -> 429 rate-limit
+      // -> "Unable to transform response from server".
+      if (formData === lastSavedFormDataRef.current) return;
+      lastSavedFormDataRef.current = formData;
+      saveDraftMutation.mutate({ pageType: "generate", formData, title: topic.substring(0, 50) || "Utkast" });
     }, 1500);
-  }, [topic, platform, tone, length, keywords, useVoiceProfile, generateAIImage, imageStyle, saveDraftMutation]);
+    // saveDraftMutation intentionally excluded from deps: its ref changes on every
+    // mutation state transition, which would recreate this callback and spin the loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topic, platform, tone, length, keywords, useVoiceProfile, generateAIImage, imageStyle]);
 
   // Trigger auto-save when form changes
   useEffect(() => {
