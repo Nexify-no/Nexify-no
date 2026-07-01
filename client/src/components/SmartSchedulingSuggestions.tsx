@@ -31,21 +31,21 @@ const generateSchedulingSuggestions = (keyword: string, platform: string): Sched
         {
           time: 'Tuesday 8:00 AM',
           score: 9.2,
-          reason: 'Peak professional engagement',
+          reason: 'Høyest profesjonelt engasjement',
           platform: 'LinkedIn',
           momentum: 'high',
         },
         {
           time: 'Wednesday 10:00 AM',
           score: 8.8,
-          reason: 'Mid-week professional activity',
+          reason: 'Aktivitet midt i uken',
           platform: 'LinkedIn',
           momentum: 'high',
         },
         {
           time: 'Thursday 2:00 PM',
           score: 8.1,
-          reason: 'Afternoon engagement surge',
+          reason: 'Økt engasjement på ettermiddagen',
           platform: 'LinkedIn',
           momentum: 'medium',
         },
@@ -54,21 +54,21 @@ const generateSchedulingSuggestions = (keyword: string, platform: string): Sched
         {
           time: 'Monday 9:00 AM',
           score: 8.9,
-          reason: 'Monday morning engagement peak',
+          reason: 'Toppengasjement mandag morgen',
           platform: 'Twitter',
           momentum: 'high',
         },
         {
           time: 'Wednesday 5:00 PM',
           score: 8.6,
-          reason: 'Evening commute activity',
+          reason: 'Aktivitet under kveldspendling',
           platform: 'Twitter',
           momentum: 'high',
         },
         {
           time: 'Friday 1:00 PM',
           score: 7.9,
-          reason: 'Friday afternoon engagement',
+          reason: 'Engasjement fredag ettermiddag',
           platform: 'Twitter',
           momentum: 'medium',
         },
@@ -77,21 +77,21 @@ const generateSchedulingSuggestions = (keyword: string, platform: string): Sched
         {
           time: 'Tuesday 11:00 AM',
           score: 9.1,
-          reason: 'Peak Instagram engagement',
+          reason: 'Høyest Instagram-engasjement',
           platform: 'Instagram',
           momentum: 'high',
         },
         {
           time: 'Thursday 7:00 PM',
           score: 8.7,
-          reason: 'Evening leisure browsing',
+          reason: 'Avslappet surfing på kvelden',
           platform: 'Instagram',
           momentum: 'high',
         },
         {
           time: 'Saturday 10:00 AM',
           score: 8.3,
-          reason: 'Weekend morning activity',
+          reason: 'Aktivitet helgemorgen',
           platform: 'Instagram',
           momentum: 'medium',
         },
@@ -100,21 +100,21 @@ const generateSchedulingSuggestions = (keyword: string, platform: string): Sched
         {
           time: 'Wednesday 1:00 PM',
           score: 8.5,
-          reason: 'Midday Facebook activity',
+          reason: 'Facebook-aktivitet midt på dagen',
           platform: 'Facebook',
           momentum: 'high',
         },
         {
           time: 'Thursday 8:00 PM',
           score: 8.2,
-          reason: 'Evening engagement window',
+          reason: 'Engasjementsvindu på kvelden',
           platform: 'Facebook',
           momentum: 'high',
         },
         {
           time: 'Sunday 2:00 PM',
           score: 7.8,
-          reason: 'Weekend leisure time',
+          reason: 'Avslappet helgetid',
           platform: 'Facebook',
           momentum: 'medium',
         },
@@ -138,7 +138,7 @@ export function SmartSchedulingSuggestions({
   const handleSchedule = (time: string) => {
     setSelectedTime(time);
     onSchedule?.(time);
-    toast.success(`Scheduled for ${time} ✨`);
+    toast.success(`Planlagt til ${time} ✨`);
   };
 
   const getMomentumColor = (momentum: string) => {
@@ -159,7 +159,7 @@ export function SmartSchedulingSuggestions({
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-amber-900 dark:text-amber-100">
           <Zap className="w-5 h-5" />
-          Smart Scheduling for "{keyword}"
+          Smart planlegging for "{keyword}"
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -186,13 +186,13 @@ export function SmartSchedulingSuggestions({
                 <div className="flex flex-col items-end gap-2">
                   <div className={`px-2 py-1 rounded text-xs font-semibold ${getMomentumColor(suggestion.momentum)}`}>
                     {suggestion.momentum === 'high'
-                      ? '🔥 High'
+                      ? '🔥 Høy'
                       : suggestion.momentum === 'medium'
-                        ? '⚡ Medium'
-                        : '📊 Low'}
+                        ? '⚡ Middels'
+                        : '📊 Lav'}
                   </div>
                   <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
-                    Score: {suggestion.score}/10
+                    Poeng: {suggestion.score}/10
                   </span>
                 </div>
               </div>
@@ -214,12 +214,12 @@ export function SmartSchedulingSuggestions({
                 {selectedTime === suggestion.time ? (
                   <>
                     <CheckCircle2 className="w-4 h-4 mr-1" />
-                    Scheduled
+                    Planlagt
                   </>
                 ) : (
                   <>
                     <Calendar className="w-4 h-4 mr-1" />
-                    Schedule This Time
+                    Planlegg dette tidspunktet
                   </>
                 )}
               </Button>
@@ -230,8 +230,8 @@ export function SmartSchedulingSuggestions({
         {/* Info Box */}
         <div className="mt-4 p-3 bg-amber-100 dark:bg-amber-900/30 rounded-lg border border-amber-200 dark:border-amber-800">
           <p className="text-xs text-amber-900 dark:text-amber-100">
-            💡 <strong>Tip:</strong> These times are optimized based on platform engagement patterns and trending
-            momentum for "{keyword}". Adjust based on your audience timezone.
+            💡 <strong>Tips:</strong> Disse tidspunktene er optimalisert ut fra plattformens engasjementsmønstre og
+            trendmomentum for "{keyword}". Juster etter publikummets tidssone.
           </p>
         </div>
       </CardContent>
