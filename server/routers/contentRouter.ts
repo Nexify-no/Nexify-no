@@ -231,7 +231,14 @@ export const contentRouter = router({
         tone: z.enum(["professional", "casual", "friendly", "formal", "humorous"]),
         keywords: z.array(z.string()).optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        // Enforce per-plan image quota (free/trial = 2 AI images per month).
+        const { enforceImageQuota } = await import("../db");
+        try {
+          await enforceImageQuota(ctx.user.id);
+        } catch (e: any) {
+          throw new TRPCError({ code: "FORBIDDEN", message: e?.message || "Du har n\u00e5dd bildegrensen for planen din." });
+        }
         const { generateSimplifiedPrompt } = await import("../imagePromptOptimizer");
         const { generateImage } = await import("../_core/imageGeneration");
 
