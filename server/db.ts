@@ -349,6 +349,76 @@ export async function enforcePostQuota(userId: number): Promise<void> {
   }
 }
 
+
+/**
+ * Server-side image-quota enforcement (fal.ai / FLUX). Mirrors enforcePostQuota.
+ * Free/trial users get 2 AI images per calendar month; active plans use
+ * plan.imagesPerMonth (null = unlimited). Reserves a slot atomically.
+ */
+export async function enforceImageQuota(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const { subscriptions, subscriptionPlans, userUsageTracking } = await import("../drizzle/schema");
+  const { eq, and, gte, lte, lt, sql } = await import("drizzle-orm");
+
+  const FREE_IMAGE_LIMIT = 2;
+
+  const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).limit(1);
+  if (!sub) throw new Error("No subscription found");
+
+  let limit: number | null;
+  if (sub.status === "trial") {
+    limit = FREE_IMAGE_LIMIT;
+  } else if (sub.status === "active") {
+    if (!sub.planId) return;
+    const [plan] = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.id, sub.planId)).limit(1);
+    limit = plan?.imagesPerMonth ?? null;
+    if (limit == null) return;
+  } else {
+    throw new Error("Abonnementet ditt er ikke aktivt. Forny abonnementet for \u00e5 fortsette.");
+  }
+
+  const now = new Date();
+  const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+  const [usage] = await db
+    .select()
+    .from(userUsageTracking)
+    .where(
+      and(
+        eq(userUsageTracking.userId, userId),
+        eq(userUsageTracking.subscriptionId, sub.id),
+        gte(userUsageTracking.periodEndDate, now),
+        lte(userUsageTracking.periodStartDate, now)
+      )
+    )
+    .limit(1);
+
+  const limitMsg =
+    sub.status === "trial"
+      ? "Du har brukt opp de 2 gratis AI-bildene dine denne m\u00e5neden. Oppgrader til Pro for flere."
+      : "Du har n\u00e5dd bildegrensen for planen din denne m\u00e5neden. Oppgrader for flere.";
+
+  if (usage) {
+    const res: any = await db
+      .update(userUsageTracking)
+      .set({ imagesUsed: sql`${userUsageTracking.imagesUsed} + 1` })
+      .where(and(eq(userUsageTracking.id, usage.id), lt(userUsageTracking.imagesUsed, limit)));
+    const affected = res?.[0]?.affectedRows ?? res?.affectedRows ?? 0;
+    if (affected === 0) throw new Error(limitMsg);
+  } else {
+    await db.insert(userUsageTracking).values({
+      userId,
+      subscriptionId: sub.id,
+      postsUsed: 0,
+      imagesUsed: 1,
+      periodStartDate: periodStart,
+      periodEndDate: periodEnd,
+    } as any);
+  }
+}
+
 /** Persist a server-issued payment order bound to the authenticated user. */
 export async function createPaymentOrder(order: {
   orderId: string;
