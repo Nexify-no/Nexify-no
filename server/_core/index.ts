@@ -218,7 +218,11 @@ async function startServer() {
   app.use("/api/trpc", userRateLimiter);
 
   // Level 3: Abuse Protection
-  app.use("/api/trpc", checkRequestSize(100)); // 100KB max
+  // 4MB cap: tRPC image mutations (content.attachImage, content.generate/drafts with
+  // imageUrl) carry base64 data-URL images up to ~2MB (imageUrl schema max) while R2
+  // hosting is pending; 100KB rejected them with a non-superjson 413 -> the client threw
+  // "Unable to transform response from server". Still well under the 10mb body-parser cap.
+  app.use("/api/trpc", checkRequestSize(4096)); // 4MB max
   app.use("/api/trpc", checkSuspiciousActivity);
   app.use("/api/trpc", validateContentMiddleware);
   
