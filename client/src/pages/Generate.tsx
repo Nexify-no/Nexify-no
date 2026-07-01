@@ -18,7 +18,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
 import { toast } from "sonner";
-import { Linkedin, CheckCircle2, AlertCircle, ExternalLink, RotateCcw, RotateCw } from "lucide-react";
+import { Linkedin, CheckCircle2, AlertCircle, ExternalLink, RotateCcw, RotateCw, Calendar } from "lucide-react";
 import { Link } from "wouter";
 import { useUndoRedo } from "@/hooks/useUndoRedo";
 import { Breadcrumb } from "@/components/Breadcrumb";
@@ -59,7 +59,19 @@ function PostToLinkedInButton({ content }: { content: string; platform: string }
     onError: (error) => { toast.error(error.message || "Kunne ikke publisere til LinkedIn"); },
   });
 
-  if (!connectionStatus?.connected) return null;
+  if (!connectionStatus?.connected) {
+    return (
+      <Link href="/settings">
+        <Button
+          variant="outline"
+          className="w-full border-blue-200 text-blue-600 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400"
+        >
+          <Linkedin className="h-4 w-4 mr-2" />
+          Koble til LinkedIn for å publisere
+        </Button>
+      </Link>
+    );
+  }
 
   const handlePost = () => {
     if (!content.trim()) { toast.error("Innholdet kan ikke være tomt"); return; }
@@ -1210,6 +1222,20 @@ export default function Generate() {
                   {/* Post to LinkedIn */}
                   <PostToLinkedInButton content={generatedContent} platform={platform} />
 
+                  {/* Schedule this post — jumps to the Smart Scheduling panel */}
+                  <Button
+                    variant="outline"
+                    className="w-full mt-2"
+                    onClick={() =>
+                      document
+                        .getElementById("smart-scheduling")
+                        ?.scrollIntoView({ behavior: "smooth", block: "center" })
+                    }
+                  >
+                    <Calendar className="h-4 w-4 mr-2" />
+                    Planlegg innlegg
+                  </Button>
+
                   {/* Run A/B test on this content */}
                   <Button
                     variant="outline"
@@ -1313,11 +1339,13 @@ export default function Generate() {
                     platform={platform}
                     onApplyTemplate={(content) => setGeneratedContent(content)}
                   />
-                  <SmartSchedulingSuggestions
-                    keyword={topic}
-                    platform={platform}
-                    onSchedule={handleSchedule}
-                  />
+                  <div id="smart-scheduling">
+                    <SmartSchedulingSuggestions
+                      keyword={topic}
+                      platform={platform}
+                      onSchedule={handleSchedule}
+                    />
+                  </div>
                 </>
               )}
             </div>
