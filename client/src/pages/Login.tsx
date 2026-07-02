@@ -102,7 +102,8 @@ export function LoginPage() {
           return;
         }
         rememberMethod("email");
-        window.location.href = "/dashboard";
+        // Fresh signups land in the first-run wizard; returning users go to the app.
+        window.location.href = mode === "register" ? "/kom-i-gang" : "/dashboard";
         return;
       }
       const data = await res.json().catch(() => ({}));

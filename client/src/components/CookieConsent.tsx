@@ -8,7 +8,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { X, Cookie, Settings } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 
 // Export function to reopen cookie settings
 export function reopenCookieSettings() {
@@ -29,6 +29,7 @@ function applyConsentMode(prefs: { analytics: boolean; marketing: boolean }) {
 }
 
 export default function CookieConsent() {
+  const [location] = useLocation();
   const [showBanner, setShowBanner] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [preferences, setPreferences] = useState({
@@ -95,7 +96,10 @@ export default function CookieConsent() {
     setShowSettings(false);
   };
 
-  if (!showBanner) return null;
+  // Keep the first-run wizard overlay-free (one task per screen; its primary
+  // button is fixed to the bottom where this banner renders). The banner shows
+  // again on the next non-wizard page since consent is only stored on action.
+  if (!showBanner || location === "/kom-i-gang" || location === "/onboarding") return null;
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-black/50 backdrop-blur-sm">

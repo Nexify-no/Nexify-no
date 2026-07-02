@@ -114,11 +114,19 @@ export const userRouter = router({
       if (!db) throw new Error("Database not available");
       const { onboardingStatus } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
-      
-      await db.update(onboardingStatus)
-        .set({ completed: 1, completedAt: new Date() })
-        .where(eq(onboardingStatus.userId, ctx.user.id));
-      
+
+      // Upsert: the first-run wizard calls this without ever having queried
+      // getOnboardingStatus (which is what auto-creates the row), so a plain
+      // UPDATE would be a silent no-op for exactly the users completing it.
+      const existing = await db.select().from(onboardingStatus).where(eq(onboardingStatus.userId, ctx.user.id)).limit(1);
+      if (existing.length === 0) {
+        await db.insert(onboardingStatus).values({ userId: ctx.user.id, completed: 1, completedAt: new Date() });
+      } else {
+        await db.update(onboardingStatus)
+          .set({ completed: 1, completedAt: new Date() })
+          .where(eq(onboardingStatus.userId, ctx.user.id));
+      }
+
       return { success: true };
     }),
     
