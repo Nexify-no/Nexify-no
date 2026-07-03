@@ -828,3 +828,69 @@ html, body, #root {
     animation: none !important;
   }
 }
+
+/* ============================================================
+   Penna brand motion — the pen writes the wordmark (wizard
+   opening), and a small pen "squiggle" loops while AI writes.
+   ============================================================ */
+.penna-word {
+  font-family: var(--font-display);
+  font-size: 46px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  fill: var(--foreground);
+  fill-opacity: 0;
+  stroke: var(--primary);
+  stroke-width: 1.25px;
+  stroke-dasharray: 300;
+  stroke-dashoffset: 300;
+  animation:
+    penna-draw 1.6s cubic-bezier(0.22, 1, 0.36, 1) 0.15s forwards,
+    penna-fill 0.7s ease-out 1.45s forwards;
+}
+@keyframes penna-draw { to { stroke-dashoffset: 0; } }
+@keyframes penna-fill { to { fill-opacity: 1; } }
+.penna-nib {
+  color: var(--primary);
+  transform: translate(8px, 49px);
+  animation:
+    penna-nib-move 1.6s cubic-bezier(0.22, 1, 0.36, 1) 0.15s forwards,
+    penna-nib-fade 0.35s ease-out 1.75s forwards;
+}
+@keyframes penna-nib-move {
+  0%   { transform: translate(8px, 49px); }
+  25%  { transform: translate(48px, 43px); }
+  50%  { transform: translate(90px, 50px); }
+  75%  { transform: translate(134px, 44px); }
+  100% { transform: translate(174px, 48px); }
+}
+@keyframes penna-nib-fade { to { opacity: 0; transform: translate(178px, 36px); } }
+
+.pen-loader-path {
+  stroke-dasharray: 90;
+  stroke-dashoffset: 90;
+  animation: pen-squiggle 1.5s cubic-bezier(0.4, 0, 0.4, 1) infinite;
+}
+@keyframes pen-squiggle {
+  0%   { stroke-dashoffset: 90; opacity: 1; }
+  72%  { stroke-dashoffset: 0;  opacity: 1; }
+  100% { stroke-dashoffset: 0;  opacity: 0; }
+}
+.pen-loader-nib {
+  animation: pen-loader-nib-move 1.5s cubic-bezier(0.4, 0, 0.4, 1) infinite;
+}
+@keyframes pen-loader-nib-move {
+  0%   { transform: translate(0px, 0px);  opacity: 1; }
+  18%  { transform: translate(9px, -4px); }
+  40%  { transform: translate(20px, 1px); }
+  60%  { transform: translate(30px, -3px); }
+  72%  { transform: translate(38px, 0px); opacity: 1; }
+  100% { transform: translate(38px, 0px); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .penna-word { animation: none; fill-opacity: 1; stroke: none; }
+  .penna-nib { display: none; }
+  .pen-loader-path { animation: none; stroke-dashoffset: 0; }
+  .pen-loader-nib { display: none; }
+}

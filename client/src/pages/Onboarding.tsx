@@ -32,6 +32,7 @@ import {
 import { ArrowRight, Check, ChevronLeft, Globe, Pencil, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { PennaWordmark, PenLoader } from "@/components/PennaWordmark";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLoginUrl } from "@/const";
@@ -126,7 +127,7 @@ const COPY = {
     chooseTitle: "Hvordan vil du starte?",
     chooseSupport: "Du kan bytte når som helst.",
     chooseWizard: "Bruk veiviseren",
-    chooseWizardDesc: "Vi setter opp alt for deg. Tar under 3 minutter.",
+    chooseWizardDesc: "Vi setter opp merkevaren, kanalen og de første innleggene. Under 3 minutter.",
     chooseWizardBadge: "Anbefalt",
     chooseClassic: "Utforsk selv",
     chooseClassicDesc: "Gå rett til dashbordet. Veiviseren venter på deg der.",
@@ -143,9 +144,9 @@ const COPY = {
     s2Support: "Len deg tilbake — dette tar under ett minutt.",
     s2Lines: [
       "Leser nettsiden din …",
-      "Henter merkevare-DNA …",
-      "Kartlegger konkurrenter …",
-      "Profilerer målgruppen …",
+      "Fanger tonen din …",
+      "Finner temaer å skrive om …",
+      "Blir kjent med målgruppen …",
       "Lager innholdsplan …",
     ],
     s2Retry: "Prøv igjen",
@@ -210,7 +211,7 @@ const COPY = {
     chooseTitle: "How do you want to start?",
     chooseSupport: "You can switch at any time.",
     chooseWizard: "Use the setup wizard",
-    chooseWizardDesc: "We set everything up for you. Takes under 3 minutes.",
+    chooseWizardDesc: "We set up your brand, channel and first posts. Under 3 minutes.",
     chooseWizardBadge: "Recommended",
     chooseClassic: "Explore on my own",
     chooseClassicDesc: "Go straight to the dashboard. The wizard waits for you there.",
@@ -225,10 +226,10 @@ const COPY = {
     s2Support: "Sit back — this takes under a minute.",
     s2Lines: [
       "Reading your site …",
-      "Extracting brand DNA …",
-      "Mapping competitors …",
-      "Profiling audience …",
-      "Drafting content plan …",
+      "Capturing your tone …",
+      "Finding topics to write about …",
+      "Getting to know your audience …",
+      "Drafting your content plan …",
     ],
     s2Retry: "Try again",
     s2SkipManual: "Fill it in myself instead",
@@ -330,6 +331,42 @@ function saveState(userId: number, state: WizardState): void {
 }
 
 const EASE = [0.22, 1, 0.36, 1] as const;
+
+/** Types text in like the pen is writing it (the "magic" reveal on step 5).
+ *  Re-types when the content changes (e.g. after a refine), instant under
+ *  prefers-reduced-motion. */
+function TypeText({ text }: { text: string }) {
+  const reduceMotion = useReducedMotion();
+  const [shown, setShown] = useState(() => (reduceMotion ? text.length : 0));
+  useEffect(() => {
+    if (reduceMotion) {
+      setShown(text.length);
+      return;
+    }
+    setShown(0);
+    const step = Math.max(2, Math.round(text.length / 70)); // ~1.1s total
+    const id = setInterval(() => {
+      setShown((n) => {
+        if (n + step >= text.length) {
+          clearInterval(id);
+          return text.length;
+        }
+        return n + step;
+      });
+    }, 16);
+    return () => clearInterval(id);
+  }, [text, reduceMotion]);
+  return (
+    <>
+      {text.slice(0, shown)}
+      {shown < text.length && (
+        <span aria-hidden className="text-primary/70">
+          ▍
+        </span>
+      )}
+    </>
+  );
+}
 
 /** Minimal modal keyboard behavior for the bottom sheets: Escape closes,
  *  Tab cycles inside (the sheets are small — one field + one button). */
@@ -524,7 +561,7 @@ function SwipeCard({
       )}
 
       <p className="max-h-[38vh] overflow-y-auto whitespace-pre-wrap break-words px-5 py-4 text-[0.9375rem] leading-relaxed">
-        {item.content}
+        <TypeText text={item.content} />
       </p>
     </motion.div>
   );
@@ -925,12 +962,14 @@ export default function Onboarding() {
     return (
       <div className="min-h-dvh bg-background">
         <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-8 px-6 py-16 md:max-w-2xl">
+          {/* Opening moment: the pen writes the brand */}
+          <PennaWordmark className="h-12 self-start md:h-14" />
           <ScreenHeading title={c.chooseTitle} support={c.chooseSupport} headingRef={headingRef} />
           <div className="space-y-3 md:grid md:grid-cols-2 md:items-stretch md:gap-4 md:space-y-0">
             <button
               type="button"
               onClick={() => patch({ choiceMade: true })}
-              className="w-full rounded-xl border-2 border-primary bg-card p-5 text-left shadow-sm transition-all hover:shadow-md active:scale-[0.995]"
+              className="w-full rounded-xl border-2 border-primary bg-card p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-[0.995]"
             >
               <span className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-primary" aria-hidden />
@@ -947,7 +986,7 @@ export default function Onboarding() {
                 patch({ choiceMade: true });
                 setLocation("/dashboard");
               }}
-              className="w-full rounded-xl border bg-card p-5 text-left transition-all hover:border-primary/40 active:scale-[0.995]"
+              className="w-full rounded-xl border bg-card p-5 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm active:scale-[0.995]"
             >
               <span className="text-base font-semibold">{c.chooseClassic}</span>
               <span className="mt-1.5 block text-sm text-muted-foreground">{c.chooseClassicDesc}</span>
@@ -1083,9 +1122,7 @@ export default function Onboarding() {
             {/* ---------------------------------------------------------- 2 */}
             {state.step === 2 && (
               <div className="space-y-8">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-                  <Sparkles className="h-6 w-6 text-primary" aria-hidden />
-                </div>
+                <PenLoader className="h-9 w-[4.5rem]" />
                 <ScreenHeading title={c.s2Title} support={c.s2Support} headingRef={headingRef} />
                 {!analysisError ? (
                   <ul aria-live="polite" className="space-y-4">
@@ -1344,9 +1381,12 @@ export default function Onboarding() {
                       <div className="skeleton mb-2 h-3 w-full rounded" />
                       <div className="skeleton h-3 w-3/4 rounded" />
                     </div>
-                    <p aria-live="polite" className="text-center text-sm text-muted-foreground">
-                      {c.s5Writing(genProgress.current, genProgress.total)}
-                    </p>
+                    <div className="flex items-center justify-center gap-3">
+                      <PenLoader />
+                      <p aria-live="polite" className="text-sm text-muted-foreground">
+                        {c.s5Writing(genProgress.current, genProgress.total)}
+                      </p>
+                    </div>
                   </div>
                 ) : genError ? (
                   <div role="alert" className="rounded-xl border bg-card p-5">

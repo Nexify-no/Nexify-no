@@ -59,8 +59,8 @@ export default function WizardResumeCard() {
       ? `Fortsett oppsettet — steg ${savedStep} av 6`
       : `Continue setup — step ${savedStep} of 6`
     : no
-      ? "Kom i gang på 3 minutter"
-      : "Get set up in 3 minutes";
+      ? "Kom i gang på under 3 minutter"
+      : "Get set up in under 3 minutes";
   const body = savedStep
     ? no
       ? "Fremdriften din er lagret. Fortsett der du slapp."
