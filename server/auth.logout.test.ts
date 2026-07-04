@@ -67,7 +67,7 @@ describe("auth.logout", () => {
         path: "/",
       });
     } catch (error) {
-      expect(true).toBe(true);
+      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
     }
   });
 });

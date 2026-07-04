@@ -75,7 +75,7 @@ describe("Telegram Action Procedures", () => {
           expect(result).toHaveProperty('success');
         }
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });
@@ -91,7 +91,7 @@ describe("Telegram Action Procedures", () => {
 
         expect(result).toBeDefined();
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });
@@ -107,7 +107,7 @@ describe("Telegram Action Procedures", () => {
 
         expect(result).toBeDefined();
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -122,7 +122,7 @@ describe("Telegram Action Procedures", () => {
 
         expect(result).toBeDefined();
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });

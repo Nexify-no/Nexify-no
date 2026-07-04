@@ -71,7 +71,12 @@ export const memberMonitoringRouter = router({
       startDate.setDate(startDate.getDate() - input.days);
 
       // Get user info
-      const user = await db.select().from(users).where(eq(users.id, parseInt(input.userId))).limit(1);
+      // SECURITY: project safe columns — never return passwordHash / 2FA secrets.
+      const user = await db.select({
+        id: users.id, name: users.name, email: users.email, role: users.role,
+        createdAt: users.createdAt, lastSignedIn: users.lastSignedIn,
+        avatarUrl: users.avatarUrl, emailVerified: users.emailVerified,
+      }).from(users).where(eq(users.id, parseInt(input.userId))).limit(1);
 
       if (!user.length) {
         throw new Error("User not found");

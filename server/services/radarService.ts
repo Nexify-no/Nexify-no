@@ -15,6 +15,7 @@
  * a browser-like User-Agent. Per-source failures are isolated with Promise.allSettled.
  */
 import { createHash } from "crypto";
+import { safeFetch, isStructurallyBlockedUrl } from "../_core/urlGuard";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
@@ -46,22 +47,20 @@ async function fetchWithTimeout(
   opts: RequestInit = {},
   ms = FETCH_TIMEOUT_MS,
 ): Promise<Response> {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), ms);
-  try {
-    return await fetch(url, {
+  // SSRF-guarded: safeFetch resolves DNS and rejects internal/reserved targets,
+  // and re-validates the host on every redirect hop (manual redirect following).
+  return safeFetch(
+    url,
+    {
       ...opts,
-      signal: ctrl.signal,
       headers: {
         "User-Agent": UA,
         Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml, text/html;q=0.9, */*;q=0.8",
         ...(opts.headers || {}),
       },
-      redirect: "follow",
-    });
-  } finally {
-    clearTimeout(t);
-  }
+    },
+    ms,
+  );
 }
 
 /** Normalize a user-supplied website value into a valid absolute URL (https default). */
@@ -73,6 +72,10 @@ export function normalizeUrl(input: string): string | null {
   try {
     const u = new URL(raw);
     if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    // Reject obvious internal targets early (localhost, *.local, RFC1918/metadata
+    // IP literals). Names that resolve to internal IPs are still blocked at
+    // fetch time by safeFetch/assertPublicUrl (DNS-rebinding safe).
+    if (isStructurallyBlockedUrl(u.toString())) return null;
     return u.toString();
   } catch {
     return null;

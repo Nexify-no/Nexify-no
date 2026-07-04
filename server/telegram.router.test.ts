@@ -91,7 +91,7 @@ describe("Telegram Router", () => {
         expect(result).toHaveProperty("expiresAt");
       } catch (error) {
         // Test passes if router is properly initialized
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });
@@ -105,7 +105,7 @@ describe("Telegram Router", () => {
         
         expect(result).toBeDefined();
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });
@@ -121,7 +121,7 @@ describe("Telegram Router", () => {
         
         expect(result).toBeDefined();
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });
@@ -137,7 +137,7 @@ describe("Telegram Router", () => {
         
         expect(result).toBeDefined();
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });
@@ -154,7 +154,7 @@ describe("Telegram Router", () => {
         
         expect(result).toBeDefined();
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -169,7 +169,7 @@ describe("Telegram Router", () => {
         
         expect(result).toBeDefined();
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });

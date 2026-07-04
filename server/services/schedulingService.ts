@@ -211,9 +211,12 @@ export async function schedulePost(
   userId: number,
   platform: "linkedin" | "twitter" | "instagram" | "facebook",
   scheduledFor: Date,
-  timezone: string = "UTC"
+  timezone: string = "UTC",
+  tx?: any
 ) {
-  const db = await getDb();
+  // When a caller passes an active transaction (`tx`), run inside it so the
+  // schedule row is created atomically with the caller's other writes.
+  const db = tx ?? await getDb();
   if (!db) throw new Error("Database not available");
 
   // Tenant isolation: the post MUST belong to this user. Without this check a

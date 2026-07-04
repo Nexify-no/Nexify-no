@@ -113,7 +113,7 @@ export const adminRouter = router({
         if (!db) throw new Error("Database not available");
 
         const { users } = await import("../../drizzle/schema");
-        const { eq, like, desc, asc, and } = await import("drizzle-orm");
+        const { eq, like, desc, asc, and, sql } = await import("drizzle-orm");
 
         // Build where clause
         const whereConditions = [];
@@ -128,8 +128,18 @@ export const adminRouter = router({
           whereConditions.push(eq(users.role, input.role));
         }
 
+        // SECURITY: never select() the whole row — users holds passwordHash,
+        // twoFactorSecret and twoFactorBackupCodes. Project safe columns only.
+        const safeUserCols = {
+          id: users.id, name: users.name, email: users.email,
+          loginMethod: users.loginMethod, role: users.role,
+          createdAt: users.createdAt, updatedAt: users.updatedAt,
+          lastSignedIn: users.lastSignedIn, avatarUrl: users.avatarUrl,
+          emailVerified: users.emailVerified, twoFactorEnabled: users.twoFactorEnabled,
+        };
+
         // Build query
-        let query = db.select().from(users) as any;
+        let query = db.select(safeUserCols).from(users) as any;
 
         if (whereConditions.length > 0) {
           query = query.where(and(...whereConditions));
@@ -147,10 +157,12 @@ export const adminRouter = router({
         const offset = (input.page - 1) * input.limit;
         const data = await query.limit(input.limit).offset(offset);
 
-        // Get total count
-        const countQuery = db.select().from(users) as any;
-        const countResult = await countQuery;
-        const total = countResult.length;
+        // Total via COUNT(*) (no full-table row load).
+        const countRows = await (db
+          .select({ n: sql`count(*)` })
+          .from(users)
+          .where(whereConditions.length > 0 ? and(...whereConditions) : undefined) as any);
+        const total = Number(countRows?.[0]?.n ?? 0);
 
         return {
           data,
@@ -179,7 +191,10 @@ export const adminRouter = router({
 
       const { users } = await import("../../drizzle/schema");
 
-      const allUsers = await db.select().from(users);
+      // Only load the columns the aggregation needs — never passwordHash/2FA secrets.
+      const allUsers = await db.select({
+        role: users.role, lastSignedIn: users.lastSignedIn, createdAt: users.createdAt,
+      }).from(users);
 
       const totalUsers = allUsers.length;
       const adminCount = allUsers.filter((u) => u.role === "admin").length;
@@ -227,8 +242,17 @@ export const adminRouter = router({
         const { users } = await import("../../drizzle/schema");
         const { eq } = await import("drizzle-orm");
 
+        // SECURITY: explicit safe projection — exclude passwordHash / twoFactorSecret
+        // / twoFactorBackupCodes so secret material never leaves the DB.
+        const safeUserCols = {
+          id: users.id, name: users.name, email: users.email,
+          loginMethod: users.loginMethod, role: users.role,
+          createdAt: users.createdAt, updatedAt: users.updatedAt,
+          lastSignedIn: users.lastSignedIn, avatarUrl: users.avatarUrl,
+          emailVerified: users.emailVerified, twoFactorEnabled: users.twoFactorEnabled,
+        };
         const user = await db
-          .select()
+          .select(safeUserCols)
           .from(users)
           .where(eq(users.id, input.userId))
           .limit(1);
