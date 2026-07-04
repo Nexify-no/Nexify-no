@@ -10,6 +10,7 @@
  */
 
 import { router, protectedProcedure, publicProcedure } from "../_core/trpc";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { vippsService } from "../_core/vipps";
 import { vippsAuthService } from "../_core/vippsAuth";
@@ -17,6 +18,20 @@ import { sdk } from "../_core/sdk";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import * as db from "../db";
+
+/**
+ * Load a payment order and assert it belongs to the calling user. Prevents IDOR:
+ * a user must never read/cancel/refund another tenant's order via a guessed orderId.
+ * Returns the owned order (with the server-side expectedAmount).
+ */
+async function assertOwnedOrder(userId: number, orderId: string) {
+  const { getPaymentOrder } = await import("../db");
+  const order = await getPaymentOrder(orderId);
+  if (!order || order.userId !== userId) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Order not found or not yours" });
+  }
+  return order;
+}
 
 export const vippsRouter = router({
   /**
@@ -93,17 +108,17 @@ export const vippsRouter = router({
    */
   getPaymentStatus: protectedProcedure
     .input(z.object({ orderId: z.string() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       if (!vippsService) {
-        throw new Error("Vipps service not configured");
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Vipps service not configured" });
       }
-
+      // Ownership check BEFORE touching the payment provider.
+      await assertOwnedOrder(ctx.user.id, input.orderId);
       try {
-        const status = await vippsService.getPaymentStatus(input.orderId);
-        return status;
+        return await vippsService.getPaymentStatus(input.orderId);
       } catch (error) {
         console.error("Failed to get payment status:", error);
-        throw new Error("Failed to get payment status");
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to get payment status" });
       }
     }),
 
@@ -112,21 +127,19 @@ export const vippsRouter = router({
    */
   cancelPayment: protectedProcedure
     .input(z.object({ orderId: z.string() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       if (!vippsService) {
-        throw new Error("Vipps service not configured");
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Vipps service not configured" });
       }
-
+      await assertOwnedOrder(ctx.user.id, input.orderId);
       try {
         await vippsService.cancelPayment(input.orderId);
-
         const { markPaymentOrderStatus } = await import("../db");
         await markPaymentOrderStatus(input.orderId, "cancelled");
-
         return { success: true };
       } catch (error) {
         console.error("Failed to cancel payment:", error);
-        throw new Error("Failed to cancel payment");
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to cancel payment" });
       }
     }),
 
@@ -134,19 +147,17 @@ export const vippsRouter = router({
    * Refund a payment
    */
   refundPayment: protectedProcedure
-    .input(
-      z.object({
-        orderId: z.string(),
-        amount: z.number().positive(),
-      })
-    )
-    .mutation(async ({ input }: any) => {
+    // `amount` is intentionally NOT accepted from the client — the refund amount
+    // is derived from the trusted server-side order (expectedAmount).
+    .input(z.object({ orderId: z.string() }))
+    .mutation(async ({ ctx, input }: any) => {
       if (!vippsService) {
-        throw new Error("Vipps service not configured");
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Vipps service not configured" });
       }
-
+      const order = await assertOwnedOrder(ctx.user.id, input.orderId);
       try {
-        await vippsService.refundPayment(input.orderId, input.amount);
+        // Refund exactly what we recorded at initiation — never a client value.
+        await vippsService.refundPayment(input.orderId, order.expectedAmount);
 
         // The payment_orders enum has no "refunded" state, so mark it cancelled
         // (no longer an active/captured payment) to keep the DB consistent.
@@ -156,7 +167,7 @@ export const vippsRouter = router({
         return { success: true };
       } catch (error) {
         console.error("Failed to refund payment:", error);
-        throw new Error("Failed to refund payment");
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to refund payment" });
       }
     }),
 
