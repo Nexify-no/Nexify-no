@@ -203,7 +203,7 @@ function renderArticle(post: any): string {
 
   let html = stripHomepageHead(shell);
   html = html.replace("</head>", `${head}\n  </head>`);
-  html = html.replace('<div id="root"></div>', `<div id="root">${body}</div>`);
+  html = html.replace('<div id="root"></div>', `<div id="root"><div data-ssr-fallback style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;margin:-1px;padding:0">${body}</div></div>`);
   return html;
 }
 
@@ -247,7 +247,7 @@ function renderIndex(posts: any[]): string {
 
   let html = stripHomepageHead(shell);
   html = html.replace("</head>", `${head}\n  </head>`);
-  html = html.replace('<div id="root"></div>', `<div id="root">${body}</div>`);
+  html = html.replace('<div id="root"></div>', `<div id="root"><div data-ssr-fallback style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;margin:-1px;padding:0">${body}</div></div>`);
   return html;
 }
 
