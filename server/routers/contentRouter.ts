@@ -195,8 +195,12 @@ export const contentRouter = router({
         // Check subscription - DALL-E 3 is Pro only
         const subscription = await getUserSubscription(ctx.user.id);
         if (!subscription || subscription.status === "trial") {
-          throw new Error("DALL-E 3 image generation requires a Pro subscription. Please upgrade or use Nano Banana (free).");
+          throw new TRPCError({ code: "FORBIDDEN", message: "DALL-E 3 krever et Pro-abonnement. Oppgrader, eller bruk FLUX (gratis)." });
         }
+        // Server-side image quota + cost cap (same meter as the FLUX path) so the
+        // Pro DALL-E route can't be used to run up unbounded OpenAI image spend.
+        const { enforceImageQuota } = await import("../db");
+        await enforceImageQuota(ctx.user.id);
         
         // Generate optimized prompt
         const optimizedPrompt = generateOptimizedImagePrompt({
