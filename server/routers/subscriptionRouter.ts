@@ -4,7 +4,7 @@
  * Unauthorized copying, distribution, or use is strictly prohibited.
  */
 
-import { router, publicProcedure, protectedProcedure } from "../_core/trpc";
+import { router, publicProcedure, protectedProcedure, adminProcedure } from "../_core/trpc";
 import { z } from "zod";
 import { getDb } from "../db";
 import { subscriptions, subscriptionPlans, userUsageTracking, usageOverages } from "../../drizzle/schema";
@@ -16,14 +16,8 @@ const getDatabase = async () => {
   return db;
 };
 
-// Create admin procedure
-const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if ((ctx.user as any).role !== "admin") {
-    throw new Error("Unauthorized");
-  }
-  return next({ ctx });
-});
-
+// adminProcedure is imported from _core/trpc (throws a proper FORBIDDEN TRPCError,
+// not a bare Error that surfaces to clients as 500).
 export const subscriptionRouter = router({
   // Get current user's subscription
   getCurrentSubscription: protectedProcedure.query(async ({ ctx }: any) => {

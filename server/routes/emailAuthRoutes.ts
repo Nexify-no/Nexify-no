@@ -17,6 +17,7 @@ import { z } from "zod";
 import { nanoid } from "nanoid";
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { getSessionCookieOptions } from "../_core/cookies";
+import { authRateLimiter } from "../_core/rateLimiter";
 import { sdk } from "../_core/sdk";
 import { sendVerificationEmail, sendPasswordResetEmail } from "../_core/email";
 import * as db from "../db";
@@ -31,7 +32,7 @@ const RESET_TTL_MS = 60 * 60 * 1000; // 1h
 
 const registerSchema = z.object({
   email: z.string().email().max(320),
-  password: z.string().min(8).max(200),
+  password: z.string().min(12).max(200),
   name: z.string().trim().min(1).max(120).optional(),
 });
 const loginSchema = z.object({
@@ -41,8 +42,26 @@ const loginSchema = z.object({
 const forgotSchema = z.object({ email: z.string().email().max(320) });
 const resetSchema = z.object({
   token: z.string().min(10).max(200),
-  password: z.string().min(8).max(200),
+  password: z.string().min(12).max(200),
 });
+
+/**
+ * Reject trivially weak passwords beyond the length floor: all-same-char,
+ * simple sequences, and a small blocklist of the most common choices. Cheap,
+ * offline, no external dependency (a full HIBP k-anonymity check can layer on
+ * top later).
+ */
+const COMMON_WEAK = new Set([
+  "password", "passord", "12345678", "123456789", "1234567890",
+  "qwertyuiop", "iloveyou", "admin1234", "welcome1234", "passordet",
+]);
+function isWeakPassword(pw: string): boolean {
+  const p = pw.toLowerCase();
+  if (COMMON_WEAK.has(p)) return true;
+  if (/^(.)\1+$/.test(pw)) return true;                 // all same character
+  if (/^(0123456789|abcdefghij|qwertyuiop)/.test(p)) return true; // obvious sequence
+  return false;
+}
 
 function setSessionCookie(req: Request, res: Response, token: string) {
   res.cookie(COOKIE_NAME, token, { ...getSessionCookieOptions(req), maxAge: ONE_YEAR_MS });
@@ -65,12 +84,15 @@ function siteUrl(req: Request): string {
 
 export function registerEmailAuthRoutes(app: Express) {
   /** POST /api/auth/register { email, password, name? } */
-  app.post("/api/auth/register", async (req: Request, res: Response) => {
+  app.post("/api/auth/register", authRateLimiter, async (req: Request, res: Response) => {
     const parsed = registerSchema.safeParse(req.body);
     if (!parsed.success) {
       return res
         .status(400)
-        .json({ error: "Ugyldig e-post eller passord (passordet må være minst 8 tegn)." });
+        .json({ error: "Ugyldig e-post eller passord (passordet må være minst 12 tegn)." });
+    }
+    if (isWeakPassword(parsed.data.password)) {
+      return res.status(400).json({ error: "Passordet er for svakt. Velg et sterkere passord (minst 12 tegn, unngå vanlige passord)." });
     }
     const email = parsed.data.email.toLowerCase().trim();
     try {
@@ -111,7 +133,7 @@ export function registerEmailAuthRoutes(app: Express) {
   });
 
   /** POST /api/auth/login/email { email, password } */
-  app.post("/api/auth/login/email", async (req: Request, res: Response) => {
+  app.post("/api/auth/login/email", authRateLimiter, async (req: Request, res: Response) => {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: "Ugyldig e-post eller passord." });
@@ -147,7 +169,7 @@ export function registerEmailAuthRoutes(app: Express) {
   });
 
   /** POST /api/auth/login/2fa { challenge, code } — completes a 2FA login. */
-  app.post("/api/auth/login/2fa", async (req: Request, res: Response) => {
+  app.post("/api/auth/login/2fa", authRateLimiter, async (req: Request, res: Response) => {
     const challenge = typeof req.body?.challenge === "string" ? req.body.challenge : "";
     const code = typeof req.body?.code === "string" ? req.body.code.trim() : "";
     if (!challenge || !code) return res.status(400).json({ error: "Ugyldig forespørsel." });
@@ -216,7 +238,7 @@ export function registerEmailAuthRoutes(app: Express) {
   });
 
   /** POST /api/auth/forgot-password { email } — always returns ok (no enumeration). */
-  app.post("/api/auth/forgot-password", async (req: Request, res: Response) => {
+  app.post("/api/auth/forgot-password", authRateLimiter, async (req: Request, res: Response) => {
     const parsed = forgotSchema.safeParse(req.body);
     // Generic success even on bad input, to avoid leaking which emails exist.
     if (!parsed.success) return res.json({ ok: true });
@@ -265,10 +287,13 @@ export function registerEmailAuthRoutes(app: Express) {
   });
 
   /** POST /api/auth/reset-password { token, password } */
-  app.post("/api/auth/reset-password", async (req: Request, res: Response) => {
+  app.post("/api/auth/reset-password", authRateLimiter, async (req: Request, res: Response) => {
     const parsed = resetSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: "Ugyldig forespørsel (passordet må være minst 8 tegn)." });
+      return res.status(400).json({ error: "Ugyldig forespørsel (passordet må være minst 12 tegn)." });
+    }
+    if (isWeakPassword(parsed.data.password)) {
+      return res.status(400).json({ error: "Passordet er for svakt. Velg et sterkere passord (minst 12 tegn, unngå vanlige passord)." });
     }
     try {
       const hash = crypto.createHash("sha256").update(parsed.data.token).digest("hex");
