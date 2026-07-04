@@ -36,7 +36,7 @@ export default function AdminSettings() {
   // Load settings from localStorage on mount
   const [isLoaded, setIsLoaded] = useState(false);
   if (!isLoaded && typeof window !== 'undefined') {
-    const savedChatGpt = localStorage.getItem('admin_chatgpt_key') || '';
+    const savedChatGpt = null /* removed: key is server-side */ || '';
     if (savedChatGpt) {
       setChatGptKey(savedChatGpt);
     }
@@ -85,55 +85,22 @@ export default function AdminSettings() {
   }
 
   const handleTestChatGPT = async () => {
-    if (!chatGptKey.trim()) {
-      toast.error("Please enter ChatGPT API key");
-      return;
-    }
-
-    setChatGptTesting(true);
-    try {
-      const response = await fetch("https://api.openai.com/v1/models", {
-        headers: {
-          Authorization: `Bearer ${chatGptKey}`,
-        },
-      });
-
-      if (response.ok) {
-        setChatGptValid(true);
-        toast.success("ChatGPT API key is valid!");
-        // Save to localStorage for now
-        localStorage.setItem("chatgpt_api_key", chatGptKey);
-      } else {
-        setChatGptValid(false);
-        toast.error("Invalid ChatGPT API key");
-      }
-    } catch (error) {
-      setChatGptValid(false);
-      toast.error("Failed to test ChatGPT API key");
-    } finally {
-      setChatGptTesting(false);
-    }
+    // SECURITY: never send a raw API key from the browser to api.openai.com (it
+    // would be exposed in the Network tab and to any injected script), and never
+    // persist it in localStorage. The OpenAI key is configured SERVER-SIDE via
+    // the OPENAI_API_KEY environment variable and is used only by the backend.
+    toast.info(
+      "OpenAI-nøkkelen settes server-side via OPENAI_API_KEY (miljøvariabel) og kan ikke testes eller lagres fra nettleseren."
+    );
   };
 
   const handleSaveSettings = async () => {
-    if (!chatGptKey.trim()) {
-      toast.error("Please enter at least one API key");
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      // Save to localStorage
-      if (chatGptKey.trim()) {
-        localStorage.setItem('admin_chatgpt_key', chatGptKey);
-      }
-      
-      toast.success("Settings saved successfully! Available to all users.");
-    } catch (error) {
-      toast.error("Failed to save settings");
-    } finally {
-      setIsSaving(false);
-    }
+    // SECURITY: do NOT store API keys in localStorage (readable by any XSS). The
+    // OpenAI key is managed server-side via the OPENAI_API_KEY environment
+    // variable — there is nothing to persist from the browser.
+    toast.info(
+      "API-nøkler konfigureres server-side (miljøvariabler), ikke fra nettleseren. Kontakt drift for å endre OPENAI_API_KEY."
+    );
   };
 
   return (
