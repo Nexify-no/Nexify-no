@@ -627,6 +627,9 @@ export default function Home() {
               <a href="https://www.linkedin.com/company/penna-no/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" className="text-gray-400 hover:text-white transition-colors"><Linkedin className="h-5 w-5" /></a>
             </div>
             <p className="text-xs text-gray-600">Nexify CRM Systems AS · Org.nr: 936 300 278</p>
+            <p className="text-xs text-gray-600 max-w-3xl mx-auto text-center">
+              Varemerker tilhører sine respektive eiere. Penna er ikke tilknyttet OpenAI, Google eller LinkedIn.
+            </p>
           </div>
         </div>
       </footer>
