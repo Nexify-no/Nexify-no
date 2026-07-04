@@ -24,6 +24,7 @@
 import { storagePut } from "server/storage";
 import { ENV } from "./env";
 import { safeFetch } from "./urlGuard";
+import zlib from "node:zlib";
 
 export type GenerateImageOptions = {
   prompt: string;
@@ -70,6 +71,50 @@ async function withImageRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T>
   throw lastErr;
 }
 
+const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+/** Build a PNG chunk with a valid CRC (zlib.crc32). */
+function pngChunk(type: string, data: Buffer): Buffer {
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(data.length, 0);
+  const t = Buffer.from(type, "ascii");
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(zlib.crc32(Buffer.concat([t, data])) >>> 0, 0);
+  return Buffer.concat([len, t, data, crc]);
+}
+function pngText(keyword: string, text: string): Buffer {
+  return pngChunk("tEXt", Buffer.concat([Buffer.from(keyword, "latin1"), Buffer.from([0]), Buffer.from(text, "latin1")]));
+}
+
+/**
+ * EU AI Act art. 50: mark AI-generated images in a machine-readable way. Inserts
+ * tEXt metadata chunks (Software/Comment) before IEND. BEST-EFFORT and byte-safe:
+ * on a non-PNG, a malformed stream, or ANY error it returns the ORIGINAL buffer
+ * unchanged, so it can never corrupt a generated image.
+ */
+function tagPngAiGenerated(png: Buffer): Buffer {
+  try {
+    if (!Buffer.isBuffer(png) || png.length < 57 || !png.subarray(0, 8).equals(PNG_SIG)) return png;
+    let pos = 8;
+    let iendStart = -1;
+    while (pos + 12 <= png.length) {
+      const len = png.readUInt32BE(pos);
+      if (len < 0 || pos + 12 + len > png.length) return png; // malformed → don't touch
+      const type = png.toString("ascii", pos + 4, pos + 8);
+      if (type === "IEND") { iendStart = pos; break; }
+      pos += 12 + len;
+    }
+    if (iendStart < 0) return png;
+    const extra = Buffer.concat([
+      pngText("Software", "Penna AI (penna.no)"),
+      pngText("Comment", "AI-generated image. Created with generative AI. EU AI Act art. 50 disclosure."),
+    ]);
+    return Buffer.concat([png.subarray(0, iendStart), extra, png.subarray(iendStart)]);
+  } catch {
+    return png;
+  }
+}
+
 export async function generateImage(
   options: GenerateImageOptions
 ): Promise<GenerateImageResponse> {
@@ -77,11 +122,13 @@ export async function generateImage(
   // until IMAGE_PROVIDER is set. fal.ai (FLUX) is the best quality-per-cost option.
   // Guarantee a text-free composition regardless of provider or call path.
   const safePrompt = sanitizeImagePrompt(options.prompt) + NO_TEXT_POSITIVE;
-  const buffer = await withImageRetry(() =>
+  const rawBuffer = await withImageRetry(() =>
     ENV.imageProvider === "fal"
       ? generateWithFal(safePrompt, NO_TEXT_NEGATIVE)
       : generateWithOpenAI(safePrompt)
   );
+  // EU AI Act art. 50: mark the image as AI-generated (byte-safe, best-effort).
+  const buffer = tagPngAiGenerated(rawBuffer);
 
   // Save to object storage; if storage isn't configured/reachable (the legacy
   // forge storage proxy returns 502 on this deploy), fall back to an inline data
