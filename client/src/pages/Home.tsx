@@ -169,7 +169,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-white">
       {/* Navigation */}
-      <nav className="border-b border-gray-100 bg-white/95 backdrop-blur-md sticky top-0 z-50">
+      <nav className="border-b border-gray-100 bg-white/95 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <PennaMark className="h-10 w-10" />
