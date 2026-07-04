@@ -304,6 +304,8 @@ export function registerEmailAuthRoutes(app: Express) {
       const passwordHash = await bcrypt.hash(parsed.data.password, BCRYPT_ROUNDS);
       await db.updateUserPassword(token.userId, passwordHash);
       await db.markAuthTokenUsed(token.id);
+      // Invalidate every existing session after a password reset.
+      await db.incrementUserTokenVersion(token.userId);
       return res.json({ ok: true });
     } catch (err) {
       console.error("[EmailAuth] reset-password failed:", err);

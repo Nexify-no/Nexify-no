@@ -36,6 +36,13 @@ export const users = mysqlTable("users", {
   twoFactorEnabled: tinyint("two_factor_enabled").default(0).notNull(),
   /** JSON array of bcrypt-hashed one-time backup codes. */
   twoFactorBackupCodes: text("two_factor_backup_codes"),
+  /**
+   * Session-revocation counter. Every issued session JWT carries the value of
+   * this field at sign time (claim `tv`); a request is rejected if the token's
+   * `tv` no longer matches. Incrementing it (logout / password reset) instantly
+   * invalidates ALL of the user's existing sessions.
+   */
+  tokenVersion: int("token_version").default(0).notNull(),
 });
 
 /**

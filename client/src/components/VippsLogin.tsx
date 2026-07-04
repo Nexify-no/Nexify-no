@@ -124,15 +124,10 @@ export function VippsLoginCallback() {
   const [error, setError] = useState<string | null>(null);
 
   const handleCallback = trpc.vipps.handleLoginCallback.useMutation({
-    onSuccess: (data) => {
+    onSuccess: () => {
       setIsProcessing(false);
-      // Store user info and tokens
-      localStorage.setItem("vipps_user", JSON.stringify(data.userInfo));
-      localStorage.setItem("vipps_access_token", data.accessToken);
-      if (data.refreshToken) {
-        localStorage.setItem("vipps_refresh_token", data.refreshToken);
-      }
-      // Redirect to dashboard or home
+      // The server has set an httpOnly session cookie (like Google login). No
+      // tokens are stored client-side anymore — just move into the app.
       window.location.href = "/dashboard";
     },
     onError: (err) => {
@@ -238,23 +233,20 @@ export function useVippsAccessToken() {
  * Vipps Logout Function
  */
 export async function vippsLogout() {
-  const token = localStorage.getItem("vipps_access_token");
-
-  if (token) {
-    try {
-      // Call logout endpoint
-      await fetch("/api/trpc/vipps.logout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accessToken: token }),
-      });
-    } catch (err) {
-      console.error("Logout error:", err);
-    }
+  // Session lives in an httpOnly cookie now — clear it via the standard auth
+  // logout (also revokes the session server-side). Best-effort local cleanup
+  // remains for any legacy values left by older builds.
+  try {
+    await fetch("/api/trpc/auth.logout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+  } catch (err) {
+    console.error("Logout error:", err);
   }
-
-  // Clear local storage
   localStorage.removeItem("vipps_user");
   localStorage.removeItem("vipps_access_token");
   localStorage.removeItem("vipps_refresh_token");
+  window.location.href = "/login";
 }
