@@ -144,7 +144,10 @@ const FAQS: { q: string; a: string }[] = [
 ];
 
 function injectBody(html: string, body: string): string {
-  return html.replace('<div id="root"></div>', `<div id="root">${body}</div>`);
+  // Wrap the crawler/AEO prerender in a visually-hidden container so real users
+  // never see an unstyled flash (FOUC) before React (createRoot) replaces #root.
+  // The text stays in the HTML response, so non-JS crawlers still read it.
+  return html.replace('<div id="root"></div>', `<div id="root"><div data-ssr-fallback style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;margin:-1px;padding:0">${body}</div></div>`);
 }
 function injectHead(html: string, head: string): string {
   return html.replace("</head>", `${head}\n  </head>`);
