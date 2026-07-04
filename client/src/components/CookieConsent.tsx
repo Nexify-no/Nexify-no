@@ -128,8 +128,8 @@ export default function CookieConsent() {
               <Button onClick={handleAcceptAll} className="flex-1 sm:flex-none">
                 Godta alle
               </Button>
-              <Button onClick={handleRejectAll} variant="outline" className="flex-1 sm:flex-none">
-                Avvis valgfrie
+              <Button onClick={handleRejectAll} className="flex-1 sm:flex-none">
+                Avvis alle
               </Button>
               <Button
                 onClick={() => setShowSettings(true)}
