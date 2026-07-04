@@ -66,6 +66,19 @@ function escText(s: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 }
+
+/**
+ * Serialize an object for safe embedding inside a <script type="application/ld+json">.
+ * Escapes `<`, `>` and `&` so a value containing "</script>" (or "<!--", "]]>")
+ * cannot break out of the script element (stored-XSS via JSON-LD).
+ */
+function safeJsonLd(obj: unknown): string {
+  return JSON.stringify(obj)
+    .replace(/&/g, "\\u0026")
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e");
+}
+
 function stripTags(s: string): string {
   return String(s ?? "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 }
@@ -161,8 +174,8 @@ function renderArticle(post: any): string {
     `\n    <meta property="twitter:title" content="${escAttr(post.title)}" />` +
     `\n    <meta property="twitter:description" content="${escAttr(desc)}" />` +
     `\n    <meta property="twitter:image" content="${escAttr(img)}" />` +
-    `\n    <script type="application/ld+json">${JSON.stringify(articleLd)}</script>`;
-  if (faqLd) head += `\n    <script type="application/ld+json">${JSON.stringify(faqLd)}</script>`;
+    `\n    <script type="application/ld+json">${safeJsonLd(articleLd)}</script>`;
+  if (faqLd) head += `\n    <script type="application/ld+json">${safeJsonLd(faqLd)}</script>`;
   const breadcrumbLd = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
@@ -172,7 +185,7 @@ function renderArticle(post: any): string {
       { "@type": "ListItem", position: 3, name: post.title, item: url },
     ],
   };
-  head += `\n    <script type="application/ld+json">${JSON.stringify(breadcrumbLd)}</script>`;
+  head += `\n    <script type="application/ld+json">${safeJsonLd(breadcrumbLd)}</script>`;
 
   const tagHtml = tags.length
     ? `<p class="ssr-tags">Emner: ${tags.map(escText).join(", ")}</p>`

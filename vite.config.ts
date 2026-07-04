@@ -85,7 +85,6 @@ export default defineConfig({
     allowedHosts: [
       "localhost",
       "127.0.0.1",
-      "*.vercel.app",
     ],
     fs: {
       strict: true,

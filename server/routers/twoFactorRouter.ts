@@ -57,6 +57,9 @@ export const twoFactorRouter = router({
       await db.update(users)
         .set({ twoFactorEnabled: 1, twoFactorBackupCodes: JSON.stringify(hashed) })
         .where(eq(users.id, ctx.user.id));
+      // Security change → invalidate all existing sessions (force re-auth).
+      const { incrementUserTokenVersion } = await import("../db");
+      await incrementUserTokenVersion(ctx.user.id);
       return { success: true, backupCodes: codes };
     }),
 
@@ -83,6 +86,9 @@ export const twoFactorRouter = router({
       await db.update(users)
         .set({ twoFactorEnabled: 0, twoFactorSecret: null, twoFactorBackupCodes: null })
         .where(eq(users.id, ctx.user.id));
+      // Security change → invalidate all existing sessions (force re-auth).
+      const { incrementUserTokenVersion } = await import("../db");
+      await incrementUserTokenVersion(ctx.user.id);
       return { success: true };
     }),
 });

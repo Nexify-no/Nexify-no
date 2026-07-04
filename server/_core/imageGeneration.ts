@@ -23,6 +23,7 @@
  */
 import { storagePut } from "server/storage";
 import { ENV } from "./env";
+import { safeFetch } from "./urlGuard";
 
 export type GenerateImageOptions = {
   prompt: string;
@@ -108,7 +109,7 @@ async function generateWithOpenAI(prompt: string): Promise<Buffer> {
       const item = result.data?.[0];
       if (item?.b64_json) return Buffer.from(item.b64_json, "base64");
       if (item?.url) {
-        const img = await fetch(item.url);
+        const img = await safeFetch(item.url); // SSRF-guarded (provider-returned URL)
         if (!img.ok) throw new Error(`Failed to download generated image (${img.status})`);
         return Buffer.from(await img.arrayBuffer());
       }
@@ -167,7 +168,7 @@ async function generateWithFal(prompt: string): Promise<Buffer> {
   }
 
   // fal returns a hosted URL — download it so we can persist to our own storage.
-  const imageResponse = await fetch(imageUrl);
+  const imageResponse = await safeFetch(imageUrl); // SSRF-guarded (provider-returned URL)
   if (!imageResponse.ok) {
     throw new Error(`Failed to download fal.ai image: ${imageResponse.statusText}`);
   }

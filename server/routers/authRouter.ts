@@ -5,7 +5,7 @@
  */
 
 // Extracted from server/routers.ts (app-layer feature router).
-import { publicProcedure, router } from "../_core/trpc";
+import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "../_core/cookies";
 
@@ -23,5 +23,17 @@ export const authRouter = router({
       return {
         success: true,
       } as const;
+    }),
+
+    /**
+     * Log out of ALL devices/sessions: bump the user's tokenVersion so every
+     * previously-issued JWT is rejected, and clear the cookie on this device.
+     */
+    logoutEverywhere: protectedProcedure.mutation(async ({ ctx }) => {
+      const cookieOptions = getSessionCookieOptions(ctx.req);
+      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+      const { incrementUserTokenVersion } = await import("../db");
+      await incrementUserTokenVersion(ctx.user.id);
+      return { success: true } as const;
     }),
   });
