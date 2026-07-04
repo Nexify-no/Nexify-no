@@ -13,6 +13,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { PLANS, yearlyNOK, yearlyPerMonthNOK, ANNUAL_DISCOUNT } from "@shared/pricing";
+import { CheckoutConsentDialog } from "@/components/CheckoutConsentDialog";
 
 type Billing = "monthly" | "yearly";
 const SAVE_PCT = Math.round(ANNUAL_DISCOUNT * 100); // 10
@@ -25,6 +26,9 @@ export function Pricing() {
   const [, setLocation] = useLocation();
   const [billing, setBilling] = useState<Billing>("monthly");
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  const [pendingCheckout, setPendingCheckout] = useState<
+    { productKey: "PRO_MONTHLY" | "PRO_YEARLY" | "ENTERPRISE_MONTHLY" | "ENTERPRISE_YEARLY"; priceLabel: string; periodLabel: string } | null
+  >(null);
   // Card payments via Stripe Checkout (Vipps is added separately once configured)
   const createCheckout = trpc.stripe.createCheckoutSession.useMutation({
     onSuccess: (data) => {
@@ -56,7 +60,14 @@ export function Pricing() {
       billing === "yearly" ? "YEARLY" : "MONTHLY"
     }` as "PRO_MONTHLY" | "PRO_YEARLY" | "ENTERPRISE_MONTHLY" | "ENTERPRISE_YEARLY";
     setSelectedPlan(planKey);
-    createCheckout.mutate({ productKey });
+    const plan = PLANS.find((p) => p.key === planKey);
+    const isYearly = billing === "yearly";
+    const priceLabel = isYearly ? `${yearlyNOK(plan?.monthlyNOK ?? 0)} kr` : `${plan?.monthlyNOK ?? 0} kr`;
+    setPendingCheckout({ productKey, priceLabel, periodLabel: isYearly ? "år" : "måned" });
+  };
+
+  const confirmCheckout = () => {
+    if (pendingCheckout) createCheckout.mutate({ productKey: pendingCheckout.productKey });
   };
 
   return (
@@ -252,6 +263,14 @@ export function Pricing() {
         </div>
       </main>
 
+      <CheckoutConsentDialog
+        open={!!pendingCheckout}
+        onOpenChange={(o) => { if (!o) { setPendingCheckout(null); setSelectedPlan(null); } }}
+        priceLabel={pendingCheckout?.priceLabel ?? ""}
+        periodLabel={pendingCheckout?.periodLabel ?? "måned"}
+        isLoading={isLoading}
+        onConfirm={confirmCheckout}
+      />
     </div>
   );
 }
