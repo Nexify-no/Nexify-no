@@ -816,3 +816,17 @@ html, body, #root {
   overflow-x: clip;   /* prevents horizontal scroll without breaking position: sticky */
   max-width: 100%;
 }
+
+
+/* Accessibility + performance: honour reduced-motion — pause the continuous
+   background/decor animations that otherwise consume paint budget while scrolling. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
