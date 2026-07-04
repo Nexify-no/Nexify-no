@@ -120,6 +120,8 @@ export const subscriptions = mysqlTable("subscriptions", {
   vippsOrderId: varchar("vipps_order_id", { length: 255 }),
   subscriptionStartDate: timestamp("subscription_start_date"),
   subscriptionEndDate: timestamp("subscription_end_date"),
+  /** Last time we sent the periodic "subscription is active" reminder (digitalytelsesloven). */
+  lastActiveReminderAt: timestamp("last_active_reminder_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
