@@ -44,6 +44,19 @@ function escText(s: string): string {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+/**
+ * Serialize an object for safe embedding inside a <script type="application/ld+json">.
+ * Escapes `<`, `>` and `&` so a value containing "</script>" (or "<!--", "]]>")
+ * cannot break out of the script element (stored-XSS via JSON-LD).
+ */
+function safeJsonLd(obj: unknown): string {
+  return JSON.stringify(obj)
+    .replace(/&/g, "\\u0026")
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e");
+}
+
+
 function stripHomepageHead(html: string): string {
   return html
     .replace(/<title>[\s\S]*?<\/title>/i, "")
@@ -84,7 +97,7 @@ function metaBlock(o: {
 }
 
 function ld(obj: unknown): string {
-  return `\n    <script type="application/ld+json">${JSON.stringify(obj)}</script>`;
+  return `\n    <script type="application/ld+json">${safeJsonLd(obj)}</script>`;
 }
 
 const ORGANIZATION = {
