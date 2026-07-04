@@ -80,7 +80,10 @@ export const posts = mysqlTable("posts", {
   publishedAt: timestamp("published_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("idx_posts_user_id").on(table.userId),
+  statusSchedIdx: index("idx_posts_status_scheduled_for").on(table.status, table.scheduledFor),
+}));
 
 export type Post = typeof posts.$inferSelect;
 export type InsertPost = typeof posts.$inferInsert;
@@ -485,7 +488,9 @@ export const postAnalytics = mysqlTable("post_analytics", {
   platformPostId: varchar("platform_post_id", { length: 255 }),
   metricsFetchedAt: timestamp("metrics_fetched_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("idx_post_analytics_user_id").on(table.userId),
+}));
 
 export type PostAnalytics = typeof postAnalytics.$inferSelect;
 export type InsertPostAnalytics = typeof postAnalytics.$inferInsert;
@@ -520,7 +525,9 @@ export const competitors = mysqlTable("competitors", {
   lastChecked: timestamp("last_checked"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("idx_competitors_user_id").on(table.userId),
+}));
 
 export type Competitor = typeof competitors.$inferSelect;
 export type InsertCompetitor = typeof competitors.$inferInsert;
@@ -557,7 +564,9 @@ export const contentSeries = mysqlTable("content_series", {
   status: mysqlEnum("status", ["planning", "in_progress", "completed"]).default("planning").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("idx_content_series_user_id").on(table.userId),
+}));
 
 export type ContentSeries = typeof contentSeries.$inferSelect;
 export type InsertContentSeries = typeof contentSeries.$inferInsert;
@@ -662,7 +671,9 @@ export const ideas = mysqlTable("ideas", {
   convertedPostId: int("converted_post_id"), // Reference to post if converted
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("idx_ideas_user_id").on(table.userId),
+}));
 
 export type Idea = typeof ideas.$inferSelect;
 export type InsertIdea = typeof ideas.$inferInsert;
@@ -684,7 +695,9 @@ export const drafts = mysqlTable("drafts", {
   /** Last auto-save timestamp */
   lastSavedAt: timestamp("last_saved_at").defaultNow().onUpdateNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("idx_drafts_user_id").on(table.userId),
+}));
 
 export type Draft = typeof drafts.$inferSelect;
 export type InsertDraft = typeof drafts.$inferInsert;
@@ -901,7 +914,10 @@ export const scheduledPosts = mysqlTable("scheduled_posts", {
   
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("idx_scheduled_posts_user_id").on(table.userId),
+  statusSchedIdx: index("idx_scheduled_posts_status_scheduled_for").on(table.status, table.scheduledFor),
+}));
 
 export type ScheduledPost = typeof scheduledPosts.$inferSelect;
 export type InsertScheduledPost = typeof scheduledPosts.$inferInsert;
@@ -930,7 +946,9 @@ export const postingTimesAnalytics = mysqlTable("posting_times_analytics", {
   
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("idx_posting_times_analytics_user_id").on(table.userId),
+}));
 
 export type PostingTimesAnalytic = typeof postingTimesAnalytics.$inferSelect;
 export type InsertPostingTimesAnalytic = typeof postingTimesAnalytics.$inferInsert;
@@ -1369,7 +1387,9 @@ export const activityLog = mysqlTable("activity_log", {
   errorMessage: text("error_message"), // If failed, what was the error
   metadata: json("metadata").$type<Record<string, any>>(), // Additional context
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("idx_activity_log_user_id").on(table.userId),
+}));
 
 export type ActivityLog = typeof activityLog.$inferSelect;
 export type InsertActivityLog = typeof activityLog.$inferInsert;
@@ -1563,7 +1583,9 @@ export const abExperiments = mysqlTable("ab_experiments", {
   startedAt: timestamp("started_at"),
   endsAt: timestamp("ends_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("idx_ab_experiments_user_id").on(table.userId),
+}));
 
 export type AbExperiment = typeof abExperiments.$inferSelect;
 export type InsertAbExperiment = typeof abExperiments.$inferInsert;

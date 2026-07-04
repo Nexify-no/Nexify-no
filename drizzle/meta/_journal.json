@@ -519,6 +519,13 @@
       "when": 1783194457697,
       "tag": "0073_add_token_version",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "5",
+      "when": 1783199988583,
+      "tag": "0074_add_user_id_indexes",
+      "breakpoints": true
     }
   ]
 }
