@@ -52,14 +52,24 @@ function stripHomepageHead(html: string): string {
     .replace(/\s*<meta\s+property="(og|twitter):[^"]*"[^>]*>/gi, "");
 }
 
-function metaBlock(o: { title: string; desc: string; url: string; ogType?: string }): string {
+function metaBlock(o: {
+  title: string;
+  desc: string;
+  url: string;
+  ogType?: string;
+  alternates?: { hreflang: string; href: string }[];
+}): string {
   const img = `${SITE}/og-image.png`;
+  const hreflangTags = (o.alternates ?? [])
+    .map((a) => `\n    <link rel="alternate" hreflang="${escAttr(a.hreflang)}" href="${escAttr(a.href)}" />`)
+    .join("");
   return (
     `\n    <title>${escText(o.title)}</title>` +
     `\n    <meta name="title" content="${escAttr(o.title)}" />` +
     `\n    <meta name="description" content="${escAttr(o.desc)}" />` +
     `\n    <meta name="robots" content="index, follow" />` +
     `\n    <link rel="canonical" href="${escAttr(o.url)}" />` +
+    hreflangTags +
     `\n    <meta property="og:type" content="${o.ogType || "website"}" />` +
     `\n    <meta property="og:url" content="${escAttr(o.url)}" />` +
     `\n    <meta property="og:title" content="${escAttr(o.title)}" />` +
@@ -171,11 +181,17 @@ function renderPricing(): string {
   const shell = readShell();
   if (!shell) return "";
   const url = `${SITE}/pricing`;
+  const alternates = [
+    { hreflang: "en", href: `${SITE}/pricing` },
+    { hreflang: "no", href: `${SITE}/priser` },
+    { hreflang: "x-default", href: `${SITE}/pricing` },
+  ];
   const head =
     metaBlock({
       title: "Priser — Penna | Fra 0 kr, Pro 199 kr/mnd, Premium 399 kr/mnd",
       desc: "Penna-priser i NOK: Gratis (2 innlegg), Pro 199 kr/mnd (15 innlegg, AI-bilder, stemmetrening) og Premium 399 kr/mnd (30 innlegg). Ingen bindingstid, betal med kort eller Vipps.",
       url,
+      alternates,
     }) +
     ld({
       "@context": "https://schema.org",
@@ -235,11 +251,17 @@ function renderAbout(): string {
   const shell = readShell();
   if (!shell) return "";
   const url = `${SITE}/about-us`;
+  const alternates = [
+    { hreflang: "en", href: `${SITE}/about-us` },
+    { hreflang: "no", href: `${SITE}/om-oss` },
+    { hreflang: "x-default", href: `${SITE}/about-us` },
+  ];
   const head =
     metaBlock({
       title: "Om oss — Penna",
       desc: "Penna er en norsk AI-tjeneste for innhold til sosiale medier, utviklet av Nexify CRM Systems AS i Porsgrunn. Vår misjon: hjelpe norske bedrifter å lage bedre innhold på kortere tid.",
       url,
+      alternates,
     });
   const body =
     `<main data-ssr="about">` +
@@ -258,10 +280,16 @@ function renderContact(): string {
   const shell = readShell();
   if (!shell) return "";
   const url = `${SITE}/contact`;
+  const alternates = [
+    { hreflang: "en", href: `${SITE}/contact` },
+    { hreflang: "no", href: `${SITE}/kontakt` },
+    { hreflang: "x-default", href: `${SITE}/contact` },
+  ];
   const head = metaBlock({
     title: "Kontakt — Penna",
     desc: "Kontakt Penna: support@penna.no eller +47 921 46 050. Nexify CRM Systems AS, Nedre Sølen 5, 3913 Porsgrunn.",
     url,
+      alternates,
   });
   const body =
     `<main data-ssr="contact">` +
@@ -281,11 +309,11 @@ function renderContact(): string {
 }
 
 // ---- Legal pages (correct per-page meta + canonical; React renders full text) ----
-function legalPage(opts: { path: string; title: string; desc: string; h1: string; intro: string }): string {
+function legalPage(opts: { path: string; title: string; desc: string; h1: string; intro: string; alternates?: { hreflang: string; href: string }[] }): string {
   const shell = readShell();
   if (!shell) return "";
   const url = `${SITE}${opts.path}`;
-  const head = metaBlock({ title: opts.title, desc: opts.desc, url });
+  const head = metaBlock({ title: opts.title, desc: opts.desc, url, alternates: opts.alternates });
   const body =
     `<main data-ssr="legal">` +
     `<h1>${escText(opts.h1)}</h1>` +
@@ -298,8 +326,8 @@ function legalPage(opts: { path: string; title: string; desc: string; h1: string
   html = injectBody(html, body);
   return html;
 }
-function renderPrivacy() { return legalPage({ path: "/privacy", title: "Personvernerklæring — Penna", desc: "Personvernerklæring for Penna: hvilke personopplysninger vi behandler, hvorfor, hvilke databehandlere vi bruker og hvilke rettigheter du har etter GDPR.", h1: "Personvernerklæring", intro: "Denne erklæringen forklarer hvordan Penna (Nexify CRM Systems AS) behandler personopplysninger i samsvar med personvernforordningen (GDPR) og norsk personvernlovgivning." }); }
-function renderTerms() { return legalPage({ path: "/terms", title: "Vilkår for bruk — Penna", desc: "Vilkår for bruk av Penna — abonnement, ansvar, rettigheter og bruk av tjenesten.", h1: "Vilkår for bruk", intro: "Disse vilkårene regulerer bruken av Penna. Ved å opprette en konto eller bruke tjenesten godtar du vilkårene." }); }
+function renderPrivacy() { return legalPage({ path: "/privacy", alternates: [{ hreflang: "en", href: `${SITE}/privacy` }, { hreflang: "no", href: `${SITE}/personvern` }, { hreflang: "x-default", href: `${SITE}/privacy` }], title: "Personvernerklæring — Penna", desc: "Personvernerklæring for Penna: hvilke personopplysninger vi behandler, hvorfor, hvilke databehandlere vi bruker og hvilke rettigheter du har etter GDPR.", h1: "Personvernerklæring", intro: "Denne erklæringen forklarer hvordan Penna (Nexify CRM Systems AS) behandler personopplysninger i samsvar med personvernforordningen (GDPR) og norsk personvernlovgivning." }); }
+function renderTerms() { return legalPage({ path: "/terms", alternates: [{ hreflang: "en", href: `${SITE}/terms` }, { hreflang: "no", href: `${SITE}/vilkar` }, { hreflang: "x-default", href: `${SITE}/terms` }], title: "Vilkår for bruk — Penna", desc: "Vilkår for bruk av Penna — abonnement, ansvar, rettigheter og bruk av tjenesten.", h1: "Vilkår for bruk", intro: "Disse vilkårene regulerer bruken av Penna. Ved å opprette en konto eller bruke tjenesten godtar du vilkårene." }); }
 function renderCookies() { return legalPage({ path: "/cookie-policy", title: "Informasjonskapsler (cookies) — Penna", desc: "Slik bruker Penna informasjonskapsler (cookies), og hvordan du styrer samtykke etter norsk lov og GDPR.", h1: "Informasjonskapsler", intro: "Penna bruker informasjonskapsler for å få nettstedet til å fungere og, med ditt samtykke, til statistikk. Du kan når som helst endre samtykket ditt." }); }
 function renderSalg(): string {
   const shell = readShell();
@@ -374,5 +402,14 @@ router.get("/privacy", makeHandler(renderPrivacy));
 router.get("/terms", makeHandler(renderTerms));
 router.get("/cookie-policy", makeHandler(renderCookies));
 router.get("/salgsbetingelser", makeHandler(renderSalg));
+
+// Norwegian URL aliases — serve the SAME prerendered content so crawlers/AEO get
+// real HTML instead of the empty SPA shell. Canonical still points to the English
+// URL (dedupe), and hreflang tags advertise the language pair.
+router.get("/priser", makeHandler(renderPricing));
+router.get("/om-oss", makeHandler(renderAbout));
+router.get("/kontakt", makeHandler(renderContact));
+router.get("/personvern", makeHandler(renderPrivacy));
+router.get("/vilkar", makeHandler(renderTerms));
 
 export default router;
