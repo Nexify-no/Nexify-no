@@ -240,7 +240,7 @@ export function Pricing() {
               },
               {
                 q: "Hvor mange innlegg får jeg?",
-                a: "Gratis gir 2 innlegg per måned, Pro gir 15 og Premium gir 30 – med AI-bilder inkludert fra Pro og oppover.",
+                a: "Gratis gir 2 innlegg (engangs prøve), Pro gir 15 per måned og Premium 30 per måned – med AI-bilder inkludert fra Pro og oppover.",
               },
               {
                 q: "Tilbyr dere refusjon?",

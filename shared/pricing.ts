@@ -45,7 +45,7 @@ export const PLANS: Plan[] = [
     postsPerMonth: 2,
     tagline: "For å teste plattformen",
     highlighted: false,
-    features: ["2 innlegg per måned", "Alle plattformer", "Grunnleggende dashboard"],
+    features: ["2 gratis innlegg (engangs)", "Alle plattformer", "Grunnleggende dashboard"],
     notIncluded: ["Ingen AI-bilder", "Ingen stemmetrening"],
   },
   {

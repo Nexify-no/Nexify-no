@@ -1029,7 +1029,7 @@ export default function Generate() {
                     {subscription?.status === "trial" && (
                       <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
                         <p className="text-sm font-medium text-amber-800 dark:text-amber-300 mb-1">✨ 2 gratis AI-bilder</p>
-                        <p className="text-xs text-amber-700 dark:text-amber-400">Gratis-planen inkluderer 2 AI-bilder per måned. Oppgrader til Pro for flere.</p>
+                        <p className="text-xs text-amber-700 dark:text-amber-400">Gratis-planen inkluderer 2 gratis AI-bilder (engangs). Oppgrader til Pro for flere.</p>
                       </div>
                     )}
                     {(

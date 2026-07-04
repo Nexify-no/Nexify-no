@@ -177,7 +177,7 @@ function renderHome(): string {
     `</ul>` +
     `<h2>Priser</h2>` +
     `<ul>` +
-    `<li><strong>Gratis</strong> — 0 kr: 2 innlegg per måned, alle plattformer.</li>` +
+    `<li><strong>Gratis</strong> — 0 kr: 2 gratis innlegg (engangs), alle plattformer.</li>` +
     `<li><strong>Pro</strong> — 199 kr/mnd: 15 innlegg, AI-bilder, stemmetrening, trend, kalender, gjenbruk, AI coach.</li>` +
     `<li><strong>Premium</strong> — 399 kr/mnd: 30 innlegg, alt i Pro, automatisering og planlegging, månedlige rapporter.</li>` +
     `</ul>` +
@@ -222,7 +222,7 @@ function renderPricing(): string {
     `<main data-ssr="pricing">` +
     `<h1>Enkel prising</h1>` +
     `<p>Start gratis, oppgrader når du er klar. Mindre enn en kaffe per dag — spar 5+ timer hver uke. Alle priser er i NOK og uten MVA. Ingen bindingstid.</p>` +
-    `<h2>Gratis — 0 kr</h2><ul><li>2 innlegg per måned</li><li>Alle plattformer</li><li>Grunnleggende dashboard</li></ul>` +
+    `<h2>Gratis — 0 kr</h2><ul><li>2 gratis innlegg (engangs)</li><li>Alle plattformer</li><li>Grunnleggende dashboard</li></ul>` +
     `<h2>Pro — 199 kr/måned (6,63 kr/dag)</h2><ul><li>15 innlegg per måned</li><li>AI-genererte bilder inkludert</li><li>Stemmetrening (din stil)</li><li>Trend og inspirasjon</li><li>Innholdskalender</li><li>Gjenbruk-maskin</li><li>AI Coach og analyse</li><li>Prioritert support</li></ul>` +
     `<h2>Premium — 399 kr/måned (13,30 kr/dag)</h2><ul><li>30 innlegg per måned</li><li>Alt i Pro inkludert</li><li>Avansert stemmetrening</li><li>Automatisering og planlegging</li><li>Månedlige rapporter</li><li>Dedikert support</li></ul>` +
     `<p>Betal med kort eller Vipps. Ingen bindingstid — avbryt når som helst. <a href="/">Start gratis</a></p>` +
