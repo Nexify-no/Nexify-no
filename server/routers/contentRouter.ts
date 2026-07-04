@@ -358,7 +358,7 @@ export const contentRouter = router({
           throw new Error("Post not found or unauthorized");
         }
         
-        await deletePost(input.postId);
+        await deletePost(input.postId, ctx.user.id);
         return { success: true };
       }),
       
@@ -438,7 +438,7 @@ export const contentRouter = router({
         if (!post || post.userId !== ctx.user.id) {
           throw new Error("Post not found or unauthorized");
         }
-        await updatePost(input.postId, input.content);
+        await updatePost(input.postId, ctx.user.id, input.content);
         return { success: true };
       }),
       
@@ -481,17 +481,21 @@ export const contentRouter = router({
         }
 
         const when = new Date(input.scheduledFor);
-        // Keep the post's display date AND mark it scheduled.
-        await db.update(posts)
-          .set({ scheduledFor: when, status: "scheduled" })
-          .where(eq(posts.id, input.postId));
+        // Atomic: mark the post scheduled, cancel any prior pending schedule
+        // entry, and create the fresh schedule row in ONE transaction — so we can
+        // never end up with posts.status='scheduled' but no scheduled_posts row
+        // (or vice-versa) if a step fails midway.
+        await db.transaction(async (tx: any) => {
+          await tx.update(posts)
+            .set({ scheduledFor: when, status: "scheduled" })
+            .where(eq(posts.id, input.postId));
 
-        // Cancel any prior pending schedule entry, then create a fresh one the
-        // scheduler will actually act on (it reads scheduled_posts, not posts).
-        await db.update(scheduledPosts)
-          .set({ status: "cancelled" })
-          .where(and(eq(scheduledPosts.postId, input.postId), eq(scheduledPosts.status, "scheduled")));
-        await schedulePost(input.postId, ctx.user.id, post.platform, when);
+          await tx.update(scheduledPosts)
+            .set({ status: "cancelled" })
+            .where(and(eq(scheduledPosts.postId, input.postId), eq(scheduledPosts.status, "scheduled")));
+
+          await schedulePost(input.postId, ctx.user.id, post.platform, when, "UTC", tx);
+        });
 
         return { success: true };
       }),

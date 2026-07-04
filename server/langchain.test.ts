@@ -63,7 +63,7 @@ describe("LangChainService", () => {
         expect(langchainService.generateContentWithVoice).toBeDefined();
         expect(typeof langchainService.generateContentWithVoice).toBe("function");
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -85,7 +85,7 @@ describe("LangChainService", () => {
           expect(langchainService.generateContentWithVoice).toBeDefined();
         }
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -113,7 +113,7 @@ describe("LangChainService", () => {
           expect(langchainService.generateContentWithVoice).toBeDefined();
         }
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });
@@ -132,7 +132,7 @@ describe("LangChainService", () => {
         expect(langchainService.analyzeContent).toBeDefined();
         expect(typeof langchainService.analyzeContent).toBe("function");
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -151,7 +151,7 @@ describe("LangChainService", () => {
           expect(langchainService.analyzeContent).toBeDefined();
         }
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -170,7 +170,7 @@ describe("LangChainService", () => {
           expect(langchainService.analyzeContent).toBeDefined();
         }
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });
@@ -189,7 +189,7 @@ describe("LangChainService", () => {
         expect(langchainService.coachConversation).toBeDefined();
         expect(typeof langchainService.coachConversation).toBe("function");
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -204,7 +204,7 @@ describe("LangChainService", () => {
 
         expect(langchainService.coachConversation).toBeDefined();
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -218,7 +218,7 @@ describe("LangChainService", () => {
           expect(langchainService.coachConversation).toBeDefined();
         }
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });
@@ -237,7 +237,7 @@ describe("LangChainService", () => {
         expect(langchainService.analyzeTrends).toBeDefined();
         expect(typeof langchainService.analyzeTrends).toBe("function");
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -250,7 +250,7 @@ describe("LangChainService", () => {
           expect(langchainService.analyzeTrends).toBeDefined();
         }
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });
@@ -270,7 +270,7 @@ describe("LangChainService", () => {
         expect(langchainService.improveContent).toBeDefined();
         expect(typeof langchainService.improveContent).toBe("function");
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -289,7 +289,7 @@ describe("LangChainService", () => {
           expect(langchainService.improveContent).toBeDefined();
         }
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -309,7 +309,7 @@ describe("LangChainService", () => {
           expect(langchainService.improveContent).toBeDefined();
         }
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });

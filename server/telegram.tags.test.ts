@@ -83,7 +83,7 @@ describe("Telegram Tag Management Procedures", () => {
 
         expect(result).toBeDefined();
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -94,7 +94,7 @@ describe("Telegram Tag Management Procedures", () => {
         const { appRouter } = await import("./routers");
         const caller = appRouter.createCaller(mockContext);
         await caller.telegram.addTag({ postId: 999, tag: "test" });
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       } catch (error) {
         expect(error).toBeDefined();
       }
@@ -109,7 +109,7 @@ describe("Telegram Tag Management Procedures", () => {
         const { appRouter } = await import("./routers");
         const caller = appRouter.createCaller(mockContext);
         await caller.telegram.removeTag({ postId: 999, tag: "test" });
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       } catch (error) {
         expect(error).toBeDefined();
       }
@@ -133,7 +133,7 @@ describe("Telegram Tag Management Procedures", () => {
           expect(result.length).toBeGreaterThanOrEqual(0);
         }
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -147,7 +147,7 @@ describe("Telegram Tag Management Procedures", () => {
 
         expect(result).toBeDefined();
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -163,7 +163,7 @@ describe("Telegram Tag Management Procedures", () => {
 
         expect(result).toBeDefined();
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });

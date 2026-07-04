@@ -353,15 +353,6 @@ export async function aggregatePostingTimes(userId: number): Promise<void> {
   const { eq: eqOp, and: andOp } = await import("drizzle-orm");
   for (const platform of platformsSeen) {
     try {
-      await db
-        .delete(postingTimesAnalytics)
-        .where(
-          andOp(
-            eqOp(postingTimesAnalytics.userId, userId),
-            eqOp(postingTimesAnalytics.platform, platform)
-          )
-        );
-
       const toInsert = computed
         .filter((c) => c.platform === platform)
         .map((c) => ({
@@ -377,9 +368,21 @@ export async function aggregatePostingTimes(userId: number): Promise<void> {
           performanceRank: c.performanceRank,
         }));
 
-      if (toInsert.length > 0) {
-        await db.insert(postingTimesAnalytics).values(toInsert);
-      }
+      // Atomic replace: delete + re-insert in one transaction so a crash between
+      // them can never leave this platform's analytics empty until the next run.
+      await db.transaction(async (tx: any) => {
+        await tx
+          .delete(postingTimesAnalytics)
+          .where(
+            andOp(
+              eqOp(postingTimesAnalytics.userId, userId),
+              eqOp(postingTimesAnalytics.platform, platform)
+            )
+          );
+        if (toInsert.length > 0) {
+          await tx.insert(postingTimesAnalytics).values(toInsert);
+        }
+      });
     } catch (e) {
       console.warn(
         "[engagementMetrics] aggregate failed for",

@@ -76,7 +76,7 @@ describe("Telegram Advanced Procedures", () => {
 
         expect(result).toBeDefined();
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -92,7 +92,7 @@ describe("Telegram Advanced Procedures", () => {
 
         expect(result).toBeDefined();
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });
@@ -110,7 +110,7 @@ describe("Telegram Advanced Procedures", () => {
 
         expect(result).toBeDefined();
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -126,7 +126,7 @@ describe("Telegram Advanced Procedures", () => {
 
         expect(result).toBeDefined();
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });
@@ -145,7 +145,7 @@ describe("Telegram Advanced Procedures", () => {
 
         expect(result).toBeDefined();
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -163,7 +163,7 @@ describe("Telegram Advanced Procedures", () => {
 
         expect(result).toBeDefined();
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });

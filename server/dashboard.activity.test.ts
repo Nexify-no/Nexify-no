@@ -81,7 +81,7 @@ describe("Dashboard Activity Data", () => {
         });
       }
     } catch (error) {
-      expect(true).toBe(true);
+      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
     }
   });
 
@@ -122,7 +122,7 @@ describe("Dashboard Activity Data", () => {
         expect(allZero).toBe(true);
       }
     } catch (error) {
-      expect(true).toBe(true);
+      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
     }
   });
 
@@ -161,7 +161,7 @@ describe("Dashboard Activity Data", () => {
 
       expect(activityData).toBeDefined();
     } catch (error) {
-      expect(true).toBe(true);
+      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
     }
   });
 
@@ -191,7 +191,7 @@ describe("Dashboard Activity Data", () => {
 
       expect(activityData).toBeDefined();
     } catch (error) {
-      expect(true).toBe(true);
+      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
     }
   });
 });
