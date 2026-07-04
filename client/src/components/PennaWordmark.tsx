@@ -65,10 +65,12 @@ export function PennaWordmark({
 }
 
 /**
- * Full-screen brand opening: the quill writes "Penna" large in the centre,
- * glides back and sweeps an ink underline, the promise line fades in, then
- * the whole scene dissolves into the wizard. Tap / Enter / Escape skips.
- * Under prefers-reduced-motion it never shows (onDone fires immediately).
+ * Full-screen brand opening (v2, cinematic): the quill drops onto the page
+ * (ink dot), the logotype is revealed pixel-synced behind the travelling
+ * tip, the pen lifts, glides back and sweeps an ink underline sampled from
+ * the same bézier the ink draws, and the promise line rises word by word.
+ * Tap / Enter / Escape skips. Under prefers-reduced-motion it never shows
+ * (onDone fires immediately).
  */
 export function PennaIntro({ tagline, onDone }: { tagline: string; onDone: () => void }) {
   const reduceMotion = useReducedMotion();
@@ -80,11 +82,13 @@ export function PennaIntro({ tagline, onDone }: { tagline: string; onDone: () =>
   }, [onDone]);
 
   useEffect(() => {
-    const t = setTimeout(finish, reduceMotion ? 0 : 3150);
+    const t = setTimeout(finish, reduceMotion ? 0 : 3600);
     return () => clearTimeout(t);
   }, [finish, reduceMotion]);
 
   if (reduceMotion) return null;
+
+  const words = tagline.split(" ");
 
   return (
     <motion.div
@@ -96,26 +100,50 @@ export function PennaIntro({ tagline, onDone }: { tagline: string; onDone: () =>
         if (e.key === "Enter" || e.key === " " || e.key === "Escape") finish();
       }}
       initial={{ opacity: 1 }}
-      exit={{ opacity: 0, transition: { duration: 0.45, ease: "easeOut" } }}
+      exit={{ opacity: 0, scale: 0.985, transition: { duration: 0.5, ease: "easeOut" } }}
       className="fixed inset-0 z-[60] flex cursor-pointer flex-col items-center justify-center gap-7 bg-background px-8"
     >
-      <svg viewBox="0 0 224 88" aria-hidden="true" className="w-[min(72vw,460px)]">
-        <text x="6" y="50" className="penna-word penna-intro-word">
+      {/* quiet radial depth behind the word */}
+      <motion.div
+        aria-hidden="true"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.7, ease: "easeOut" }}
+        className="pointer-events-none absolute left-1/2 top-1/2 h-[52vmin] w-[52vmin] -translate-x-1/2 -translate-y-[58%] rounded-full"
+        style={{
+          background:
+            "radial-gradient(closest-side, oklch(0.54 0.22 262 / 0.09), transparent 72%)",
+        }}
+      />
+
+      <svg viewBox="0 0 224 88" aria-hidden="true" className="relative w-[min(74vw,470px)]">
+        <defs>
+          <mask id="penna-reveal">
+            <rect className="pintro-reveal" x="0" y="0" width="0" height="88" fill="#fff" />
+          </mask>
+        </defs>
+        <circle className="pintro-inkdot" cx="9" cy="58" r="2.4" />
+        <text x="6" y="50" mask="url(#penna-reveal)" className="pintro-word">
           Penna
         </text>
-        <path className="penna-intro-underline" d="M10 62 Q112 74 214 56" />
-        <g className="penna-intro-nib">
+        <path className="pintro-underline" d="M10 62 Q112 74 214 56" />
+        <g className="pintro-nib">
           <QuillNib scale={0.5} />
         </g>
       </svg>
-      <motion.p
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 2.1, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-        className="max-w-sm text-center text-base text-muted-foreground md:text-lg"
-      >
-        {tagline}
-      </motion.p>
+
+      <p className="flex max-w-sm flex-wrap justify-center gap-x-[0.3em] text-center text-base text-muted-foreground md:text-lg">
+        {words.map((w, i) => (
+          <motion.span
+            key={`${w}-${i}`}
+            initial={{ opacity: 0, y: 9 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 2.55 + i * 0.07, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+          >
+            {w}
+          </motion.span>
+        ))}
+      </p>
     </motion.div>
   );
 }
