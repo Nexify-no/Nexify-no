@@ -322,14 +322,40 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
-  const response = await fetch(resolveApiUrl(), {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
-    },
-    body: JSON.stringify(payload),
-  });
+  // Bounded timeout + one retry: a hung upstream must never tie up the Express
+  // request handler indefinitely. Retry once on network error / 429 / 5xx with a
+  // short backoff; 4xx (bad request) is not retried.
+  const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS ?? 60000);
+  const doFetch = async (): Promise<Response> => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), LLM_TIMEOUT_MS);
+    try {
+      return await fetch(resolveApiUrl(), {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${ENV.forgeApiKey}`,
+        },
+        body: JSON.stringify(payload),
+        signal: ctrl.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  let response: Response;
+  try {
+    response = await doFetch();
+    if (!response.ok && (response.status === 429 || response.status >= 500)) {
+      await new Promise((r) => setTimeout(r, 750));
+      response = await doFetch();
+    }
+  } catch (e) {
+    // Network error / timeout abort — retry once before giving up.
+    await new Promise((r) => setTimeout(r, 750));
+    response = await doFetch();
+  }
 
   if (!response.ok) {
     const errorText = await response.text();

@@ -86,6 +86,18 @@ export const userRateLimiter = rateLimit({
   store: makeStore("rl:user:"),
 });
 
+// Auth limiter (brute-force protection on login/register/2fa/password-reset).
+// Strict per-IP cap so credential stuffing can't grind through the (deliberately
+// slow) bcrypt verify. Redis-backed when REDIS_URL is set, else in-memory (dev).
+export const authRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,                  // 20 auth attempts per IP per 15 min
+  handler: jsonLimitHandler("For mange forsøk. Vent litt og prøv igjen."),
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: makeStore("rl:auth:"),
+});
+
 // AI endpoint rate limiter (very strict)
 export const aiRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute

@@ -4,7 +4,7 @@
  * Unauthorized copying, distribution, or use is strictly prohibited.
  */
 
-import { router, publicProcedure } from "../_core/trpc";
+import { router, publicProcedure, adminProcedure } from "../_core/trpc";
 import {
   getTrendingKeywords,
   getTrendsByCategory,
@@ -101,7 +101,7 @@ export const trendsRouter = router({
   /**
    * Manually clear cache (for testing)
    */
-  clearCache: publicProcedure.mutation(async () => {
+  clearCache: adminProcedure.mutation(async () => {
     clearCache();
     return {
       success: true,
