@@ -340,22 +340,13 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Trusted-by logo strip — replace placeholder wordmarks with real customer logos */}
+      {/* Honest early-stage note (no unverifiable "used by" claims / placeholder logos).
+          Re-introduce real, named, written-consent logos/testimonials only when available. */}
       <section className="py-12 bg-white">
         <div className="container mx-auto px-4">
-          <p className="text-center text-sm font-medium text-gray-400 uppercase tracking-wider mb-8">
-            Brukt av markedsteam i hele Norden
+          <p className="text-center text-base md:text-lg font-medium text-gray-500">
+            Ny norsk AI-plattform — bli blant de første som tar den i bruk.
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-6 md:gap-x-16">
-            {["Nordisk Media", "VekstByrå", "StartupLab", "Helse Norge", "Handel AS", "Fjord Digital"].map((name) => (
-              <span
-                key={name}
-                className="font-display text-lg md:text-xl font-bold text-gray-300 transition-colors duration-300 hover:text-gray-500"
-              >
-                {name}
-              </span>
-            ))}
-          </div>
         </div>
       </section>
 
