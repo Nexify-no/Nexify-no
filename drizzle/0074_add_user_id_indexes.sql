@@ -1,6 +1,4 @@
--- 0074_add_user_id_indexes: indexes for hot user-scoped query paths.
--- Statements are separated by drizzle "--> statement-breakpoint" so each runs as a
--- single statement (TiDB rejects multi-statement execution by default, errno 8130).
+-- 0074: indexes for hot user-scoped query paths (one index per statement).
 CREATE INDEX `idx_posts_user_id` ON `posts` (`user_id`);
 --> statement-breakpoint
 CREATE INDEX `idx_posts_status_scheduled_for` ON `posts` (`status`, `scheduled_for`);
