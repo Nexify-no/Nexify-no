@@ -44,7 +44,6 @@ import PricingPlans from "@/components/PricingPlans";
 import HowItWorksDemo from "@/components/HowItWorksDemo";
 import FeaturesDemo from "@/components/FeaturesDemo";
 import PricingDemo from "@/components/PricingDemo";
-import TestimonialsDemo from "@/components/TestimonialsDemo";
 import { PennaMark } from "@/components/PennaMark";
 
 // Animated counter hook
