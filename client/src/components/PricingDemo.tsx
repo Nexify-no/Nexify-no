@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useRef } from "react";
-import { Clock, Zap, TrendingUp, CheckCircle2 } from "lucide-react";
+import { Clock, Zap, TrendingUp } from "lucide-react";
 
 export default function PricingDemo() {
   const [showSavings, setShowSavings] = useState(false);
@@ -83,11 +83,12 @@ export default function PricingDemo() {
                 <p className="text-xs text-gray-500">Billigere enn en kaffe - sparer 15 timer</p>
               </div>
             </div>
-            <div className="flex items-center gap-1.5 text-xs font-bold text-green-600">
-              <CheckCircle2 className="h-4 w-4" />
-              ROI: 150x
-            </div>
           </div>
+
+          {/* Compliance: figures are illustrative, not a guarantee. */}
+          <p className="mt-4 text-center text-xs text-gray-400">
+            Tallene er illustrative eksempler og utgjør ingen garanti.
+          </p>
         </div>
       </div>
     </div>

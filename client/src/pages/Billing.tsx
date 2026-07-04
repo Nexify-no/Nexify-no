@@ -13,9 +13,14 @@ import { AlertCircle, Check, Loader2, CreditCard, Download } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PageHeader } from "@/components/PageHeader";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import { CheckoutConsentDialog } from "@/components/CheckoutConsentDialog";
+import { PLANS, yearlyNOK } from "@shared/pricing";
 
 export function BillingPage() {
   const [isLoading, setIsLoading] = useState(false);
+  const [pendingCheckout, setPendingCheckout] = useState<
+    { productKey: "PRO_MONTHLY" | "PRO_YEARLY" | "ENTERPRISE_MONTHLY" | "ENTERPRISE_YEARLY"; priceLabel: string; periodLabel: string } | null
+  >(null);
 
   // Queries
   const { data: currentSubscription, isLoading: subscriptionLoading, isError: subscriptionError, refetch: refetchSubscription } = trpc.payment.getCurrentSubscription.useQuery();
@@ -29,7 +34,7 @@ export function BillingPage() {
   const cancelSubscriptionMutation = trpc.payment.cancelSubscription.useMutation();
   const generateInvoicePDFMutation = trpc.payment.generateInvoicePDF.useMutation();
 
-  const handleUpgrade = async (productKey: string) => {
+  const runCheckout = async (productKey: string) => {
     setIsLoading(true);
     try {
       const result = await createCheckoutMutation.mutateAsync({ productKey: productKey as "FREE" | "PRO_MONTHLY" | "PRO_YEARLY" | "ENTERPRISE_MONTHLY" | "ENTERPRISE_YEARLY" });
@@ -41,6 +46,29 @@ export function BillingPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleUpgrade = (productKey: string) => {
+    // Free tier: no payment, no angrerett-for-payment consent needed.
+    if (productKey === "FREE") {
+      void runCheckout("FREE");
+      return;
+    }
+    // Paid: show the angrerett consent + recurring terms BEFORE paying.
+    const isYearly = productKey.includes("YEARLY");
+    const monthly = productKey.startsWith("ENTERPRISE")
+      ? (PLANS.find((p) => p.key === "PREMIUM")?.monthlyNOK ?? 399)
+      : (PLANS.find((p) => p.key === "PRO")?.monthlyNOK ?? 199);
+    const priceLabel = isYearly ? `${yearlyNOK(monthly)} kr` : `${monthly} kr`;
+    setPendingCheckout({
+      productKey: productKey as "PRO_MONTHLY" | "PRO_YEARLY" | "ENTERPRISE_MONTHLY" | "ENTERPRISE_YEARLY",
+      priceLabel,
+      periodLabel: isYearly ? "år" : "måned",
+    });
+  };
+
+  const confirmUpgrade = () => {
+    if (pendingCheckout) void runCheckout(pendingCheckout.productKey);
   };
 
   const handleManageBilling = async () => {
@@ -364,6 +392,15 @@ export function BillingPage() {
           )}
         </div>
       </div>
+
+      <CheckoutConsentDialog
+        open={!!pendingCheckout}
+        onOpenChange={(o) => { if (!o) setPendingCheckout(null); }}
+        priceLabel={pendingCheckout?.priceLabel ?? ""}
+        periodLabel={pendingCheckout?.periodLabel ?? "måned"}
+        isLoading={isLoading}
+        onConfirm={confirmUpgrade}
+      />
     </div>
   );
 }

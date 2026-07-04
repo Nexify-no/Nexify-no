@@ -134,7 +134,7 @@ const FAQS: { q: string; a: string }[] = [
   { q: "Hva er Penna?", a: "Penna er en norsk AI-tjeneste som hjelper deg å lage profesjonelt innhold til sosiale medier (LinkedIn, X, Instagram og Facebook) på sekunder – med riktig tone for hver plattform." },
   { q: "Trenger jeg kredittkort for å prøve?", a: "Nei. Du får 2 gratis innlegg uten å oppgi betalingsinformasjon, og kan avbryte når som helst." },
   { q: "Hvilke plattformer støttes?", a: "LinkedIn, X (Twitter), Instagram og Facebook. Automatisk publisering til LinkedIn er tilgjengelig nå; flere plattformer kommer." },
-  { q: "Hva koster Penna?", a: "Pro koster 199 kr/måned (15 innlegg) og Premium 399 kr/måned (30 innlegg) – begge med AI-bilder og planlegging. Alle priser er i NOK og inkluderer mva." },
+  { q: "Hva koster Penna?", a: "Pro koster 199 kr/måned (15 innlegg) og Premium 399 kr/måned (30 innlegg) – begge med AI-bilder og planlegging. Alle priser er i NOK. Selskapet er foreløpig ikke registrert i Merverdiavgiftsregisteret, og prisene er derfor uten MVA." },
   { q: "Kan jeg si opp når som helst?", a: "Ja. Det er ingen bindingstid. Du sier opp i Innstillinger og beholder tilgangen ut perioden du allerede har betalt for." },
   { q: "Hvilke betalingsmetoder kan jeg bruke?", a: "Du kan betale med kort eller Vipps." },
   { q: "Lager Penna innhold på norsk?", a: "Ja. Penna er bygget spesielt for norsk språk og tone, så innholdet høres naturlig ut – ikke maskinoversatt." },
@@ -221,7 +221,7 @@ function renderPricing(): string {
   const body =
     `<main data-ssr="pricing">` +
     `<h1>Enkel prising</h1>` +
-    `<p>Start gratis, oppgrader når du er klar. Mindre enn en kaffe per dag — spar 5+ timer hver uke. Alle priser er i NOK og inkluderer mva. Ingen bindingstid.</p>` +
+    `<p>Start gratis, oppgrader når du er klar. Mindre enn en kaffe per dag — spar 5+ timer hver uke. Alle priser er i NOK og uten MVA. Ingen bindingstid.</p>` +
     `<h2>Gratis — 0 kr</h2><ul><li>2 innlegg per måned</li><li>Alle plattformer</li><li>Grunnleggende dashboard</li></ul>` +
     `<h2>Pro — 199 kr/måned (6,63 kr/dag)</h2><ul><li>15 innlegg per måned</li><li>AI-genererte bilder inkludert</li><li>Stemmetrening (din stil)</li><li>Trend og inspirasjon</li><li>Innholdskalender</li><li>Gjenbruk-maskin</li><li>AI Coach og analyse</li><li>Prioritert support</li></ul>` +
     `<h2>Premium — 399 kr/måned (13,30 kr/dag)</h2><ul><li>30 innlegg per måned</li><li>Alt i Pro inkludert</li><li>Avansert stemmetrening</li><li>Automatisering og planlegging</li><li>Månedlige rapporter</li><li>Dedikert support</li></ul>` +
@@ -363,7 +363,7 @@ function renderSalg(): string {
     `<p><strong>E-post</strong>: <a href="mailto:support@penna.no">support@penna.no</a> &middot; <strong>Telefon</strong>: +47 921 46 050.</p>` +
     `<p><strong>Kj\u00f8per</strong> er den forbrukeren eller virksomheten som foretar bestillingen, heretter kalt kunden.</p>` +
     `<h2>2. Betaling</h2>` +
-    `<p>Alle priser er oppgitt i norske kroner (NOK) og inkluderer merverdiavgift (MVA) der dette er aktuelt.</p>` +
+    `<p>Alle priser er oppgitt i norske kroner (NOK). Selskapet er foreløpig ikke registrert i Merverdiavgiftsregisteret, og prisene er derfor uten merverdiavgift (MVA). Gjeldende pris vises alltid før kjøpet bekreftes.</p>` +
     `<p><strong>Priser</strong>: Pro 199 NOK/m\u00e5ned (\u00e5rlig 2149 NOK/\u00e5r) og Premium 399 NOK/m\u00e5ned (\u00e5rlig 4309 NOK/\u00e5r). \u00c5rsabonnement gir 10% rabatt. Gjeldende priser fremg\u00e5r alltid p\u00e5 prissiden f\u00f8r kj\u00f8pet bekreftes.</p>` +
     `<p><strong>Betalingsmetoder</strong>: Vi aksepterer betalings-/kredittkort og Vipps.</p>` +
     `<p><strong>Trekk</strong>: Abonnementet er en fast, gjentakende betaling som trekkes automatisk ved starten av hver fakturaperiode (m\u00e5ned eller \u00e5r) frem til kunden sier opp. Betaling belastes ved bestilling og deretter ved hver fornyelse.</p>` +
