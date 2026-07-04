@@ -12,7 +12,8 @@
  * Fatal (always): JWT_SECRET (>=32), DATABASE_URL.
  * Fatal (production only): OPENAI_API_KEY, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET,
  *   TOKEN_ENCRYPTION_KEY, PUBLIC_SITE_URL.
- * Warnings (production): REDIS_URL, VIPPS_SECRET_KEY, TELEGRAM_WEBHOOK_SECRET —
+ * Fatal (production): REDIS_URL (shared rate-limit store).
+ * Warnings (production): VIPPS_SECRET_KEY, TELEGRAM_WEBHOOK_SECRET —
  *   the app boots but the related feature is disabled / fail-closed.
  */
 export function validateEnv(): void {
@@ -43,10 +44,12 @@ export function validateEnv(): void {
   requireKey("TOKEN_ENCRYPTION_KEY", { prodOnly: true });
   requireKey("PUBLIC_SITE_URL", { prodOnly: true });
 
-  // Production warnings — boot, but the feature is degraded/fail-closed
+  // Production: REDIS_URL is REQUIRED. Without a shared store the rate limiters
+  // (incl. the paid-AI cost backstop) fall back to per-instance memory, which is
+  // bypassable across instances — so we FAIL CLOSED and refuse to start.
   if (PROD) {
     if (!process.env.REDIS_URL)
-      warnings.push("REDIS_URL not set — rate limiting uses an in-memory store (ineffective on serverless).");
+      errors.push("REDIS_URL is required in production — rate limiting must use a shared store (fail-closed).");
     if (!process.env.VIPPS_SECRET_KEY)
       warnings.push("VIPPS_SECRET_KEY not set — Vipps webhooks will be rejected (fail-closed).");
     if (!process.env.TELEGRAM_WEBHOOK_SECRET)
