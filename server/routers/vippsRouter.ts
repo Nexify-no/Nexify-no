@@ -13,6 +13,10 @@ import { router, protectedProcedure, publicProcedure } from "../_core/trpc";
 import { z } from "zod";
 import { vippsService } from "../_core/vipps";
 import { vippsAuthService } from "../_core/vippsAuth";
+import { sdk } from "../_core/sdk";
+import { getSessionCookieOptions } from "../_core/cookies";
+import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
+import * as db from "../db";
 
 export const vippsRouter = router({
   /**
@@ -180,29 +184,44 @@ export const vippsRouter = router({
         state: z.string(),
       })
     )
-    .mutation(async ({ input }: { input: { code: string; state: string } }) => {
+    .mutation(async ({ ctx, input }: any) => {
       if (!vippsAuthService) {
         throw new Error("Vipps Auth service not configured");
       }
 
       try {
-        // Exchange code for tokens
+        // Exchange code for Vipps tokens, then decode the id_token for identity.
         const tokens = await vippsAuthService.exchangeCodeForToken(input.code);
-
-        // Decode ID token to get user info
         const userInfo = vippsAuthService.decodeIdToken(tokens.id_token);
 
+        // SECURITY: establish a real app session server-side (httpOnly cookie),
+        // exactly like the Google flow — and NEVER return the raw Vipps
+        // access/refresh tokens to the browser (they used to be stored in
+        // localStorage, readable by any XSS). The Vipps tokens stay on the server.
+        const openId = `vipps_${userInfo.sub}`;
+        const displayName = userInfo.name || userInfo.email?.split("@")[0] || "Vipps-bruker";
+        await db.upsertUser({
+          openId,
+          name: displayName,
+          email: userInfo.email ?? null,
+          loginMethod: "vipps",
+          lastSignedIn: new Date(),
+        });
+        const sessionToken = await sdk.createSessionToken(openId, {
+          name: displayName,
+          expiresInMs: ONE_YEAR_MS,
+        });
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+
+        // Return only non-sensitive profile info — no tokens.
         return {
           success: true,
           userInfo: {
             id: userInfo.sub,
-            phone: userInfo.phone_number,
             email: userInfo.email,
             name: userInfo.name,
           },
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token,
-          expiresIn: tokens.expires_in,
         };
       } catch (error) {
         console.error("Failed to handle Vipps login callback:", error);
