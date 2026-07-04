@@ -534,6 +534,24 @@ export async function deletePost(postId: number, userId: number): Promise<void> 
   await db.delete(posts).where(and(eq(posts.id, postId), eq(posts.userId, userId)));
 }
 
+/**
+ * Invalidate ALL of a user's active sessions by bumping their token version.
+ * Called on logout and on password reset. Best-effort: a failure here must not
+ * break the calling flow (the cookie is still cleared).
+ */
+export async function incrementUserTokenVersion(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db
+      .update(users)
+      .set({ tokenVersion: sql`${users.tokenVersion} + 1` })
+      .where(eq(users.id, userId));
+  } catch (e) {
+    console.warn("[auth] incrementUserTokenVersion failed:", (e as Error)?.message);
+  }
+}
+
 // ============ Voice Samples Queries ============
 
 export async function createVoiceSample(sample: InsertVoiceSample): Promise<VoiceSample> {

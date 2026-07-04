@@ -11,9 +11,15 @@ import { getSessionCookieOptions } from "../_core/cookies";
 
 export const authRouter = router({
     me: publicProcedure.query(opts => opts.ctx.user),
-    logout: publicProcedure.mutation(({ ctx }) => {
+    logout: publicProcedure.mutation(async ({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+      // Revoke every existing session for this user (not just clear the cookie on
+      // this device) so a previously-captured token can no longer be replayed.
+      if (ctx.user?.id) {
+        const { incrementUserTokenVersion } = await import("../db");
+        await incrementUserTokenVersion(ctx.user.id);
+      }
       return {
         success: true,
       } as const;
