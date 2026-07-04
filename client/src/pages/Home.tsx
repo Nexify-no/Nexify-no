@@ -23,7 +23,6 @@ import {
   Mic,
   Calendar,
   RefreshCw,
-  Send,
   Brain,
   Flame,
   Layers,
@@ -455,13 +454,10 @@ export default function Home() {
               </div>
               <div className="flex items-center justify-center gap-4 mb-3">
                 <div className="h-10 w-10 bg-green-100 rounded-xl flex items-center justify-center">
-                  <Send className="h-5 w-5 text-green-600" />
-                </div>
-                <div className="h-10 w-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                  <MessageSquare className="h-5 w-5 text-blue-500" />
+                  <MessageSquare className="h-5 w-5 text-green-600" />
                 </div>
               </div>
-              <h3 className="text-lg font-bold mb-2 text-gray-900">WhatsApp & Telegram Bot</h3>
+              <h3 className="text-lg font-bold mb-2 text-gray-900">WhatsApp Bot</h3>
               <p className="text-gray-500 text-sm max-w-md mx-auto">
                 Send en melding eller talemelding → Få ferdig innlegg tilbake. Skap innhold mens du er på farten.
               </p>
@@ -631,6 +627,9 @@ export default function Home() {
               <a href="https://www.linkedin.com/company/penna-no/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" className="text-gray-400 hover:text-white transition-colors"><Linkedin className="h-5 w-5" /></a>
             </div>
             <p className="text-xs text-gray-600">Nexify CRM Systems AS · Org.nr: 936 300 278</p>
+            <p className="text-xs text-gray-600 max-w-3xl mx-auto text-center">
+              Varemerker tilhører sine respektive eiere. Penna er ikke tilknyttet OpenAI, Google eller LinkedIn.
+            </p>
           </div>
         </div>
       </footer>
