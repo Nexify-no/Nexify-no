@@ -18,7 +18,7 @@ export function BillingPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   // Queries
-  const { data: currentSubscription, isLoading: subscriptionLoading } = trpc.payment.getCurrentSubscription.useQuery();
+  const { data: currentSubscription, isLoading: subscriptionLoading, isError: subscriptionError, refetch: refetchSubscription } = trpc.payment.getCurrentSubscription.useQuery();
   const { data: subscriptionUsage, isLoading: usageLoading } = trpc.payment.getSubscriptionUsage.useQuery();
   const { data: billingHistory = [], isLoading: historyLoading } = trpc.payment.getBillingHistory.useQuery();
   const { data: pricingPlans = [] } = trpc.payment.getPricingPlans.useQuery();
@@ -117,6 +117,16 @@ export function BillingPage() {
             <div className="flex items-center justify-center p-8">
               <Loader2 className="w-6 h-6 animate-spin" />
             </div>
+          ) : subscriptionError ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="flex items-center justify-between gap-4">
+                <span>Kunne ikke laste abonnementet. Sjekk nettforbindelsen og prøv igjen.</span>
+                <Button size="sm" variant="outline" onClick={() => refetchSubscription()}>
+                  Prøv igjen
+                </Button>
+              </AlertDescription>
+            </Alert>
           ) : (
             <Card>
               <CardHeader>
