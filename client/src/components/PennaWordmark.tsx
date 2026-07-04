@@ -13,6 +13,8 @@
  * prefers-reduced-motion.
  */
 
+import { useCallback, useEffect, useRef } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 /**
@@ -37,13 +39,20 @@ function QuillNib({ scale }: { scale: number }) {
   );
 }
 
-export function PennaWordmark({ className }: { className?: string }) {
+export function PennaWordmark({
+  className,
+  still = false,
+}: {
+  className?: string;
+  /** Render the finished wordmark without replaying the writing animation. */
+  still?: boolean;
+}) {
   return (
     <svg
       viewBox="0 0 224 64"
       role="img"
       aria-label="Penna"
-      className={cn("h-14 w-auto", className)}
+      className={cn("h-14 w-auto", still && "penna-still", className)}
     >
       <text x="6" y="46" className="penna-word">
         Penna
@@ -52,6 +61,62 @@ export function PennaWordmark({ className }: { className?: string }) {
         <QuillNib scale={0.4} />
       </g>
     </svg>
+  );
+}
+
+/**
+ * Full-screen brand opening: the quill writes "Penna" large in the centre,
+ * glides back and sweeps an ink underline, the promise line fades in, then
+ * the whole scene dissolves into the wizard. Tap / Enter / Escape skips.
+ * Under prefers-reduced-motion it never shows (onDone fires immediately).
+ */
+export function PennaIntro({ tagline, onDone }: { tagline: string; onDone: () => void }) {
+  const reduceMotion = useReducedMotion();
+  const doneRef = useRef(false);
+  const finish = useCallback(() => {
+    if (doneRef.current) return;
+    doneRef.current = true;
+    onDone();
+  }, [onDone]);
+
+  useEffect(() => {
+    const t = setTimeout(finish, reduceMotion ? 0 : 3150);
+    return () => clearTimeout(t);
+  }, [finish, reduceMotion]);
+
+  if (reduceMotion) return null;
+
+  return (
+    <motion.div
+      role="button"
+      tabIndex={0}
+      aria-label={tagline}
+      onClick={finish}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " " || e.key === "Escape") finish();
+      }}
+      initial={{ opacity: 1 }}
+      exit={{ opacity: 0, transition: { duration: 0.45, ease: "easeOut" } }}
+      className="fixed inset-0 z-[60] flex cursor-pointer flex-col items-center justify-center gap-7 bg-background px-8"
+    >
+      <svg viewBox="0 0 224 88" aria-hidden="true" className="w-[min(72vw,460px)]">
+        <text x="6" y="50" className="penna-word penna-intro-word">
+          Penna
+        </text>
+        <path className="penna-intro-underline" d="M10 62 Q112 74 214 56" />
+        <g className="penna-intro-nib">
+          <QuillNib scale={0.5} />
+        </g>
+      </svg>
+      <motion.p
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 2.1, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        className="max-w-sm text-center text-base text-muted-foreground md:text-lg"
+      >
+        {tagline}
+      </motion.p>
+    </motion.div>
   );
 }
 

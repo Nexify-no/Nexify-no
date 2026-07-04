@@ -894,3 +894,47 @@ html, body, #root {
   .pen-loader-path { animation: none; stroke-dashoffset: 0; }
   .pen-loader-nib { display: none; }
 }
+
+/* ---- Full-screen brand intro: the pen writes Penna, underlines it, exits */
+.penna-intro-word {
+  animation:
+    penna-draw 1.35s cubic-bezier(0.22, 1, 0.36, 1) 0.2s forwards,
+    penna-fill 0.6s ease-out 1.5s forwards;
+}
+.penna-intro-underline {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 220;
+  stroke-dashoffset: 220;
+  animation: penna-draw 0.42s cubic-bezier(0.22, 1, 0.36, 1) 1.88s forwards;
+}
+.penna-intro-nib {
+  color: var(--primary);
+  transform: translate(8px, 55px);
+  animation:
+    penna-intro-nib-move 2.1s cubic-bezier(0.22, 1, 0.36, 1) 0.2s forwards,
+    penna-intro-nib-fade 0.3s ease-out 2.32s forwards;
+}
+/* Writes the word, lifts off the page, glides back, then sweeps the underline */
+@keyframes penna-intro-nib-move {
+  0%   { transform: translate(8px, 55px); }
+  18%  { transform: translate(48px, 47px); }
+  36%  { transform: translate(90px, 56px); }
+  54%  { transform: translate(134px, 48px); }
+  66%  { transform: translate(174px, 54px); }
+  74%  { transform: translate(96px, 34px); }
+  80%  { transform: translate(10px, 62px); }
+  100% { transform: translate(214px, 57px); }
+}
+@keyframes penna-intro-nib-fade { to { opacity: 0; } }
+/* Static variant — after the intro owns the animation, the small wordmark rests */
+.penna-still .penna-word { animation: none; fill-opacity: 1; stroke: none; }
+.penna-still .penna-nib { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .penna-intro-word { animation: none; fill-opacity: 1; stroke: none; }
+  .penna-intro-underline { animation: none; stroke-dashoffset: 0; }
+  .penna-intro-nib { display: none; }
+}

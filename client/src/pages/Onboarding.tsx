@@ -32,7 +32,7 @@ import {
 import { ArrowRight, Check, ChevronLeft, Globe, Pencil, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
-import { PennaWordmark, PenLoader } from "@/components/PennaWordmark";
+import { PennaWordmark, PennaIntro, PenLoader } from "@/components/PennaWordmark";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLoginUrl } from "@/const";
@@ -123,6 +123,7 @@ const COPY = {
     back: "Tilbake",
     close: "Lukk",
     exitWizard: "Avslutt og fortsett senere",
+    introTagline: "Fra idé til ferdig innlegg — på sekunder.",
     // 0 — first-open chooser
     chooseTitle: "Hvordan vil du starte?",
     chooseSupport: "Du kan bytte når som helst.",
@@ -208,6 +209,7 @@ const COPY = {
     back: "Back",
     close: "Close",
     exitWizard: "Exit and continue later",
+    introTagline: "From idea to finished post — in seconds.",
     chooseTitle: "How do you want to start?",
     chooseSupport: "You can switch at any time.",
     chooseWizard: "Use the setup wizard",
@@ -581,6 +583,14 @@ export default function Onboarding() {
 
   const [state, setState] = useState<WizardState>(INITIAL_STATE);
   const [restored, setRestored] = useState(false);
+  // Full-screen brand opening: once per browser session (skippable).
+  const [introDone, setIntroDone] = useState(() => {
+    try {
+      return sessionStorage.getItem("penna_intro_v1") === "1";
+    } catch {
+      return true;
+    }
+  });
   const patch = useCallback(
     (p: Partial<WizardState>) => setState((s) => ({ ...s, ...p })),
     []
@@ -961,9 +971,24 @@ export default function Onboarding() {
   if (!state.choiceMade) {
     return (
       <div className="min-h-dvh bg-background">
+        {/* Full-screen opening: the pen writes the brand, then hands over */}
+        <AnimatePresence>
+          {!introDone && (
+            <PennaIntro
+              tagline={c.introTagline}
+              onDone={() => {
+                try {
+                  sessionStorage.setItem("penna_intro_v1", "1");
+                } catch {
+                  /* ignore */
+                }
+                setIntroDone(true);
+              }}
+            />
+          )}
+        </AnimatePresence>
         <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-8 px-6 py-16 md:max-w-2xl">
-          {/* Opening moment: the pen writes the brand */}
-          <PennaWordmark className="h-12 self-start md:h-14" />
+          <PennaWordmark still className="h-12 self-start md:h-14" />
           <ScreenHeading title={c.chooseTitle} support={c.chooseSupport} headingRef={headingRef} />
           <div className="space-y-3 md:grid md:grid-cols-2 md:items-stretch md:gap-4 md:space-y-0">
             <button
