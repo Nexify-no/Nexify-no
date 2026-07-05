@@ -830,3 +830,21 @@ html, body, #root {
     scroll-behavior: auto !important;
   }
 }
+
+
+/* Safe-area support for notched / foldable devices (env() resolves to 0 elsewhere,
+   so this is a no-op on normal screens — zero regression). */
+@supports (padding: max(0px)) {
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  /* Sticky top bars sit under the status-bar/notch area on landscape notched phones. */
+  nav.sticky, header.sticky, .safe-top {
+    padding-top: max(0px, env(safe-area-inset-top));
+  }
+  /* Fixed bottom CTAs / bars clear the home indicator. */
+  .safe-bottom {
+    padding-bottom: max(0px, env(safe-area-inset-bottom));
+  }
+}
