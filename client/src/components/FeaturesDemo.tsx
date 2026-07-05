@@ -216,10 +216,16 @@ export default function FeaturesDemo() {
                 <button
                   key={i}
                   onClick={() => setActiveFeature(i)}
-                  className={`h-2 rounded-full transition-all duration-300 ${
-                    activeFeature === i ? "w-6 bg-primary" : "w-2 bg-gray-300"
-                  }`}
-                />
+                  aria-label={`Vis funksjon ${i + 1} av ${DEMO_SCENARIOS.length}`}
+                  aria-current={activeFeature === i}
+                  className="flex h-6 items-center justify-center px-2"
+                >
+                  <span
+                    className={`block h-2 rounded-full transition-all duration-300 ${
+                      activeFeature === i ? "w-6 bg-primary" : "w-2 bg-gray-300"
+                    }`}
+                  />
+                </button>
               ))}
             </div>
           </div>
