@@ -122,7 +122,7 @@ export default function HowItWorksDemo() {
       <div className="bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden">
         <div className="grid md:grid-cols-2">
           {/* Left: Steps */}
-          <div className="p-6 md:p-8 border-r border-gray-100">
+          <div className="min-w-0 p-6 md:p-8 border-r border-gray-100">
             <div className="space-y-4">
               {steps.map((step, i) => (
                 <button
@@ -134,13 +134,13 @@ export default function HowItWorksDemo() {
                       : "hover:bg-gray-50/50"
                   }`}
                 >
-                  <div className="flex items-start gap-4">
+                  <div className="flex items-start gap-4 min-w-0">
                     <div className={`h-12 w-12 flex-shrink-0 bg-gradient-to-br ${step.gradient} rounded-xl flex items-center justify-center shadow-md transition-all duration-500 ${
                       activeStep === i ? "scale-110" : "opacity-60"
                     }`}>
                       <step.icon className="h-6 w-6 text-white" />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-gray-400">0{i + 1}</span>
                         <h4 className={`font-bold transition-colors duration-300 ${
@@ -160,12 +160,12 @@ export default function HowItWorksDemo() {
           </div>
 
           {/* Right: Live Preview */}
-          <div className="p-6 md:p-8 bg-gray-50/50">
+          <div className="min-w-0 p-6 md:p-8 bg-gray-50/50">
             <div className="flex items-center gap-2 mb-4">
               <div className="h-2 w-2 rounded-full bg-green-400 animate-pulse"></div>
               <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Live forhåndsvisning</span>
             </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-5 min-h-[200px] shadow-sm">
+            <div className="min-w-0 overflow-hidden bg-white rounded-xl border border-gray-200 p-5 min-h-[200px] shadow-sm">
               {steps[activeStep].mockup}
             </div>
           </div>

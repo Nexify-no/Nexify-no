@@ -175,7 +175,7 @@ export default function Dashboard() {
         )}
         {/* Welcome Header */}
         <div className="mb-8 page-enter">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
@@ -194,7 +194,7 @@ export default function Dashboard() {
                   : (language === "no" ? "Klar til å lage noe fantastisk i dag?" : "Ready to create something amazing today?")}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {isAdmin && (
                 <>
                   <Button 

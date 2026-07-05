@@ -144,7 +144,7 @@ export default function Coach() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <Button 
                 variant="outline" 
-                className="justify-start text-left h-auto py-3 px-4 hover:bg-primary/10"
+                className="justify-start text-left h-auto py-3 px-4 hover:bg-primary/10 whitespace-normal"
                 onClick={() => setInput(language === "no" 
                   ? "Hvordan kan jeg skrive mer engasjerende LinkedIn-innlegg?"
                   : "How can I write more engaging LinkedIn posts?")}
@@ -158,7 +158,7 @@ export default function Coach() {
               
               <Button 
                 variant="outline" 
-                className="justify-start text-left h-auto py-3 px-4 hover:bg-primary/10"
+                className="justify-start text-left h-auto py-3 px-4 hover:bg-primary/10 whitespace-normal"
                 onClick={() => setInput(language === "no" 
                   ? "Hva er de beste tidspunktene å poste på sosiale medier?"
                   : "What are the best times to post on social media?")}
@@ -172,7 +172,7 @@ export default function Coach() {
               
               <Button 
                 variant="outline" 
-                className="justify-start text-left h-auto py-3 px-4 hover:bg-primary/10"
+                className="justify-start text-left h-auto py-3 px-4 hover:bg-primary/10 whitespace-normal"
                 onClick={() => setInput(language === "no" 
                   ? "Gi meg ideer til innhold for neste uke"
                   : "Give me content ideas for next week")}
@@ -186,7 +186,7 @@ export default function Coach() {
               
               <Button 
                 variant="outline" 
-                className="justify-start text-left h-auto py-3 px-4 hover:bg-primary/10"
+                className="justify-start text-left h-auto py-3 px-4 hover:bg-primary/10 whitespace-normal"
                 onClick={() => setInput(language === "no" 
                   ? "Hvordan kan jeg øke engasjementet på innleggene mine?"
                   : "How can I increase engagement on my posts?")}
@@ -200,7 +200,7 @@ export default function Coach() {
               
               <Button 
                 variant="outline" 
-                className="justify-start text-left h-auto py-3 px-4 hover:bg-primary/10"
+                className="justify-start text-left h-auto py-3 px-4 hover:bg-primary/10 whitespace-normal"
                 onClick={() => setInput(language === "no" 
                   ? "Hva gjør et innlegg viralt?"
                   : "What makes a post go viral?")}
@@ -214,7 +214,7 @@ export default function Coach() {
               
               <Button 
                 variant="outline" 
-                className="justify-start text-left h-auto py-3 px-4 hover:bg-primary/10"
+                className="justify-start text-left h-auto py-3 px-4 hover:bg-primary/10 whitespace-normal"
                 onClick={() => setInput(language === "no" 
                   ? "Analyser min innholdsstrategi og gi tilbakemeldinger"
                   : "Analyze my content strategy and give feedback")}
