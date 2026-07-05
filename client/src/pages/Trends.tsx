@@ -370,7 +370,7 @@ export default function Trends() {
                     );
                   })}
                 </div>
-                <div className="flex items-center gap-2 lg:ml-auto">
+                <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
                   <Select value={activeBransje} onValueChange={(v) => { setActiveBransje(v); resetPaging(); }}>
                     <SelectTrigger className="h-9 w-[170px]">
                       <SelectValue placeholder="Bransje" />
