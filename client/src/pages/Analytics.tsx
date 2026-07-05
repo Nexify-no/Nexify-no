@@ -129,7 +129,7 @@ export function Analytics() {
             <CardTitle>Filter Analytics</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 [&>*]:min-w-0">
               <div>
                 <label className="text-sm font-medium">Start Date</label>
                 <input
