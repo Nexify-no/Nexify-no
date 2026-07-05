@@ -691,7 +691,7 @@ export default function Generate() {
                     </button>
                     <button
                       onClick={() => deletePresetMutation.mutate({ id: p.id })}
-                      className="pr-2 pl-0.5 py-1 text-muted-foreground hover:text-destructive"
+                      className="inline-flex items-center justify-center min-h-[24px] min-w-[24px] px-1.5 py-1 text-muted-foreground hover:text-destructive"
                       aria-label={`Slett ${p.name}`}
                     >
                       <X className="h-3 w-3" />
