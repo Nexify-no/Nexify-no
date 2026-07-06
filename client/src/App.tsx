@@ -125,6 +125,7 @@ function Router() {
         <Route path={"/admin/members"} component={MemberMonitoring} />
         <Route path={"/examples"} component={Examples} />
         <Route path={"/kalender"} component={Calendar} />
+        <Route path={"/calendar"} component={Calendar} />
         <Route path={"/kalender-old"} component={ContentCalendar} />
         <Route path={"/best-time"} component={BestTime} />
         <Route path={"/pricing"} component={Pricing} />
@@ -155,8 +156,10 @@ function Router() {
         <Route path={"/innlegg"} component={Posts} />
         <Route path={"/beste-tid"} component={BestTime} />
         <Route path={"/gjenbruk"} component={ContentRepurpose} />
+        <Route path={"/content-repurpose"} component={ContentRepurpose} />
         <Route path={"/innholdsserier"} component={ContentSeries} />
         <Route path={"/ide-bank"} component={IdeaBank} />
+        <Route path={"/ideas"} component={IdeaBank} />
         <Route path={"/trender"} component={Trends} />
         <Route path={"/eksempler"} component={Examples} />
         <Route path={"/stemme"} component={VoiceTraining} />
