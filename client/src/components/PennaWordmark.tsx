@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { SIG_WORD, SIG_STROKE_P, SIG_STROKE_E } from "@/components/pennaSignature";
 
 /**
  * The quill from PennaMark (same 128-viewBox geometry), tip normalized to
@@ -65,12 +66,14 @@ export function PennaWordmark({
 }
 
 /**
- * Full-screen brand opening (v2, cinematic): the quill drops onto the page
- * (ink dot), the logotype is revealed pixel-synced behind the travelling
- * tip, the pen lifts, glides back and sweeps an ink underline sampled from
- * the same bézier the ink draws, and the promise line rises word by word.
- * Tap / Enter / Escape skips. Under prefers-reduced-motion it never shows
- * (onDone fires immediately).
+ * Full-screen brand opening (v3, signature): "Penna" set in a real cursive
+ * (Sacramento) is written stroke by stroke — the quill follows the SAME
+ * hand-authored centerlines that drive the ink-reveal mask (animateMotion +
+ * mpath), so pen and ink are geometrically locked. Two strokes with a pen
+ * lift between them (P, then enna), ink dot on touchdown, promise line
+ * rising word by word, then the scene dissolves into the official Space
+ * Grotesk wordmark on the chooser. Tap / Enter / Escape skips. Under
+ * prefers-reduced-motion it never shows (onDone fires immediately).
  */
 export function PennaIntro({ tagline, onDone }: { tagline: string; onDone: () => void }) {
   const reduceMotion = useReducedMotion();
@@ -116,20 +119,32 @@ export function PennaIntro({ tagline, onDone }: { tagline: string; onDone: () =>
         }}
       />
 
-      <svg viewBox="0 0 224 88" aria-hidden="true" className="relative w-[min(74vw,470px)]">
+      <svg viewBox="-2 -62 188 74" aria-hidden="true" className="relative w-[min(76vw,480px)]">
         <defs>
-          <mask id="penna-reveal">
-            <rect className="pintro-reveal" x="0" y="0" width="0" height="88" fill="#fff" />
+          <mask id="penna-sig-mask" maskUnits="userSpaceOnUse" x="-2" y="-62" width="188" height="74">
+            <path id="penna-sig-p" className="sig-stroke sig-p" pathLength={100} d={SIG_STROKE_P} />
+            <path id="penna-sig-e" className="sig-stroke sig-e" pathLength={100} d={SIG_STROKE_E} />
           </mask>
         </defs>
-        <circle className="pintro-inkdot" cx="9" cy="58" r="2.4" />
-        <text x="6" y="50" mask="url(#penna-reveal)" className="pintro-word">
-          Penna
-        </text>
-        <path className="pintro-underline" d="M10 62 Q112 74 214 56" />
-        <g className="pintro-nib">
-          <QuillNib scale={0.5} />
-        </g>
+        {/* ink dot where the pen first touches the page */}
+        <circle className="sig-inkdot" cx="14" cy="-3" r="2" />
+        {/* the signature, revealed only where the pen has written */}
+        <path d={SIG_WORD} className="sig-word" mask="url(#penna-sig-mask)" />
+        {/* the quill rides the exact same centerlines (SMIL animateMotion).
+            Raw markup: mpath is not in React's JSX types. */}
+        <g
+          className="sig-nib"
+          dangerouslySetInnerHTML={{
+            __html:
+              '<g transform="scale(0.5) translate(-65.5 -89)">' +
+              '<path d="M104 26 L70 76 l8.5 8.5 L116 38 Z" fill="currentColor"/>' +
+              '<path d="M70 76 l8.5 8.5 l-13 4.5 Z" fill="currentColor"/>' +
+              '<line x1="100.5" y1="33.5" x2="74.5" y2="80" stroke="var(--background)" stroke-width="2.2" stroke-linecap="round"/>' +
+              "</g>" +
+              '<animateMotion begin="0.35s" dur="0.85s" fill="freeze" calcMode="linear"><mpath href="#penna-sig-p"/></animateMotion>' +
+              '<animateMotion begin="1.28s" dur="1.2s" fill="freeze" calcMode="linear"><mpath href="#penna-sig-e"/></animateMotion>',
+          }}
+        />
       </svg>
 
       <p className="flex max-w-sm flex-wrap justify-center gap-x-[0.3em] text-center text-base text-muted-foreground md:text-lg">
@@ -138,7 +153,7 @@ export function PennaIntro({ tagline, onDone }: { tagline: string; onDone: () =>
             key={`${w}-${i}`}
             initial={{ opacity: 0, y: 9 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 2.55 + i * 0.07, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ delay: 2.35 + i * 0.07, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
           >
             {w}
           </motion.span>

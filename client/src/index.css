@@ -895,77 +895,49 @@ html, body, #root {
   .pen-loader-nib { display: none; }
 }
 
-/* ---- Full-screen brand intro v2 --------------------------------------
-   Cinematic sequence: the quill lands (ink dot), the logotype is revealed
-   pixel-synced behind the travelling tip (mask width and tip x share one
-   linear timeline), the pen lifts, glides back and sweeps an underline
-   whose pen keyframes are sampled from the same quadratic bézier the ink
-   draws. One 2.8s master timeline on the nib; everything else is derived. */
-.pintro-word {
-  font-family: var(--font-display);
-  font-size: 46px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  fill: var(--foreground);
+/* ---- Full-screen brand intro v3: the signature ------------------------
+   "Penna" in real cursive is written stroke by stroke. Two hand-authored
+   pen centerlines (P, then enna — the pen lifts between them) drive BOTH
+   the ink-reveal mask (dashoffset) and the quill (SMIL animateMotion on
+   the same paths), so pen and ink are geometrically locked. Durations are
+   proportional to real stroke lengths (221 vs 311 units) for a constant
+   writing speed. */
+.sig-word { fill: var(--foreground); }
+.sig-stroke {
+  fill: none;
+  stroke: #fff; /* luminance mask: white = ink revealed */
+  stroke-width: 8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
 }
-.pintro-reveal {
-  width: 0;
-  animation: pintro-reveal 1.5s linear 0.4s forwards;
-}
-@keyframes pintro-reveal { to { width: 178px; } }
-.pintro-inkdot {
+.sig-p { animation: penna-draw 0.85s linear 0.35s forwards; }
+.sig-e { animation: penna-draw 1.2s linear 1.28s forwards; }
+.sig-inkdot {
   fill: var(--primary);
   opacity: 0;
-  transform-origin: 9px 58px;
-  animation: pintro-dot 0.25s ease-out 0.3s forwards;
+  transform-origin: 14px -3px;
+  animation: sig-dot 0.22s ease-out 0.28s forwards;
 }
-@keyframes pintro-dot {
+@keyframes sig-dot {
   from { opacity: 0; transform: scale(0); }
-  to   { opacity: 0.9; transform: scale(1); }
+  to   { opacity: 0.85; transform: scale(1); }
 }
-.pintro-underline {
-  fill: none;
-  stroke: var(--primary);
-  stroke-width: 2.5;
-  stroke-linecap: round;
-  stroke-dasharray: 208;
-  stroke-dashoffset: 208;
-  animation: penna-draw 0.5s linear 2.45s forwards;
-}
-.pintro-nib {
+.sig-nib {
   color: var(--primary);
   opacity: 0;
   animation:
-    pintro-nib-path 2.8s linear 0.15s forwards,
-    pintro-nib-fade 0.3s ease-out 2.95s forwards;
+    sig-nib-in 0.2s ease-out 0.3s forwards,
+    sig-nib-out 0.35s ease-out 2.55s forwards;
 }
-/* land (drop-in) → write x-linear with hand wobble → lift & glide back →
-   sweep the underline (82–100% = bézier samples at t=0.25/0.5/0.75) */
-@keyframes pintro-nib-path {
-  0%    { transform: translate(8px, 36px); opacity: 0; }
-  6%    { transform: translate(8px, 52px); opacity: 1; }
-  8.9%  { transform: translate(8px, 55px); }
-  20%   { transform: translate(43px, 47px); }
-  32%   { transform: translate(81px, 56px); }
-  45%   { transform: translate(121px, 48px); }
-  55%   { transform: translate(153px, 55px); }
-  62.5% { transform: translate(176px, 52px); }
-  67%   { transform: translate(150px, 30px); }
-  72%   { transform: translate(100px, 24px); }
-  77%   { transform: translate(48px, 38px); }
-  82%   { transform: translate(10px, 61px); }
-  86.5% { transform: translate(61px, 66px); }
-  91%   { transform: translate(112px, 66.5px); }
-  95.5% { transform: translate(163px, 63px); }
-  100%  { transform: translate(214px, 57px); opacity: 1; }
-}
-@keyframes pintro-nib-fade { to { opacity: 0; } }
+@keyframes sig-nib-in { to { opacity: 1; } }
+@keyframes sig-nib-out { to { opacity: 0; } }
 /* Static variant — after the intro owns the animation, the small wordmark rests */
 .penna-still .penna-word { animation: none; fill-opacity: 1; stroke: none; }
 .penna-still .penna-nib { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .pintro-reveal { animation: none; width: 178px; }
-  .pintro-underline { animation: none; stroke-dashoffset: 0; }
-  .pintro-inkdot, .pintro-nib { display: none; }
+  .sig-stroke { animation: none; stroke-dashoffset: 0; }
+  .sig-inkdot, .sig-nib { display: none; }
 }
