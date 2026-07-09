@@ -57,54 +57,82 @@ function parseRss(xml: string, source: string, category: string, limit = 8): Agg
   return items;
 }
 
-/** NRK top stories RSS — trusted Norwegian news. Lightweight regex parse. */
-async function fetchNRK(): Promise<AggregatedTrend[]> {
-  const res = await withTimeout("https://www.nrk.no/toppsaker.rss");
-  if (!res.ok) throw new Error(`NRK ${res.status}`);
+/** Fetch + parse any RSS feed into trends. Exported for the source dashboard. */
+export async function fetchRssFeed(url: string, source: string, category: string, limit = 8): Promise<AggregatedTrend[]> {
+  const res = await withTimeout(url);
+  if (!res.ok) throw new Error(`${source} ${res.status}`);
   const xml = await res.text();
-  return parseRss(xml, "NRK", "nyheter", 8);
+  return parseRss(xml, source, category, limit);
 }
 
-/** Wikipedia (Norwegian) most-read articles for yesterday — Wikimedia pageviews API. */
-async function fetchWikipedia(): Promise<AggregatedTrend[]> {
+/** NRK top stories RSS — trusted Norwegian news. Lightweight regex parse. */
+async function fetchNRK(): Promise<AggregatedTrend[]> {
+  return fetchRssFeed("https://www.nrk.no/toppsaker.rss", "NRK", "nyheter", 8);
+}
+
+const WIKI_EXCLUDE_EXACT = new Set(["Hovedside", "Forside", "Main Page", "Main_Page", "Spesial:Søk", "Special:Search", "Wikipedia"]);
+const WIKI_EXCLUDE_PREFIX = ["Spesial:", "Special:", "Wikipedia:", "Portal:", "Hjelp:", "Help:", "Fil:", "File:"];
+
+/**
+ * Wikipedia most-read articles for yesterday — Wikimedia pageviews API.
+ * Parametrized by project so both no.wikipedia and en.wikipedia work.
+ * Exported for the source dashboard.
+ */
+export async function fetchWikipediaTop(project: "no.wikipedia" | "en.wikipedia", limit = 8): Promise<AggregatedTrend[]> {
   const d = new Date(Date.now() - 24 * 60 * 60 * 1000); // yesterday (today not finalized)
   const y = d.getUTCFullYear();
   const mo = String(d.getUTCMonth() + 1).padStart(2, "0");
   const da = String(d.getUTCDate()).padStart(2, "0");
-  const url = `https://wikimedia.org/api/rest_v1/metrics/pageviews/top/no.wikipedia/all-access/${y}/${mo}/${da}`;
+  const url = `https://wikimedia.org/api/rest_v1/metrics/pageviews/top/${project}/all-access/${y}/${mo}/${da}`;
   const res = await withTimeout(url);
   if (!res.ok) throw new Error(`Wikipedia ${res.status}`);
   const json: any = await res.json();
   const articles: any[] = json?.items?.[0]?.articles || [];
   const dateIso = new Date(Date.UTC(y, d.getUTCMonth(), d.getUTCDate())).toISOString();
+  const domain = project === "no.wikipedia" ? "no.wikipedia.org" : "en.wikipedia.org";
   return articles
-    .filter((a) => a.article && !["Hovedside", "Spesial:Søk", "Special:Search"].includes(a.article) && !a.article.startsWith("Spesial:") && !a.article.startsWith("Wikipedia:"))
-    .slice(0, 8)
+    .filter(
+      (a) =>
+        a.article &&
+        !WIKI_EXCLUDE_EXACT.has(a.article) &&
+        !WIKI_EXCLUDE_PREFIX.some((p) => String(a.article).startsWith(p)) &&
+        // technical artifacts that show up in raw pageview data (wiki.phtml, index.html, …)
+        !/\.(phtml|php|html?|aspx?)$/i.test(String(a.article))
+    )
+    .slice(0, limit)
     .map((a) => ({
       keyword: String(a.article).replace(/_/g, " "),
       source: "Wikipedia",
-      sourceUrl: `https://no.wikipedia.org/wiki/${encodeURIComponent(a.article)}`,
+      sourceUrl: `https://${domain}/wiki/${encodeURIComponent(a.article)}`,
       date: dateIso,
       traffic: `${Number(a.views).toLocaleString("no-NO")} visninger`,
       category: "kunnskap",
     }));
 }
 
-/** Reddit r/norge — top posts of the day (social/community trends). */
-async function fetchReddit(): Promise<AggregatedTrend[]> {
+/** Backwards-compatible wrapper used by the aggregated list (Norwegian). */
+async function fetchWikipedia(): Promise<AggregatedTrend[]> {
+  return fetchWikipediaTop("no.wikipedia", 8);
+}
+
+/**
+ * Reddit top posts of the day for any subreddit — social/community trends.
+ * Exported for the source dashboard (r/norge for Norway, r/popular globally).
+ */
+export async function fetchRedditTop(subreddit: string, sourceLabel: string, limit = 6): Promise<AggregatedTrend[]> {
   // JSON first; Reddit sometimes blocks datacenter IPs — fall back to RSS.
   try {
-    const res = await withTimeout("https://www.reddit.com/r/norge/top.json?t=day&limit=8");
+    const res = await withTimeout(`https://www.reddit.com/r/${subreddit}/top.json?t=day&limit=${limit + 2}`);
     if (res.ok) {
       const json: any = await res.json();
       const posts: any[] = json?.data?.children || [];
       const items = posts
         .map((p) => p.data)
         .filter((d) => d && d.title && !d.stickied)
-        .slice(0, 6)
+        .slice(0, limit)
         .map((d) => ({
           keyword: d.title as string,
-          source: "Reddit r/norge",
+          source: sourceLabel,
           sourceUrl: `https://www.reddit.com${d.permalink}`,
           date: new Date((d.created_utc || Date.now() / 1000) * 1000).toISOString(),
           traffic: `${Number(d.score || 0).toLocaleString("no-NO")} stemmer`,
@@ -115,25 +143,30 @@ async function fetchReddit(): Promise<AggregatedTrend[]> {
   } catch {
     /* fall through to RSS */
   }
-  const rss = await withTimeout("https://www.reddit.com/r/norge/top/.rss?t=day");
+  const rss = await withTimeout(`https://www.reddit.com/r/${subreddit}/top/.rss?t=day`);
   if (!rss.ok) throw new Error(`Reddit ${rss.status}`);
   const xml = await rss.text();
   // Atom feed uses <entry> not <item>; normalize minimally.
   const entries: AggregatedTrend[] = [];
   const re = /<entry>([\s\S]*?)<\/entry>/g;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(xml)) && entries.length < 6) {
+  while ((m = re.exec(xml)) && entries.length < limit) {
     const b = m[1];
     const title = (b.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/) || [])[1]?.trim();
     const link = (b.match(/<link[^>]*href="([^"]+)"/) || [])[1];
     const upd = (b.match(/<updated>([\s\S]*?)<\/updated>/) || [])[1];
-    if (title) entries.push({ keyword: title, source: "Reddit r/norge", sourceUrl: link, date: upd ? new Date(upd).toISOString() : new Date().toISOString(), category: "sosiale medier" });
+    if (title) entries.push({ keyword: title, source: sourceLabel, sourceUrl: link, date: upd ? new Date(upd).toISOString() : new Date().toISOString(), category: "sosiale medier" });
   }
   return entries;
 }
 
-/** Mastodon trending hashtags — public, reliable social-network trends (no auth). */
-async function fetchMastodon(): Promise<AggregatedTrend[]> {
+/** Backwards-compatible wrapper used by the aggregated list. */
+async function fetchReddit(): Promise<AggregatedTrend[]> {
+  return fetchRedditTop("norge", "Reddit r/norge", 6);
+}
+
+/** Mastodon trending hashtags — public, reliable social-network trends (no auth). Exported for the dashboard. */
+export async function fetchMastodon(): Promise<AggregatedTrend[]> {
   const res = await withTimeout("https://mastodon.social/api/v1/trends/tags?limit=8");
   if (!res.ok) throw new Error(`Mastodon ${res.status}`);
   const tags: any[] = await res.json();

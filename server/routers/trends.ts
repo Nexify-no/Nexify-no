@@ -16,6 +16,22 @@ import { z } from "zod";
 
 export const trendsRouter = router({
   /**
+   * Per-source top lists for the Trends dashboard grid, with a Norway/global
+   * toggle. Server-cached 30 min per geo; each source fails soft.
+   */
+  getDashboard: publicProcedure
+    .input(
+      z.object({
+        geo: z.enum(["no", "global"]).default("no"),
+        force: z.boolean().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const { getTrendDashboard } = await import("../services/trendDashboard");
+      return getTrendDashboard(input.geo, input.force ?? false);
+    }),
+
+  /**
    * Aggregated trends from multiple trusted sources (Google Trends, NRK,
    * Wikipedia), each item carrying its source and a real date.
    */
