@@ -33,6 +33,7 @@ import { ArrowRight, Check, ChevronLeft, Globe, Pencil, Sparkles, X } from "luci
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { PennaWordmark, PennaIntro, PenLoader } from "@/components/PennaWordmark";
+import { SIG_WORD } from "@/components/pennaSignature";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLoginUrl } from "@/const";
@@ -970,7 +971,18 @@ export default function Onboarding() {
   // the wizard resumable (Dashboard shows a "fortsett" card until completed).
   if (!state.choiceMade) {
     return (
-      <div className="min-h-dvh bg-background">
+      <div className="penna-wash penna-paper relative min-h-dvh overflow-hidden bg-background">
+        {/* ambient: the giant signature as a watermark + slow ink motes */}
+        <svg
+          viewBox="0 -60 180 66"
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-10 -right-24 w-[560px] -rotate-6 md:w-[680px]"
+        >
+          <path d={SIG_WORD} className="fill-foreground/[0.025]" />
+        </svg>
+        <span aria-hidden className="ink-mote left-[12%] top-[68%] h-3 w-3" style={{ "--mote-dur": "34s", "--mote-x": "70px", "--mote-y": "-160px" } as React.CSSProperties} />
+        <span aria-hidden className="ink-mote left-[78%] top-[30%] h-2 w-2" style={{ "--mote-dur": "28s", "--mote-delay": "6s", "--mote-x": "-50px", "--mote-y": "-120px" } as React.CSSProperties} />
+        <span aria-hidden className="ink-mote left-[45%] top-[85%] h-2.5 w-2.5" style={{ "--mote-dur": "40s", "--mote-delay": "13s", "--mote-x": "40px", "--mote-y": "-180px" } as React.CSSProperties} />
         {/* Full-screen opening: the pen writes the brand, then hands over */}
         <AnimatePresence>
           {!introDone && (
@@ -1042,7 +1054,7 @@ export default function Onboarding() {
 
   // ---------------------------------------------------------------------------------
   return (
-    <div className="min-h-dvh bg-background">
+    <div className="penna-wash penna-paper min-h-dvh bg-background">
       {/* Progress: thin bar + step label */}
       <div className="fixed inset-x-0 top-0 z-30 bg-background/90 backdrop-blur-sm">
         <div
