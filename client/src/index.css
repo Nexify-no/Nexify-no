@@ -943,9 +943,25 @@ html, body, #root {
 }
 
 /* ---- Ambient layer: paper + ink -----------------------------------------
-   The page Penna writes on. Static film grain (SVG turbulence) over a
-   whisper of ink-wash radial tint; drifting ink motes only on the brand
-   moment (the chooser), never on task screens. All pointer-events: none. */
+   The page Penna writes on. A single static film-grain overlay covers the
+   WHOLE app (body::after) so every surface shares the same paper. Brand
+   surfaces (chooser, auth) add a richer ink-wash tint and, on the chooser,
+   slow drifting motes. All layers pointer-events: none, so nothing is ever
+   clickable through them. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.025;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.dark body::after {
+  opacity: 0.04;
+  mix-blend-mode: screen;
+}
 .penna-wash::before {
   content: "";
   position: fixed;

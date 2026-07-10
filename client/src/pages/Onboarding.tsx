@@ -971,7 +971,7 @@ export default function Onboarding() {
   // the wizard resumable (Dashboard shows a "fortsett" card until completed).
   if (!state.choiceMade) {
     return (
-      <div className="penna-wash penna-paper relative min-h-dvh overflow-hidden bg-background">
+      <div className="penna-wash relative min-h-dvh overflow-hidden bg-background">
         {/* ambient: the giant signature as a watermark + slow ink motes */}
         <svg
           viewBox="0 -60 180 66"
@@ -1054,7 +1054,7 @@ export default function Onboarding() {
 
   // ---------------------------------------------------------------------------------
   return (
-    <div className="penna-wash penna-paper min-h-dvh bg-background">
+    <div className="penna-wash min-h-dvh bg-background">
       {/* Progress: thin bar + step label */}
       <div className="fixed inset-x-0 top-0 z-30 bg-background/90 backdrop-blur-sm">
         <div
