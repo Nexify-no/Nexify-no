@@ -20,7 +20,7 @@ const MAX_HTML_BYTES = 600_000;
 const MAX_PROMPT_CHARS = 7_000;
 const MAX_REDIRECTS = 4;
 const UA =
-  "Mozilla/5.0 (compatible; InnleggBot/1.0; +https://nexify-ai.onrender.com) AppleWebKit/537.36";
+  "Mozilla/5.0 (compatible; PennaBot/1.0; +https://penna.no) AppleWebKit/537.36";
 
 /**
  * SSRF guard for user-supplied URLs: reject loopback/link-local/private hosts by

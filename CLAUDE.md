@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`nexify-ai` (product name "Innlegg") — a Norwegian SaaS that generates AI social-media content. Single package, not a workspace: a Vite/React client and an Express + tRPC server share one `package.json`, the `drizzle/` schema, and the `shared/` folder. Package manager is **pnpm**.
+`nexify-ai` (product name **Penna**) — a Norwegian SaaS that generates AI social-media content. Note: `innlegg` still appears throughout the UI/i18n as the ordinary Norwegian noun for "post(s)" (e.g. "Mine innlegg", "Lag innlegg") — that is correct vocabulary, not the brand; only the product/brand name is Penna. Single package, not a workspace: a Vite/React client and an Express + tRPC server share one `package.json`, the `drizzle/` schema, and the `shared/` folder. Package manager is **pnpm**.
 
 ## Commands
 

@@ -42,7 +42,7 @@ VITE_STRIPE_PUBLISHABLE_KEY=pk_test_...
 
 # Email
 SENDGRID_API_KEY=SG.xxx
-SENDGRID_FROM_EMAIL=noreply@innlegg.no
+SENDGRID_FROM_EMAIL=noreply@penna.no
 
 # Analytics
 VITE_ANALYTICS_WEBSITE_ID=your_analytics_id
