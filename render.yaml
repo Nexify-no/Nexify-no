@@ -1,25 +1,34 @@
-# Render Blueprint — Nexify AI (Innlegg)
-# One-click deploy: Render → New → Blueprint → pick this repo.
+# Render Blueprint — Nexify AI (Penna / innlegg)
 #
-# Architecture: a single always-on Node web service that serves BOTH the built
-# Vite frontend and the Express/tRPC API, plus an in-process node-cron scheduler
-# (auto-publish every 5 min). Because of that scheduler the service MUST stay
-# awake — do NOT use the Free plan (it spins down on inactivity and the cron
-# stops). Starter ($7/mo) keeps it always-on and unlocks preDeployCommand so
-# database migrations run automatically before each release.
+# TWO environments from ONE repo:
+#   • nexify-ai          → PRODUCTION, tracks `main`      (penna.no)
+#   • nexify-ai-staging  → STAGING,    tracks `staging`   (verify before promoting)
 #
-# Database is external: TiDB Cloud (MySQL-compatible). Set DATABASE_URL in the
-# Render dashboard to your TiDB Serverless connection string.
+# Promote flow:  feature branch → PR (CI must be green) → merge to `staging`
+#                → auto-deploys to staging → smoke-test → merge `staging` → `main`
+#                → auto-deploys to production.
+#
+# Architecture (both services identical): a single always-on Node web service
+# that serves the built Vite frontend AND the Express/tRPC API, plus an in-process
+# node-cron scheduler (auto-publish every 5 min). Because of that scheduler the
+# service MUST stay awake — do NOT use the Free plan (it spins down and cron stops).
+# Starter ($7/mo) keeps it always-on and unlocks preDeployCommand for migrations.
+#
+# Databases are external (TiDB Cloud, MySQL-wire). Prod and staging MUST use
+# SEPARATE databases — never point staging at the prod DB. Set DATABASE_URL per
+# service in the Render dashboard.
 
 services:
-  # -- Web service: frontend + API + scheduler --------------------------------
+  # ==========================================================================
+  # PRODUCTION — tracks `main`
+  # ==========================================================================
   - type: web
     name: nexify-ai
     runtime: node
     plan: starter            # do NOT use "free": cron scheduler needs always-on
     region: frankfurt        # closest EU region (Norway)
     branch: main
-    buildCommand: pnpm install --no-frozen-lockfile && pnpm build
+    buildCommand: pnpm install --frozen-lockfile && pnpm build   # frozen: fail loudly if lockfile drifts (sync it, don't mask it)
     preDeployCommand: pnpm db:migrate   # apply Drizzle migrations before going live
     startCommand: pnpm start
     healthCheckPath: /health
@@ -27,37 +36,34 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: APP_ENV
+        value: production
       - key: RUN_SCHEDULER
         value: "true"        # single instance -> run the in-process cron here
-
-      # Auto-generated secrets (Render fills these once)
       - key: JWT_SECRET
         generateValue: true
       - key: TOKEN_ENCRYPTION_KEY
         generateValue: true
-
-      # Redis (wired automatically from the keyvalue service below)
       - key: REDIS_URL
         fromService:
           type: keyvalue
           name: nexify-redis
           property: connectionString
-
       # Secrets you MUST set in the Render dashboard (sync:false)
-      - key: DATABASE_URL          # mysql://user:pass@gateway.<region>.prod.aws.tidbcloud.com:4000/db?ssl={"rejectUnauthorized":true}
+      - key: DATABASE_URL          # PROD TiDB — mysql://user:pass@gateway.<region>.prod.aws.tidbcloud.com:4000/db?ssl={"rejectUnauthorized":true}
         sync: false
-      - key: PUBLIC_SITE_URL       # e.g. https://penna.no (Render custom domain)
+      - key: PUBLIC_SITE_URL       # https://penna.no
         sync: false
-      - key: OPENAI_API_KEY        # sk-...
+      - key: OPENAI_API_KEY
         sync: false
-      - key: STRIPE_SECRET_KEY     # sk_test_... or sk_live_...
+      - key: STRIPE_SECRET_KEY     # sk_live_...
         sync: false
       - key: STRIPE_WEBHOOK_SECRET # whsec_...
         sync: false
-      - key: VITE_STRIPE_PUBLISHABLE_KEY  # pk_test_... (build-time, frontend)
+      - key: VITE_STRIPE_PUBLISHABLE_KEY  # pk_live_... (build-time, frontend)
         sync: false
-
-      # Optional (leave unset to disable the feature)
+      - key: VITE_GA4_ID           # G-XXXXXXXXXX (no paid ads without analytics)
+        sync: false
       - key: SENDGRID_API_KEY
         sync: false
       - key: SENDGRID_FROM_EMAIL
@@ -71,9 +77,71 @@ services:
       - key: SENTRY_DSN
         sync: false
 
-  # -- Redis (managed, for distributed rate limiting) -------------------------
+  # ==========================================================================
+  # STAGING — tracks `staging` (pre-production verification)
+  # ==========================================================================
+  - type: web
+    name: nexify-ai-staging
+    runtime: node
+    plan: starter
+    region: frankfurt
+    branch: staging
+    buildCommand: pnpm install --frozen-lockfile && pnpm build
+    preDeployCommand: pnpm db:migrate   # migrations rehearse here FIRST, against the staging DB
+    startCommand: pnpm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production      # build/runtime parity with prod
+      - key: APP_ENV
+        value: staging         # app can branch on this (e.g. banner, robots noindex)
+      - key: RUN_SCHEDULER
+        value: "false"         # keep staging cron OFF so it never publishes real posts
+      - key: JWT_SECRET
+        generateValue: true
+      - key: TOKEN_ENCRYPTION_KEY
+        generateValue: true
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: nexify-redis-staging
+          property: connectionString
+      # SEPARATE staging secrets — never reuse prod DB or live payment keys
+      - key: DATABASE_URL          # STAGING TiDB (a DIFFERENT database from prod)
+        sync: false
+      - key: PUBLIC_SITE_URL       # https://staging.penna.no (or the Render *.onrender.com URL)
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY     # sk_test_... ONLY on staging
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET # whsec_... (test)
+        sync: false
+      - key: VITE_STRIPE_PUBLISHABLE_KEY  # pk_test_...
+        sync: false
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: SENDGRID_FROM_EMAIL
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+
+  # -- Redis (managed) — one per environment, private ------------------------
   - type: keyvalue
     name: nexify-redis
     plan: free
     region: frankfurt
     ipAllowList: []          # private -- reachable only from Render services
+
+  - type: keyvalue
+    name: nexify-redis-staging
+    plan: free
+    region: frankfurt
+    ipAllowList: []
