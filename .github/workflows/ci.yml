@@ -1,0 +1,58 @@
+# Nexify (Penna) — CI quality gate
+# Add this file at: .github/workflows/ci.yml
+# (Must be added via the GitHub web UI or a token WITH `workflow` scope.)
+#
+# Purpose: NOTHING merges to `staging` or `main` unless this is green.
+# Turn it into a hard gate: GitHub → Settings → Branches → add a branch
+# protection rule for `main` AND `staging` → "Require status checks to pass"
+# → select "quality". Also enable "Require a pull request before merging".
+
+name: CI
+on:
+  pull_request:
+    branches: [main, staging]
+  push:
+    branches: [main, staging]
+
+# Cancel superseded runs on the same ref to save minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      # Frozen install is the lockfile-drift tripwire: if pnpm-lock.yaml is out
+      # of sync with package.json (e.g. qrcode.react), this step FAILS here —
+      # before it can ever reach a deploy.
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm run check
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Test
+        run: pnpm test
+
+      # Fails the build on a known HIGH/CRITICAL vuln in production deps.
+      - name: Audit (prod deps)
+        run: pnpm audit --prod --audit-level high
