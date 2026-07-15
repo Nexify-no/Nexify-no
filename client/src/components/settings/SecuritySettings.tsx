@@ -192,6 +192,18 @@ export function SecuritySettings({ language }: SecuritySettingsProps) {
     setPasswordStrength(strength);
   };
 
+  const changePasswordMutation = trpc.auth.changePassword.useMutation({
+    onSuccess: () => {
+      toast.success(language === 'no' ? 'Passordet ble endret' : 'Password changed');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    },
+    onError: (e) => {
+      toast.error(e.message || (language === 'no' ? 'Kunne ikke endre passord' : 'Could not change password'));
+    },
+  });
+
   const handleChangePassword = () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
       toast.error(t.error);
@@ -201,11 +213,15 @@ export function SecuritySettings({ language }: SecuritySettingsProps) {
       toast.error(language === 'no' ? 'Passordene samsvarer ikke' : 'Passwords do not match');
       return;
     }
+    if (newPassword.length < 12) {
+      toast.error(language === 'no' ? 'Passord må være minst 12 tegn' : 'Password must be at least 12 characters');
+      return;
+    }
     if (passwordStrength < 3) {
       toast.error(language === 'no' ? 'Passord er for svakt' : 'Password is too weak');
       return;
     }
-    toast.info(language === 'no' ? 'Endre passord kommer snart' : 'Change password coming soon');
+    changePasswordMutation.mutate({ currentPassword, newPassword });
   };
 
   const copyText = (text: string) => {

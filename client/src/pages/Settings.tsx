@@ -563,9 +563,7 @@ export default function Settings() {
         <Tabs defaultValue="account" className="w-full">
           <TabsList className="flex w-full h-auto flex-wrap gap-1 bg-slate-100/80 dark:bg-slate-800/50 p-1.5 rounded-xl">
             <TabsTrigger value="account">{language === "no" ? "Konto" : "Account"}</TabsTrigger>
-            <TabsTrigger value="notifications">{language === "no" ? "Varsler" : "Notifications"}</TabsTrigger>
             <TabsTrigger value="platforms">{language === "no" ? "Plattformer" : "Platforms"}</TabsTrigger>
-            <TabsTrigger value="content">{language === "no" ? "Innhold" : "Content"}</TabsTrigger>
             <TabsTrigger value="security">{language === "no" ? "Sikkerhet" : "Security"}</TabsTrigger>
             <TabsTrigger value="faq">{language === "no" ? "FAQ" : "FAQ"}</TabsTrigger>
             <TabsTrigger value="billing">{language === "no" ? "Fakturering" : "Billing"}</TabsTrigger>
@@ -740,18 +738,6 @@ export default function Settings() {
           </TabsContent>
 
           {/* Notifications Tab */}
-          <TabsContent value="notifications" className="space-y-6 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>{language === "no" ? "Varslingsinnstillinger" : "Notification Settings"}</CardTitle>
-                <CardDescription>{language === "no" ? "Administrer dine varslinger" : "Manage your notifications"}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">{language === "no" ? "Varslingsinnstillinger kommer snart" : "Notification settings coming soon"}</p>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
           {/* Platforms Tab */}
           <TabsContent value="platforms" className="space-y-6 mt-6">
           <Card>
@@ -875,18 +861,6 @@ export default function Settings() {
           </TabsContent>
 
           {/* Content Tab */}
-          <TabsContent value="content" className="space-y-6 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>{language === "no" ? "Innholdsinnstillinger" : "Content Settings"}</CardTitle>
-                <CardDescription>{language === "no" ? "Administrer dine innholdsinnstillinger" : "Manage your content settings"}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">{language === "no" ? "Innholdsinnstillinger kommer snart" : "Content settings coming soon"}</p>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
           {/* Security Tab */}
           <TabsContent value="security" className="space-y-6 mt-6">
             <SecuritySettings language={language} />
