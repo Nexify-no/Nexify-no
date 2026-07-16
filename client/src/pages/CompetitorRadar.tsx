@@ -399,7 +399,11 @@ function CompetitorDetail({
 }) {
   const utils = trpc.useUtils();
   const [, setLocation] = useLocation();
-  const { data, isLoading } = trpc.radar.get.useQuery({ id });
+  const radarGet = trpc.radar.get.useQuery({ id });
+  // tRPC's inferred output for this deep procedure collapses to {}, so anchor it
+  // to the known server shape (runtime data is unchanged).
+  const data = radarGet.data as RadarDetail | undefined;
+  const isLoading = radarGet.isLoading;
 
   const syncMutation = trpc.radar.sync.useMutation({
     onSuccess: () => {
@@ -671,6 +675,16 @@ function StatCard({ label, value, icon: Icon }: { label: string; value: string; 
     </Card>
   );
 }
+
+type RadarDetail = {
+  competitor: { id: number; name: string; website: string | null; aiSummary: string | null; createdAt: Date };
+  sources: { id: number; type: string; url: string; lastFetch: Date | null }[];
+  content: { id: number; title: string; url: string; publishedAt: Date | null; summary: string | null; sourceId: number }[];
+  topics: { topic: string; score: number }[];
+  gaps: { topic: string; opportunityScore: number }[];
+  timeline: { week: string; count: number }[];
+  stats: { itemCount: number; lastPublishedAt: Date | null; postsPerWeek: number };
+};
 
 function buildRecommendations(data: any, tr: (no: string, en: string) => string): string[] {
   if (!data) return [];
