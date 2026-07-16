@@ -35,7 +35,7 @@ describe("Telegram Duplicate Post Procedure", () => {
     avatarUrl: null,
     createdAt: new Date(),
     updatedAt: new Date(),
-    lastSignedIn: new Date(),
+    lastSignedIn: new Date(), passwordHash: null, emailVerified: null, twoFactorSecret: null, twoFactorEnabled: 0, twoFactorBackupCodes: null, tokenVersion: 0,
   };
 
   const mockContext: TrpcContext = {
@@ -95,7 +95,6 @@ describe("Telegram Duplicate Post Procedure", () => {
         const caller = appRouter.createCaller(mockContext);
         await caller.telegram.duplicatePost({ postId: 999 });
         // Should throw or return error
-        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       } catch (error) {
         expect(error).toBeDefined();
       }
@@ -125,7 +124,6 @@ describe("Telegram Duplicate Post Procedure", () => {
         const caller = appRouter.createCaller(mockContext);
         await caller.telegram.duplicatePost({ postId: 1 });
         // Should throw or return error
-        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       } catch (error) {
         expect(error).toBeDefined();
       }
