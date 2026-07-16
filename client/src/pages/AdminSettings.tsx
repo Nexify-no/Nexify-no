@@ -36,10 +36,6 @@ export default function AdminSettings() {
   // Load settings from localStorage on mount
   const [isLoaded, setIsLoaded] = useState(false);
   if (!isLoaded && typeof window !== 'undefined') {
-    const savedChatGpt = null /* removed: key is server-side */ || '';
-    if (savedChatGpt) {
-      setChatGptKey(savedChatGpt);
-    }
     setIsLoaded(true);
   }
 

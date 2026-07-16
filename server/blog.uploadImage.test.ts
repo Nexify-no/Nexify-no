@@ -28,7 +28,7 @@ function createAdminContext(): TrpcContext {
     role: "admin",
     createdAt: new Date(),
     updatedAt: new Date(),
-    lastSignedIn: new Date(),
+    lastSignedIn: new Date(), passwordHash: null, emailVerified: null, twoFactorSecret: null, twoFactorEnabled: 0, twoFactorBackupCodes: null, tokenVersion: 0,
   };
 
   return {
@@ -52,7 +52,7 @@ function createUserContext(): TrpcContext {
     role: "user",
     createdAt: new Date(),
     updatedAt: new Date(),
-    lastSignedIn: new Date(),
+    lastSignedIn: new Date(), passwordHash: null, emailVerified: null, twoFactorSecret: null, twoFactorEnabled: 0, twoFactorBackupCodes: null, tokenVersion: 0,
   };
 
   return {
@@ -88,47 +88,34 @@ describe("Blog Image Upload", () => {
   });
 
   it("should fail when non-admin user tries to upload", async () => {
-    try {
-      const { appRouter } = await import("./routers");
-      const ctx = createUserContext();
-      const caller = appRouter.createCaller(ctx);
+    const { appRouter } = await import("./routers");
+    const ctx = createUserContext();
+    const caller = appRouter.createCaller(ctx);
 
-      const testImageBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
-      
-      try {
-        await caller.blog.uploadImage({
-          fileName: "test-image.png",
-          fileData: `data:image/png;base64,${testImageBase64}`,
-          contentType: "image/png",
-        });
-        // Should throw error for non-admin
-        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
-      } catch (error) {
-        expect(error).toBeDefined();
-      }
-    } catch (error) {
-      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
-    }
+    const testImageBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
+
+    // Non-admin must be rejected.
+    await expect(
+      caller.blog.uploadImage({
+        fileName: "test-image.png",
+        fileData: `data:image/png;base64,${testImageBase64}`,
+        contentType: "image/png",
+      }),
+    ).rejects.toThrow();
   });
 
   it("should reject invalid image formats", async () => {
-    try {
-      const { appRouter } = await import("./routers");
-      const ctx = createAdminContext();
-      const caller = appRouter.createCaller(ctx);
+    const { appRouter } = await import("./routers");
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
 
-      try {
-        await caller.blog.uploadImage({
-          fileName: "test-file.txt",
-          fileData: "data:text/plain;base64,dGVzdA==",
-          contentType: "text/plain" as any,
-        });
-        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
-      } catch (error) {
-        expect(error).toBeDefined();
-      }
-    } catch (error) {
-      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
-    }
+    // Invalid image format must be rejected.
+    await expect(
+      caller.blog.uploadImage({
+        fileName: "test-file.txt",
+        fileData: "data:text/plain;base64,dGVzdA==",
+        contentType: "text/plain" as any,
+      }),
+    ).rejects.toThrow();
   });
 });
