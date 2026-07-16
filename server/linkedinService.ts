@@ -120,7 +120,7 @@ export function getLinkedInApiVersion(): string {
  * '#' is intentionally left unescaped so hashtags still render as hashtags.
  */
 export function escapeLinkedInCommentary(text: string): string {
-  return text.replace(/[\\<>{}()\[\]@|~_*]/g, (c) => `\\${c}`);
+  return text.replace(/[\\<>{}()[\]@|~_*]/g, (c) => `\\${c}`);
 }
 
 /**

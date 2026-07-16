@@ -266,7 +266,7 @@ export async function detectSources(website: string | null | undefined, name: st
       // YouTube channel link discovery from the homepage (footer "follow us", etc.).
       if (!sources.some((s) => s.type === "youtube")) {
         const ytLink = homepageHtml.match(
-          /https?:\/\/(?:www\.)?youtube\.com\/(?:channel\/UC[\w-]{20,}|@[A-Za-z0-9_.\-]+|user\/[A-Za-z0-9_\-]+|c\/[A-Za-z0-9_\-]+)/i,
+          /https?:\/\/(?:www\.)?youtube\.com\/(?:channel\/UC[\w-]{20,}|@[A-Za-z0-9_.-]+|user\/[A-Za-z0-9_-]+|c\/[A-Za-z0-9_-]+)/i,
         );
         if (ytLink) {
           try {
