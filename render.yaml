@@ -28,7 +28,7 @@ services:
     plan: starter            # do NOT use "free": cron scheduler needs always-on
     region: frankfurt        # closest EU region (Norway)
     branch: main
-    buildCommand: pnpm install --frozen-lockfile && pnpm build   # frozen: fail loudly if lockfile drifts (sync it, don't mask it)
+    buildCommand: pnpm install --no-frozen-lockfile && pnpm build   # resilient: never block a deploy on lockfile lag. The CI 'quality' job runs --frozen-lockfile as the STRICT gate before merge.
     preDeployCommand: pnpm db:migrate   # apply Drizzle migrations before going live
     startCommand: pnpm start
     healthCheckPath: /health
@@ -86,7 +86,7 @@ services:
     plan: starter
     region: frankfurt
     branch: staging
-    buildCommand: pnpm install --frozen-lockfile && pnpm build
+    buildCommand: pnpm install --no-frozen-lockfile && pnpm build   # resilient (see prod note); CI is the strict frozen gate
     preDeployCommand: pnpm db:migrate   # migrations rehearse here FIRST, against the staging DB
     startCommand: pnpm start
     healthCheckPath: /health
