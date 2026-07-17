@@ -142,13 +142,28 @@ export const contentRouter = router({
         const { eq, and } = await import("drizzle-orm");
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-        // Only persist hosted (R2/http) URLs — never embed a multi-MB data: URL in
-        // the row, or content.list balloons and the page freezes.
+        // Persist only a HOSTED URL — never embed a multi-MB data: URL in the row
+        // (content.list would balloon and the page would freeze). If the client
+        // sends a data: URI (object storage was down at generation time), upload
+        // it to object storage now and persist the resulting hosted URL.
+        let hostedUrl = input.imageUrl;
         if (!/^https?:\/\//.test(input.imageUrl)) {
-          return { success: false, reason: "not_hosted" };
+          const m = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(input.imageUrl);
+          if (!m) return { success: false, reason: "not_hosted" as const };
+          try {
+            const { storagePut } = await import("../storage");
+            const ext = (m[1].split("/")[1] || "png").replace(/[^a-z0-9]/gi, "") || "png";
+            const buf = Buffer.from(m[2], "base64");
+            const { url } = await storagePut(`generated/${ctx.user.id}/${Date.now()}.${ext}`, buf, m[1]);
+            if (!/^https?:\/\//.test(url)) return { success: false, reason: "storage_unavailable" as const };
+            hostedUrl = url;
+          } catch (e) {
+            console.warn("[attachImage] hosting data URI failed:", (e as Error)?.message);
+            return { success: false, reason: "storage_error" as const };
+          }
         }
-        await db.update(posts).set({ imageUrl: input.imageUrl, updatedAt: new Date() }).where(and(eq(posts.id, input.postId), eq(posts.userId, ctx.user.id)));
-        return { success: true };
+        await db.update(posts).set({ imageUrl: hostedUrl, updatedAt: new Date() }).where(and(eq(posts.id, input.postId), eq(posts.userId, ctx.user.id)));
+        return { success: true as const };
       }),
 
     // Prompt-engineering layer: rewrite a plain idea into a sharper, professional

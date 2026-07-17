@@ -85,21 +85,41 @@ async function putToObjectStore(
   contentType: string
 ): Promise<string | null> {
   const bucket = process.env.R2_BUCKET || process.env.S3_BUCKET;
-  const accessKeyId = process.env.R2_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY || process.env.S3_SECRET_ACCESS_KEY;
+  // Accept R2-, S3-, or standard AWS-named credentials so any common storage
+  // config works (prod often sets the standard AWS_* names).
+  const accessKeyId =
+    process.env.R2_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID;
+  const secretAccessKey =
+    process.env.R2_SECRET_ACCESS_KEY || process.env.S3_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY;
   const r2Account = process.env.R2_ACCOUNT_ID;
-  const endpoint =
+  // Endpoint is REQUIRED only for R2 / custom S3-compatible stores. Standard AWS
+  // S3 has no custom endpoint — the SDK derives it from the region.
+  const explicitEndpoint =
     process.env.S3_ENDPOINT ||
     (r2Account ? `https://${r2Account}.r2.cloudflarestorage.com` : undefined);
-  if (!bucket || !accessKeyId || !secretAccessKey || !endpoint) {
+  if (!bucket || !accessKeyId || !secretAccessKey) {
     console.warn("[storage] object store not configured", {
-      bucket: !!bucket, accessKeyId: !!accessKeyId, secretAccessKey: !!secretAccessKey, endpoint: !!endpoint,
+      bucket: !!bucket, accessKeyId: !!accessKeyId, secretAccessKey: !!secretAccessKey,
     });
     return null;
   }
-  const region = process.env.S3_REGION || "auto";
+  const region = process.env.S3_REGION || process.env.AWS_REGION || (explicitEndpoint ? "auto" : "us-east-1");
   const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
   const body = typeof data === "string" ? Buffer.from(data) : Buffer.from(data as any);
+  const publicBaseEarly = process.env.R2_PUBLIC_URL || process.env.S3_PUBLIC_URL;
+
+  // ── Standard AWS S3 path (no custom endpoint) ────────────────────────────
+  if (!explicitEndpoint) {
+    console.log("[storage] uploading to AWS S3", { region, bucket });
+    const client = new S3Client({ region, credentials: { accessKeyId, secretAccessKey } });
+    await client.send(
+      new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: contentType })
+    );
+    if (publicBaseEarly) return `${publicBaseEarly.replace(/\/+$/, "")}/${key}`;
+    return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
+  }
+
+  const endpoint = explicitEndpoint;
 
   // R2 jurisdictions (default vs EU) are isolated: a bucket only exists on one
   // endpoint. The configured S3_ENDPOINT may point at the wrong one ("bucket does

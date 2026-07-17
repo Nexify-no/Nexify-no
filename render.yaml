@@ -76,6 +76,32 @@ services:
         sync: false
       - key: SENTRY_DSN
         sync: false
+      # ── Object storage for generated images/uploads (REQUIRED for images to
+      #    persist). Use Cloudflare R2 (recommended, zero egress) OR AWS S3.
+      #    Without these, generated images fall back to a data: URL that is not
+      #    saved, so posts show no image later. The images bucket/prefix must be
+      #    publicly readable (or set *_PUBLIC_URL to a public CDN/base).
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_PUBLIC_URL          # e.g. https://images.penna.no (public base)
+        sync: false
+      # --- OR standard AWS S3 (leave R2_* unset if using these) ---
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_REGION
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_PUBLIC_URL          # optional public base/CDN for the bucket
+        sync: false
 
   # ==========================================================================
   # STAGING — tracks `staging` (pre-production verification)
