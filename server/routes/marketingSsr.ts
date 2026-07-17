@@ -188,7 +188,7 @@ function renderHome(): string {
     `</main>`;
   // Homepage shell already has correct title/meta + SoftwareApplication LD.
   // Just add Organization LD and inject the body content.
-  let html = injectBody(shell, body);
+  const html = injectBody(shell, body);
   return html;
 }
 

@@ -67,10 +67,10 @@ export default function Posts() {
 
   const publishMutation = trpc.platform.publishToSpecific.useMutation({
     onSuccess: (r) => {
-      if (r.successCount > 0) {
+      if ((r.successCount ?? 0) > 0) {
         toast.success(language === "no" ? `Publisert til ${r.successCount} plattform(er)` : `Published to ${r.successCount} platform(s)`);
       }
-      if (r.failureCount > 0) {
+      if ((r.failureCount ?? 0) > 0) {
         const errs = (r.results || []).filter((x) => !x.success).map((x) => `${x.platform}: ${x.error || "feil"}`).join(", ");
         toast.error((language === "no" ? "Noen feilet: " : "Some failed: ") + errs);
       }

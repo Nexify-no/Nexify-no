@@ -12,14 +12,14 @@ const refundSpy = vi.fn().mockResolvedValue(undefined);
 const cancelSpy = vi.fn().mockResolvedValue(undefined);
 const statusSpy = vi.fn().mockResolvedValue({ state: "CAPTURED" });
 
-vi.mock("../_core/vipps", () => ({
+vi.mock("./_core/vipps", () => ({
   vippsService: {
     getPaymentStatus: statusSpy,
     cancelPayment: cancelSpy,
     refundPayment: refundSpy,
   },
 }));
-vi.mock("../_core/vippsAuth", () => ({ vippsAuthService: null }));
+vi.mock("./_core/vippsAuth", () => ({ vippsAuthService: null }));
 vi.mock("./db", () => ({
   getPaymentOrder: vi.fn().mockResolvedValue(OTHER_USERS_ORDER),
   markPaymentOrderStatus: vi.fn().mockResolvedValue(undefined),

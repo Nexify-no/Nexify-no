@@ -126,7 +126,9 @@ export const platformRouter = router({
       try {
         const oauth = new FacebookOAuth(facebookConfig);
         const token = await oauth.exchangeCodeForToken(input.code);
-        await platformManager.savePlatformToken(ctx.user.id, "facebook", token);
+        // token.accessToken is a PAGE token; store the page id/name with it so
+        // publishing can post directly without a /me/accounts lookup.
+        await platformManager.savePlatformToken(ctx.user.id, "facebook", token, token.accountId, token.accountName);
         return { success: true, message: "Facebook connected successfully" };
       } catch (error) {
         return {
