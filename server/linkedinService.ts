@@ -58,25 +58,48 @@ export function resolveLinkedInCredentials(
  * only AFTER approval.
  */
 export function isOrgPostingEnabled(): boolean {
-  const v = (process.env.LINKEDIN_ORG_POSTING || "").toLowerCase();
-  return v === "1" || v === "true" || v === "yes" || v === "on";
+  // Enabled only when the dedicated Company-Page app is configured. This also
+  // keeps the personal connect flow untouched until the operator opts in.
+  return !!(process.env.LINKEDIN_ORG_CLIENT_ID && process.env.LINKEDIN_ORG_CLIENT_SECRET);
 }
 
 export function getLinkedInAuthUrl(credentials: LinkedInCredentials, redirectUri: string, state: string): string {
-  // Base scopes: OpenID identity + personal-feed posting (w_member_social).
-  const scopes = ["openid", "profile", "email", "w_member_social"];
-  if (isOrgPostingEnabled()) {
-    // Company-Page posting + listing the Pages the member administers.
-    scopes.push("r_organization_social", "w_organization_social", "rw_organization_admin");
-  }
+  // Personal-app scopes only: OpenID identity + personal-feed posting.
+  // Company-Page posting lives on a SEPARATE app/flow (getLinkedInOrgAuthUrl),
+  // because LinkedIn requires the Community Management API to be the ONLY
+  // product on its app — it cannot coexist with Sign In / Share here.
   const params = new URLSearchParams({
     response_type: "code",
     client_id: credentials.clientId,
     redirect_uri: redirectUri,
     state,
-    scope: scopes.join(" "),
+    scope: "openid profile email w_member_social",
   });
 
+  return `https://www.linkedin.com/oauth/v2/authorization?${params.toString()}`;
+}
+
+/**
+ * Company-Page (organization) publishing runs through a SECOND LinkedIn app that
+ * carries ONLY the Community Management API (LinkedIn's own requirement). Its
+ * credentials live in LINKEDIN_ORG_CLIENT_ID / LINKEDIN_ORG_CLIENT_SECRET.
+ */
+export function resolveLinkedInOrgCredentials(): LinkedInCredentials | null {
+  const id = process.env.LINKEDIN_ORG_CLIENT_ID;
+  const secret = process.env.LINKEDIN_ORG_CLIENT_SECRET;
+  if (id && secret) return { clientId: id, clientSecret: secret };
+  return null;
+}
+
+/** Authorization URL for the Company-Page app (organization scopes only). */
+export function getLinkedInOrgAuthUrl(credentials: LinkedInCredentials, redirectUri: string, state: string): string {
+  const params = new URLSearchParams({
+    response_type: "code",
+    client_id: credentials.clientId,
+    redirect_uri: redirectUri,
+    state,
+    scope: "r_organization_social w_organization_social rw_organization_admin",
+  });
   return `https://www.linkedin.com/oauth/v2/authorization?${params.toString()}`;
 }
 
