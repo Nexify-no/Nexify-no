@@ -211,6 +211,11 @@ export const linkedinConnections = mysqlTable("linkedin_connections", {
   publishTarget: varchar("publish_target", { length: 16 }).default("person"),
   organizationUrn: varchar("organization_urn", { length: 255 }), // urn:li:organization:123
   organizationName: varchar("organization_name", { length: 255 }),
+  // Separate token from the Company-Page app (Community Management API). Kept
+  // apart from the personal access token because LinkedIn requires that API to
+  // live on its own app, so org posting uses a distinct OAuth connection.
+  orgAccessToken: text("org_access_token"),
+  orgTokenExpiresAt: timestamp("org_token_expires_at"),
   expiresAt: timestamp("expires_at").notNull(), // Access token expiration (60 days)
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),

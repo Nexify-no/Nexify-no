@@ -97,6 +97,18 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
       return { url: authUrl, state };
     }),
 
+    // Authorization URL for connecting the Company-Page app (org scopes).
+    getOrgAuthUrl: protectedProcedure.query(async ({ ctx }) => {
+      const { getLinkedInOrgAuthUrl, resolveLinkedInOrgCredentials } = await import("../linkedinService");
+      const orgCreds = resolveLinkedInOrgCredentials();
+      if (!orgCreds) throw new Error("Company-Page app not configured");
+      const redirectUri = process.env.LINKEDIN_ORG_REDIRECT_URI
+        || `https://${ctx.req.headers.host || "penna.no"}/api/linkedin/org/callback`;
+      const { signOAuthState } = await import("../_core/oauthState");
+      const state = signOAuthState(ctx.user.id);
+      return { url: getLinkedInOrgAuthUrl(orgCreds, redirectUri, state), state };
+    }),
+
     // Get user's LinkedIn connection status
     getConnectionStatus: protectedProcedure.query(async ({ ctx }) => {
       const { getDb } = await import("../db");
@@ -125,6 +137,7 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
         expiresAt: connection[0].expiresAt,
         // Company-Page publishing controls (only meaningful when enabled).
         orgPostingEnabled: isOrgPostingEnabled(),
+        orgConnected: !!(connection[0] as any).orgAccessToken,
         publishTarget: (connection[0] as any).publishTarget || "person",
         organizationUrn: (connection[0] as any).organizationUrn || null,
         organizationName: (connection[0] as any).organizationName || null,
@@ -143,13 +156,15 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
       const { linkedinConnections } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       const conn = await db.select().from(linkedinConnections).where(eq(linkedinConnections.userId, ctx.user.id)).limit(1);
-      if (conn.length === 0) return { enabled: true, organizations: [] };
+      if (conn.length === 0) return { enabled: true, orgConnected: false, organizations: [] };
+      const orgToken = (conn[0] as any).orgAccessToken;
+      if (!orgToken) return { enabled: true, orgConnected: false, organizations: [] };
       const { decryptSecret } = await import("../_core/tokenCrypto");
       try {
-        const organizations = await getAdminOrganizations(decryptSecret(conn[0].accessToken) ?? "");
-        return { enabled: true, organizations };
+        const organizations = await getAdminOrganizations(decryptSecret(orgToken) ?? "");
+        return { enabled: true, orgConnected: true, organizations };
       } catch (e) {
-        return { enabled: true, organizations: [], error: (e as Error).message };
+        return { enabled: true, orgConnected: true, organizations: [], error: (e as Error).message };
       }
     }),
 
@@ -222,15 +237,21 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
           throw new Error("LinkedIn token expired. Please reconnect.");
         }
         
-        // Create post (token is encrypted at rest)
+        // Create post (tokens are encrypted at rest). Company-Page posting uses
+        // the SEPARATE org token from the Community-Management app; personal
+        // posting uses the member token.
         const { decryptSecret } = await import("../_core/tokenCrypto");
-        // Post to the chosen Company Page when selected, else the member's feed.
-        const authorOverride =
-          (connection[0] as any).publishTarget === "organization" && (connection[0] as any).organizationUrn
-            ? (connection[0] as any).organizationUrn
-            : null;
+        const toOrg =
+          (connection[0] as any).publishTarget === "organization" && (connection[0] as any).organizationUrn;
+        const authorOverride = toOrg ? (connection[0] as any).organizationUrn : null;
+        if (toOrg && !(connection[0] as any).orgAccessToken) {
+          throw new Error("Bedriftsside ikke tilkoblet. Koble til bedriftsside først.");
+        }
+        const activeToken = toOrg
+          ? decryptSecret((connection[0] as any).orgAccessToken) ?? ""
+          : decryptSecret(connection[0].accessToken) ?? "";
         const result = await createLinkedInPost(
-          decryptSecret(connection[0].accessToken) ?? "",
+          activeToken,
           connection[0].personUrn,
           input.content,
           authorOverride

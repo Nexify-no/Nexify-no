@@ -248,7 +248,7 @@ function LinkedInConnectionStatus({ language }: { language: "no" | "en" }) {
   // Only active when the operator has enabled org posting (env flag) after the
   // LinkedIn app was approved for the Community Management API.
   const orgList = trpc.linkedin.listOrganizations.useQuery(undefined, {
-    enabled: !!connectionStatus?.connected && !!(connectionStatus as any)?.orgPostingEnabled,
+    enabled: !!connectionStatus?.connected && !!(connectionStatus as any)?.orgPostingEnabled && !!(connectionStatus as any)?.orgConnected,
   });
   const setTargetMutation = trpc.linkedin.setPublishTarget.useMutation({
     onSuccess: () => {
@@ -268,6 +268,17 @@ function LinkedInConnectionStatus({ language }: { language: "no" | "en" }) {
       }
     } catch (error: any) {
       toast.error(error.message || (language === "no" ? "Kunne ikke generere autorisasjons-URL" : "Could not generate authorization URL"));
+    }
+  };
+
+  const handleConnectOrg = async () => {
+    try {
+      const result = await utils.linkedin.getOrgAuthUrl.fetch();
+      if (result?.url) {
+        window.location.href = result.url;
+      }
+    } catch (error: any) {
+      toast.error(error.message || (language === "no" ? "Kunne ikke koble til bedriftsside" : "Could not connect Company Page"));
     }
   };
 
@@ -296,12 +307,29 @@ function LinkedInConnectionStatus({ language }: { language: "no" | "en" }) {
         </div>
         {(connectionStatus as any).orgPostingEnabled && (
           <div className="space-y-2 pt-3 border-t">
-            <p className="text-sm font-medium">
-              {language === "no" ? "Publiser som" : "Publish as"}
-            </p>
-            <select
+            {!(connectionStatus as any).orgConnected ? (
+              <>
+                <p className="text-sm font-medium">
+                  {language === "no" ? "Bedriftsside (Company Page)" : "Company Page"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {language === "no"
+                    ? "Koble til bedriftsappen for å publisere som en LinkedIn-side."
+                    : "Connect the company app to publish as a LinkedIn Page."}
+                </p>
+                <Button variant="outline" size="sm" onClick={handleConnectOrg}>
+                  <Linkedin className="h-4 w-4 mr-2" />
+                  {language === "no" ? "Koble til bedriftsside" : "Connect Company Page"}
+                </Button>
+              </>
+             ) : (
+              <>
+                <p className="text-sm font-medium">
+                  {language === "no" ? "Publiser som" : "Publish as"}
+                </p>
+                <select
               className="w-full rounded-lg border px-2 py-1.5 text-sm bg-white dark:bg-slate-900"
-              value={
+                value={
                 (connectionStatus as any).publishTarget === "organization" && (connectionStatus as any).organizationUrn
                   ? (connectionStatus as any).organizationUrn
                   : "person"
@@ -335,6 +363,8 @@ function LinkedInConnectionStatus({ language }: { language: "no" | "en" }) {
                   ? "Ingen sider funnet der du er administrator."
                   : "No pages found where you are an administrator."}
               </p>
+            )}
+              </>
             )}
           </div>
         )}
