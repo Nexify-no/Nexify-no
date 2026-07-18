@@ -117,13 +117,67 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
       
       const expired = isTokenExpired(connection[0].expiresAt);
       
+      const { isOrgPostingEnabled } = await import("../linkedinService");
       return {
         connected: !expired,
         profileName: connection[0].profileName,
         profileEmail: connection[0].profileEmail,
         expiresAt: connection[0].expiresAt,
+        // Company-Page publishing controls (only meaningful when enabled).
+        orgPostingEnabled: isOrgPostingEnabled(),
+        publishTarget: (connection[0] as any).publishTarget || "person",
+        organizationUrn: (connection[0] as any).organizationUrn || null,
+        organizationName: (connection[0] as any).organizationName || null,
       };
     }),
+
+    // List the Company Pages the connected member administers, so the UI can
+    // offer them as publish targets. Returns { enabled:false } unless org posting
+    // is turned on (env flag) AND the app was approved for the scopes.
+    listOrganizations: protectedProcedure.query(async ({ ctx }) => {
+      const { isOrgPostingEnabled, getAdminOrganizations } = await import("../linkedinService");
+      if (!isOrgPostingEnabled()) return { enabled: false, organizations: [] as { urn: string; id: string; name: string }[] };
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      const { linkedinConnections } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const conn = await db.select().from(linkedinConnections).where(eq(linkedinConnections.userId, ctx.user.id)).limit(1);
+      if (conn.length === 0) return { enabled: true, organizations: [] };
+      const { decryptSecret } = await import("../_core/tokenCrypto");
+      try {
+        const organizations = await getAdminOrganizations(decryptSecret(conn[0].accessToken) ?? "");
+        return { enabled: true, organizations };
+      } catch (e) {
+        return { enabled: true, organizations: [], error: (e as Error).message };
+      }
+    }),
+
+    // Choose whether to publish to the personal feed or a Company Page.
+    setPublishTarget: protectedProcedure
+      .input(z.object({
+        target: z.enum(["person", "organization"]),
+        organizationUrn: z.string().optional(),
+        organizationName: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (input.target === "organization" && !input.organizationUrn) {
+          throw new Error("Velg en side å publisere til.");
+        }
+        const { getDb } = await import("../db");
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const { linkedinConnections } = await import("../../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        await db.update(linkedinConnections)
+          .set({
+            publishTarget: input.target,
+            organizationUrn: input.target === "organization" ? (input.organizationUrn ?? null) : null,
+            organizationName: input.target === "organization" ? (input.organizationName ?? null) : null,
+          })
+          .where(eq(linkedinConnections.userId, ctx.user.id));
+        return { success: true };
+      }),
 
     // Disconnect LinkedIn
     disconnect: protectedProcedure.mutation(async ({ ctx }) => {
@@ -170,10 +224,16 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
         
         // Create post (token is encrypted at rest)
         const { decryptSecret } = await import("../_core/tokenCrypto");
+        // Post to the chosen Company Page when selected, else the member's feed.
+        const authorOverride =
+          (connection[0] as any).publishTarget === "organization" && (connection[0] as any).organizationUrn
+            ? (connection[0] as any).organizationUrn
+            : null;
         const result = await createLinkedInPost(
           decryptSecret(connection[0].accessToken) ?? "",
           connection[0].personUrn,
-          input.content
+          input.content,
+          authorOverride
         );
 
         // Record the publication locally so "Mine innlegg" reflects it as published
