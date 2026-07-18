@@ -6,6 +6,7 @@
 
 import { protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
+import { sql } from "drizzle-orm";
 import { analyzeWritingSamples } from "./voiceAnalysis";
 
 export const voiceRouter = router({
@@ -106,6 +107,8 @@ export const voiceRouter = router({
       samplesCount: samples.length,
       trainingStatus: "trained",
       lastTrainedAt: new Date(),
+      // Bump provenance version so posts can record which profile version made them.
+      version: sql`${voiceProfiles.version} + 1`,
     }).where(eq(voiceProfiles.userId, ctx.user.id));
     
     return { success: true, samplesCount: samples.length };
