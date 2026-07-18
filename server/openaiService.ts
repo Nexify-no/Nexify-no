@@ -56,24 +56,54 @@ const platformInstructions = {
   },
 };
 
-export async function generateContent(params: GenerateContentParams): Promise<string> {
+/**
+ * A single chat completion. Injectable so tests can capture the EXACT prompt
+ * each call receives and prove no context bleeds between concurrent calls.
+ * Each invocation is fully self-contained: only the system+user built from its
+ * own params are sent — there is no shared history or state across calls.
+ */
+export interface GenerateContentDeps {
+  createCompletion?: (args: {
+    system: string;
+    user: string;
+    model: string;
+    temperature: number;
+    maxTokens: number;
+  }) => Promise<string>;
+}
+
+export async function generateContent(
+  params: GenerateContentParams,
+  deps: GenerateContentDeps = {},
+): Promise<string> {
   const { platform } = params;
 
   // The prompt-engineering layer: turn the user's options into a professional prompt.
   const { system, user, maxLength } = buildContentPrompt(params);
 
-  try {
-    const completion = await openai.chat.completions.create({
-      model: ENV.contentModel,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-      temperature: 0.8,
-      max_tokens: platform === "twitter" ? 100 : 1000,
+  const runCompletion =
+    deps.createCompletion ??
+    (async ({ system, user, model, temperature, maxTokens }) => {
+      const completion = await openai.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        temperature,
+        max_tokens: maxTokens,
+      });
+      return completion.choices[0]?.message?.content || "";
     });
 
-    const content = completion.choices[0]?.message?.content || "";
+  try {
+    const content = await runCompletion({
+      system,
+      user,
+      model: ENV.contentModel,
+      temperature: 0.8,
+      maxTokens: platform === "twitter" ? 100 : 1000,
+    });
 
     // Ensure content doesn't exceed platform limits
     if (content.length > maxLength) {
