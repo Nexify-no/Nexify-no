@@ -216,11 +216,67 @@ export async function getAdminOrganizations(accessToken: string): Promise<Linked
  * Create a text post on LinkedIn using the versioned Posts API (/rest/posts),
  * which replaces the deprecated /v2/ugcPosts endpoint.
  */
+/**
+ * Upload an image to LinkedIn and return its image URN, so it can be attached to
+ * a post. Three steps: initializeUpload -> PUT the bytes -> reference the URN.
+ * `owner` is the post author (person or organization URN) and must match the
+ * token. Returns null on any failure so posting degrades to text-only.
+ */
+export async function uploadLinkedInImage(
+  accessToken: string,
+  ownerUrn: string,
+  imageUrl: string
+): Promise<string | null> {
+  try {
+    const version = getLinkedInApiVersion();
+    const jsonHeaders = {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      "X-Restli-Protocol-Version": "2.0.0",
+      "LinkedIn-Version": version,
+    };
+    const initRes = await fetch("https://api.linkedin.com/rest/images?action=initializeUpload", {
+      method: "POST",
+      headers: jsonHeaders,
+      body: JSON.stringify({ initializeUploadRequest: { owner: ownerUrn } }),
+    });
+    if (!initRes.ok) {
+      console.warn(`[LinkedIn image] init failed (${initRes.status}): ${await initRes.text()}`);
+      return null;
+    }
+    const initJson: any = await initRes.json();
+    const uploadUrl: string | undefined = initJson?.value?.uploadUrl;
+    const imageUrn: string | undefined = initJson?.value?.image;
+    if (!uploadUrl || !imageUrn) return null;
+
+    const imgRes = await fetch(imageUrl);
+    if (!imgRes.ok) {
+      console.warn(`[LinkedIn image] source fetch failed (${imgRes.status})`);
+      return null;
+    }
+    const bytes = new Uint8Array(await imgRes.arrayBuffer());
+    const upRes = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: bytes,
+    });
+    if (!upRes.ok && upRes.status !== 201) {
+      console.warn(`[LinkedIn image] byte upload failed (${upRes.status})`);
+      return null;
+    }
+    return imageUrn;
+  } catch (e) {
+    console.warn("[LinkedIn image] upload error:", (e as Error).message);
+    return null;
+  }
+}
+
 export async function createLinkedInPost(
   accessToken: string,
   personUrn: string,
   content: string,
-  authorOverride?: string | null
+  authorOverride?: string | null,
+  imageUrl?: string | null
 ): Promise<{ id: string; url: string }> {
   // Prefer an explicit author (e.g. a Company Page urn:li:organization:xxx) when
   // provided; otherwise post as the member. The stored personUrn is the OpenID
@@ -230,6 +286,13 @@ export async function createLinkedInPost(
     : personUrn.startsWith("urn:li:")
       ? personUrn
       : `urn:li:person:${personUrn}`;
+
+  // Upload the image first (best-effort). A failure degrades to a text post
+  // rather than blocking publishing.
+  let imageUrn: string | null = null;
+  if (imageUrl && /^https?:\/\//.test(imageUrl)) {
+    imageUrn = await uploadLinkedInImage(accessToken, author, imageUrl);
+  }
 
   const response = await fetch("https://api.linkedin.com/rest/posts", {
     method: "POST",
@@ -248,6 +311,7 @@ export async function createLinkedInPost(
         targetEntities: [],
         thirdPartyDistributionChannels: [],
       },
+      ...(imageUrn ? { content: { media: { id: imageUrn } } } : {}),
       lifecycleState: "PUBLISHED",
       isReshareDisabledByAuthor: false,
     }),
