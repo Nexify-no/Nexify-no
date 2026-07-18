@@ -289,8 +289,14 @@ export class PlatformIntegrationManager {
           .where(eq(linkedinConnections.userId as any, userId))
           .limit(1);
         if (conn && conn.length > 0) {
+          const toOrg = conn[0].publishTarget === "organization" && conn[0].organizationUrn;
+          // Company-Page posting uses the separate org token; personal posting
+          // uses the member token. The generic "Publiser" dialog goes through here.
+          const activeToken = toOrg && conn[0].orgAccessToken
+            ? decryptSecret(conn[0].orgAccessToken) ?? ""
+            : decryptSecret(conn[0].accessToken) ?? "";
           return {
-            accessToken: decryptSecret(conn[0].accessToken) ?? "",
+            accessToken: activeToken,
             expiresAt: conn[0].expiresAt || undefined,
             scope: "openid profile email w_member_social",
             personUrn: conn[0].personUrn,
