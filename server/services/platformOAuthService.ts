@@ -272,7 +272,28 @@ export class PlatformIntegrationManager {
       )
       .limit(1);
 
-    if (!result || result.length === 0) return null;
+    if (!result || result.length === 0) {
+      // LinkedIn is connected through the dedicated `linkedin_connections` store
+      // (the "Koble til LinkedIn" flow / linkedinRouter), NOT platformIntegrations.
+      // Bridge it so the generic publish path (publishToSpecific) finds the token
+      // instead of reporting "Platform not connected".
+      if (platform === "linkedin") {
+        const { linkedinConnections } = await import("../../drizzle/schema");
+        const conn = await (db as any)
+          .select()
+          .from(linkedinConnections)
+          .where(eq(linkedinConnections.userId as any, userId))
+          .limit(1);
+        if (conn && conn.length > 0) {
+          return {
+            accessToken: decryptSecret(conn[0].accessToken) ?? "",
+            expiresAt: conn[0].expiresAt || undefined,
+            scope: "openid profile email w_member_social",
+          };
+        }
+      }
+      return null;
+    }
 
     const integration = result[0] as PlatformIntegration;
     return {
