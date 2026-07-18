@@ -24,16 +24,20 @@ export interface PublishResult {
 
 // LinkedIn Publishing
 export class LinkedInPublisher {
-  async publish(accessToken: string, content: PublishContent): Promise<PublishResult> {
+  async publish(accessToken: string, content: PublishContent, authorUrn?: string | null): Promise<PublishResult> {
     try {
       const postContent = this.formatContent(content);
 
-      // Delegate to the canonical Posts API implementation (/rest/posts). This also
-      // resolves the correct author URN — the previous "urn:li:person:me" was never
-      // a valid author, and /v2/ugcPosts is deprecated.
+      // Delegate to the canonical Posts API implementation (/rest/posts). When an
+      // explicit author is supplied (a Company Page urn:li:organization:xxx) we post
+      // as that Page; otherwise resolve the member's own URN via OpenID.
       const { getLinkedInProfile, createLinkedInPost } = await import("../linkedinService");
-      const profile = await getLinkedInProfile(accessToken);
-      const result = await createLinkedInPost(accessToken, profile.sub, postContent);
+      let author = authorUrn || null;
+      if (!author) {
+        const profile = await getLinkedInProfile(accessToken);
+        author = `urn:li:person:${profile.sub}`;
+      }
+      const result = await createLinkedInPost(accessToken, "", postContent, author);
 
       return {
         platform: "linkedin",
@@ -293,9 +297,16 @@ export class PublishingManager {
 
       let result: PublishResult;
       switch (platform) {
-        case "linkedin":
-          result = await this.linkedinPublisher.publish(token.accessToken, content);
+        case "linkedin": {
+          const author =
+            token.publishTarget === "organization" && token.organizationUrn
+              ? token.organizationUrn
+              : token.personUrn
+                ? (token.personUrn.startsWith("urn:li:") ? token.personUrn : `urn:li:person:${token.personUrn}`)
+                : null;
+          result = await this.linkedinPublisher.publish(token.accessToken, content, author);
           break;
+        }
         case "twitter":
           result = await this.twitterPublisher.publish(token.accessToken, content);
           break;
@@ -343,9 +354,16 @@ export class PublishingManager {
 
       let result: PublishResult;
       switch (platform) {
-        case "linkedin":
-          result = await this.linkedinPublisher.publish(token.accessToken, content);
+        case "linkedin": {
+          const author =
+            token.publishTarget === "organization" && token.organizationUrn
+              ? token.organizationUrn
+              : token.personUrn
+                ? (token.personUrn.startsWith("urn:li:") ? token.personUrn : `urn:li:person:${token.personUrn}`)
+                : null;
+          result = await this.linkedinPublisher.publish(token.accessToken, content, author);
           break;
+        }
         case "twitter":
           result = await this.twitterPublisher.publish(token.accessToken, content);
           break;

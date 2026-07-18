@@ -205,6 +205,12 @@ export const linkedinConnections = mysqlTable("linkedin_connections", {
   personUrn: varchar("person_urn", { length: 255 }).notNull(), // urn:li:person:xxx
   profileName: varchar("profile_name", { length: 255 }),
   profileEmail: varchar("profile_email", { length: 320 }),
+  // LinkedIn publish target: post to the member's own feed ('person', default)
+  // or to a Company Page ('organization'). Org fields are null until a Page is
+  // chosen (only possible when org posting is enabled + the app is approved).
+  publishTarget: varchar("publish_target", { length: 16 }).default("person"),
+  organizationUrn: varchar("organization_urn", { length: 255 }), // urn:li:organization:123
+  organizationName: varchar("organization_name", { length: 255 }),
   expiresAt: timestamp("expires_at").notNull(), // Access token expiration (60 days)
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),

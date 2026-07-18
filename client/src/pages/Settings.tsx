@@ -244,6 +244,20 @@ function LinkedInConnectionStatus({ language }: { language: "no" | "en" }) {
     },
   });
 
+  // Company-Page publishing: list Pages the member administers + save the choice.
+  // Only active when the operator has enabled org posting (env flag) after the
+  // LinkedIn app was approved for the Community Management API.
+  const orgList = trpc.linkedin.listOrganizations.useQuery(undefined, {
+    enabled: !!connectionStatus?.connected && !!(connectionStatus as any)?.orgPostingEnabled,
+  });
+  const setTargetMutation = trpc.linkedin.setPublishTarget.useMutation({
+    onSuccess: () => {
+      toast.success(language === "no" ? "Publiseringsmål oppdatert" : "Publish target updated");
+      refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const utils = trpc.useUtils();
   
   const handleConnect = async () => {
@@ -280,6 +294,50 @@ function LinkedInConnectionStatus({ language }: { language: "no" | "en" }) {
           <p><strong>{language === "no" ? "E-post:" : "Email:"}</strong> {connectionStatus.profileEmail}</p>
           <p><strong>{language === "no" ? "Utløper:" : "Expires:"}</strong> {connectionStatus.expiresAt ? new Date(connectionStatus.expiresAt).toLocaleDateString() : "N/A"}</p>
         </div>
+        {(connectionStatus as any).orgPostingEnabled && (
+          <div className="space-y-2 pt-3 border-t">
+            <p className="text-sm font-medium">
+              {language === "no" ? "Publiser som" : "Publish as"}
+            </p>
+            <select
+              className="w-full rounded-lg border px-2 py-1.5 text-sm bg-white dark:bg-slate-900"
+              value={
+                (connectionStatus as any).publishTarget === "organization" && (connectionStatus as any).organizationUrn
+                  ? (connectionStatus as any).organizationUrn
+                  : "person"
+              }
+              disabled={setTargetMutation.isPending}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "person") {
+                  setTargetMutation.mutate({ target: "person" });
+                } else {
+                  const org = (orgList.data?.organizations || []).find((o) => o.urn === val);
+                  setTargetMutation.mutate({ target: "organization", organizationUrn: val, organizationName: org?.name });
+                }
+              }}
+            >
+              <option value="person">
+                {language === "no" ? "Personlig profil" : "Personal profile"}
+              </option>
+              {(orgList.data?.organizations || []).map((o) => (
+                <option key={o.urn} value={o.urn}>{o.name}</option>
+              ))}
+            </select>
+            {orgList.isLoading && (
+              <p className="text-xs text-muted-foreground">
+                {language === "no" ? "Henter sider..." : "Loading pages..."}
+              </p>
+            )}
+            {orgList.data && orgList.data.organizations.length === 0 && !orgList.isLoading && (
+              <p className="text-xs text-muted-foreground">
+                {language === "no"
+                  ? "Ingen sider funnet der du er administrator."
+                  : "No pages found where you are an administrator."}
+              </p>
+            )}
+          </div>
+        )}
         <Button 
           variant="destructive" 
           size="sm"

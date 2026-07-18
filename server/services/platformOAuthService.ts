@@ -14,6 +14,10 @@ export interface OAuthToken {
   refreshToken?: string;
   expiresAt?: Date;
   scope?: string;
+  // LinkedIn-only: lets the generic publish path post to a Company Page.
+  personUrn?: string;
+  publishTarget?: string; // 'person' | 'organization'
+  organizationUrn?: string | null;
 }
 
 export interface PlatformConfig {
@@ -289,6 +293,9 @@ export class PlatformIntegrationManager {
             accessToken: decryptSecret(conn[0].accessToken) ?? "",
             expiresAt: conn[0].expiresAt || undefined,
             scope: "openid profile email w_member_social",
+            personUrn: conn[0].personUrn,
+            publishTarget: conn[0].publishTarget || "person",
+            organizationUrn: conn[0].organizationUrn || null,
           };
         }
       }
