@@ -37,7 +37,7 @@ export class LinkedInPublisher {
         const profile = await getLinkedInProfile(accessToken);
         author = `urn:li:person:${profile.sub}`;
       }
-      const result = await createLinkedInPost(accessToken, "", postContent, author);
+      const result = await createLinkedInPost(accessToken, "", postContent, author, content.imageUrl);
 
       return {
         platform: "linkedin",
