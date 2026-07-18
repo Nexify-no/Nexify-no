@@ -74,6 +74,7 @@ export default function Posts() {
         const errs = (r.results || []).filter((x) => !x.success).map((x) => `${x.platform}: ${x.error || "feil"}`).join(", ");
         toast.error((language === "no" ? "Noen feilet: " : "Some failed: ") + errs);
       }
+      utils.content.list.invalidate();
       setPublishPostId(null);
     },
     onError: (e) => toast.error(e.message),
@@ -155,6 +156,7 @@ export default function Posts() {
       content: post.generatedContent,
       imageUrl: post.imageUrl || undefined,
       title: post.rawInput?.slice(0, 80),
+      postId: publishPostId ?? undefined,
     });
   };
 
