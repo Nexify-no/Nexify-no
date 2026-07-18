@@ -52,7 +52,7 @@ function nextOccurrenceFromLabel(timeStr: string): Date | null {
 
 /* ─── LinkedIn Sub-Components ─── */
 
-function PostToLinkedInButton({ content }: { content: string; platform: string }) {
+function PostToLinkedInButton({ content, postId }: { content: string; platform: string; postId?: number }) {
   const { data: connectionStatus } = trpc.linkedin.getConnectionStatus.useQuery();
   const postMutation = trpc.linkedin.createPost.useMutation({
     onSuccess: () => { toast.success("Publisert til LinkedIn!"); },
@@ -75,7 +75,7 @@ function PostToLinkedInButton({ content }: { content: string; platform: string }
 
   const handlePost = () => {
     if (!content.trim()) { toast.error("Innholdet kan ikke være tomt"); return; }
-    postMutation.mutate({ content });
+    postMutation.mutate({ content, postId: postId ?? undefined });
   };
 
   return (
@@ -1227,7 +1227,7 @@ export default function Generate() {
                   </div>
 
                   {/* Post to LinkedIn */}
-                  <PostToLinkedInButton content={generatedContent} platform={platform} />
+                  <PostToLinkedInButton content={generatedContent} platform={platform} postId={savedPostId ?? undefined} />
 
                   {/* Schedule this post — jumps to the Smart Scheduling panel */}
                   <Button
