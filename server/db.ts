@@ -526,6 +526,20 @@ export async function updatePost(postId: number, userId: number, content: string
     .where(and(eq(posts.id, postId), eq(posts.userId, userId)));
 }
 
+/**
+ * Mark an existing post as published (status + publishedAt). Used by the
+ * generic publish path so the post the user clicked shows under "Publisert"
+ * instead of leaving an orphan analytics row. Best-effort: never throws.
+ */
+export async function markPostPublished(postId: number, userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  // SECURITY: ownership enforced at the SQL layer (postId AND userId).
+  await db.update(posts)
+    .set({ status: "published", publishedAt: new Date(), updatedAt: new Date() })
+    .where(and(eq(posts.id, postId), eq(posts.userId, userId)));
+}
+
 export async function deletePost(postId: number, userId: number): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
