@@ -213,6 +213,7 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
       .input(z.object({
         content: z.string().min(1).max(3000),
         postId: z.number().optional(),
+        imageUrl: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { getDb } = await import("../db");
@@ -250,11 +251,21 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
         const activeToken = toOrg
           ? decryptSecret((connection[0] as any).orgAccessToken) ?? ""
           : decryptSecret(connection[0].accessToken) ?? "";
+        // Resolve the image to attach: prefer the saved post's stored image
+        // (source of truth), else the one passed in. Text-only if none.
+        let imageUrl: string | null = input.imageUrl ?? null;
+        if (input.postId) {
+          const row = await db.select().from(posts)
+            .where(and(eq(posts.id, input.postId), eq(posts.userId, ctx.user.id)))
+            .limit(1);
+          if (row.length > 0 && (row[0] as any).imageUrl) imageUrl = (row[0] as any).imageUrl;
+        }
         const result = await createLinkedInPost(
           activeToken,
           connection[0].personUrn,
           input.content,
-          authorOverride
+          authorOverride,
+          imageUrl
         );
 
         // Record the publication locally so "Mine innlegg" reflects it as published
