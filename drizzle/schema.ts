@@ -76,6 +76,11 @@ export const posts = mysqlTable("posts", {
   imageUrl: text("image_url"),
   tags: json("tags").$type<string[]>(),
   status: mysqlEnum("status", ["draft", "scheduled", "published", "failed"]).default("draft").notNull(),
+  // Provenance: a unique id per generation request + the voice-profile version
+  // used, so every post is traceable to exactly one generation and never mixes
+  // context from another request. profileVersion is 0 when no voice profile was used.
+  generationId: varchar("generation_id", { length: 36 }),
+  profileVersion: int("profile_version"),
   scheduledFor: timestamp("scheduled_for"),
   publishedAt: timestamp("published_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -399,6 +404,9 @@ export const voiceProfiles = mysqlTable("voice_profiles", {
   
   // Full profile summary (AI-generated description)
   profileSummary: text("profile_summary"),
+  // Bumped every time the profile is retrained, so generated posts can record
+  // exactly which version of the author's profile produced them.
+  version: int("version").default(1).notNull(),
   
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
