@@ -39,6 +39,9 @@ function requireFlag() {
 }
 
 export const plannedContentRouter = router({
+  /** Klient-flagg: om Enkel-plan er slatt pa (av i prod til Fase 3 + E2E). */
+  flags: protectedProcedure.query(() => ({ enabled: ENV.featureEnkelPlan })),
+
   preview: protectedProcedure
     .input(z.object({ goal: goalSchema, platform: platformSchema, postsPerWeek: perWeekSchema }))
     .query(({ input }) => {
