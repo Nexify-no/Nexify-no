@@ -14,7 +14,7 @@ import {
   platformManager,
 } from "../services/platformOAuthService";
 import { publishingManager, type PublishContent } from "../services/publishingService";
-import { createPost, recordPostAnalytics } from "../db";
+import { createPost, recordPostAnalytics, markPostPublished } from "../db";
 
 // OAuth configurations (should be in environment variables)
 const linkedinConfig = {
@@ -126,7 +126,9 @@ export const platformRouter = router({
       try {
         const oauth = new FacebookOAuth(facebookConfig);
         const token = await oauth.exchangeCodeForToken(input.code);
-        await platformManager.savePlatformToken(ctx.user.id, "facebook", token);
+        // token.accessToken is a PAGE token; store the page id/name with it so
+        // publishing can post directly without a /me/accounts lookup.
+        await platformManager.savePlatformToken(ctx.user.id, "facebook", token, token.accountId, token.accountName);
         return { success: true, message: "Facebook connected successfully" };
       } catch (error) {
         return {
@@ -230,6 +232,7 @@ export const platformRouter = router({
       z.object({
         platforms: z.array(z.string()),
         content: z.string(),
+        postId: z.number().optional(),
         title: z.string().optional(),
         imageUrl: z.string().optional(),
         hashtags: z.array(z.string()).optional(),
@@ -258,18 +261,27 @@ export const platformRouter = router({
         for (const r of results) {
           if (!r.success) continue;
           try {
-            const post = await createPost({
-              userId: ctx.user.id,
-              platform: r.platform as any,
-              tone: "professional",
-              rawInput: input.content,
-              generatedContent: input.content,
-              status: "published",
-              publishedAt: new Date(),
-            } as any);
+            // If the caller published an existing post, flip THAT post to
+            // published so it shows under "Publisert"; otherwise fall back to
+            // creating a standalone analytics row (e.g. ad-hoc publishes).
+            let pid = input.postId ?? null;
+            if (pid) {
+              await markPostPublished(pid, ctx.user.id);
+            } else {
+              const post = await createPost({
+                userId: ctx.user.id,
+                platform: r.platform as any,
+                tone: "professional",
+                rawInput: input.content,
+                generatedContent: input.content,
+                status: "published",
+                publishedAt: new Date(),
+              } as any);
+              pid = post.id;
+            }
             await recordPostAnalytics(
               ctx.user.id,
-              post.id,
+              pid,
               r.platform as any,
               new Date(),
               r.postId ?? null

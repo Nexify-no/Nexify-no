@@ -8,6 +8,7 @@
 import { protectedProcedure, aiProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { randomUUID } from "node:crypto";
 
 // Shared shape for the expanded content-generation "properties". Reused by the
 // generate + enhanceIdea procedures here and (mirrored) by presetsRouter.
@@ -81,6 +82,11 @@ export const contentRouter = router({
 
         // When the user opts in, load their trained voice profile (server-trusted,
         // never client-supplied) and fold it into the prompt.
+        // Unique id for THIS generation; stamped on the saved post for provenance
+        // and returned to the client. profileVersion records which voice-profile
+        // version (if any) shaped the output — 0 means no profile was used.
+        const generationId = randomUUID();
+        let profileVersion = 0;
         let voiceProfile;
         if (input.useVoiceProfile) {
           const { getDb } = await import("../db");
@@ -90,6 +96,7 @@ export const contentRouter = router({
             const { eq } = await import("drizzle-orm");
             const [vp] = await db.select().from(voiceProfiles).where(eq(voiceProfiles.userId, ctx.user.id)).limit(1);
             if (vp && vp.trainingStatus === "trained") {
+              profileVersion = (vp as any).version ?? 1;
               voiceProfile = {
                 profileSummary: vp.profileSummary,
                 vocabularyLevel: vp.vocabularyLevel,
@@ -105,6 +112,16 @@ export const contentRouter = router({
         const { useVoiceProfile: _omit, imageUrl: _img, ...genInput } = input;
         const content = await generateContent({ ...genInput, voiceProfile });
 
+        // Provenance trail: one line per generation, strictly scoped to this user.
+        console.info("[content.generate]", JSON.stringify({
+          generationId,
+          userId: ctx.user.id,
+          profileVersion,
+          usedVoiceProfile: !!voiceProfile,
+          platform: input.platform,
+          topicChars: input.topic.length,
+        }));
+
         // Persist the generated content as a draft so it shows up under "Mine innlegg".
         // (Generation previously only counted quota and never saved the post, so the
         // list stayed empty and work was lost on navigation.)
@@ -117,6 +134,8 @@ export const contentRouter = router({
           imageUrl: (input.imageUrl && /^https?:\/\//.test(input.imageUrl)) ? input.imageUrl : null, // only persist hosted URLs, never giant data: URLs
           tags: input.keywords ?? null,
           status: "draft",
+          generationId,
+          profileVersion,
         });
 
         // Get updated subscription
@@ -124,6 +143,7 @@ export const contentRouter = router({
 
         return {
           content,
+          generationId,
           postId: savedPost.id,
           postsGenerated: updatedSubscription?.postsGenerated || 0,
           postsRemaining: updatedSubscription?.status === "trial"
@@ -135,25 +155,70 @@ export const contentRouter = router({
     // Persist a (later-generated) image onto an existing post. Ownership-checked
     // so a user can only attach to their own posts. Best-effort from the client.
     attachImage: protectedProcedure
-      .input(z.object({ postId: z.number().int().positive(), imageUrl: z.string().max(2_000_000) }))
+      .input(z.object({
+        postId: z.number().int().positive(),
+        imageUrl: z.string().max(2_000_000),
+        // The generation that owns this image. The image is applied only if it
+        // still owns the post's image slot; a late/superseded one is rejected.
+        generationId: z.string().min(1).max(64).optional(),
+      }))
       .mutation(async ({ ctx, input }) => {
         const { getDb } = await import("../db");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
         const { posts } = await import("../../drizzle/schema");
         const { eq, and } = await import("drizzle-orm");
-        const db = await getDb();
-        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-        // Only persist hosted (R2/http) URLs — never embed a multi-MB data: URL in
-        // the row, or content.list balloons and the page freezes.
-        if (!/^https?:\/\//.test(input.imageUrl)) {
-          return { success: false, reason: "not_hosted" };
+        const { nextImageStatus, shouldApplyImage, verifyImageUrl } = await import("../imageLifecycle");
+
+        const [post] = await db
+          .select()
+          .from(posts)
+          .where(and(eq(posts.id, input.postId), eq(posts.userId, ctx.user.id)))
+          .limit(1);
+        if (!post) throw new TRPCError({ code: "NOT_FOUND", message: "Fant ikke innlegget" });
+
+        // Reject a late/superseded image: a newer generation now owns the slot.
+        if (input.generationId && !shouldApplyImage({ imageGenerationId: post.imageGenerationId }, input.generationId)) {
+          return { applied: false as const, reason: "superseded" as const, imageStatus: post.imageStatus };
         }
-        await db.update(posts).set({ imageUrl: input.imageUrl, updatedAt: new Date() }).where(and(eq(posts.id, input.postId), eq(posts.userId, ctx.user.id)));
-        return { success: true };
+
+        // verifying -> completed (valid url) or failed (invalid). Only a verified
+        // url is ever stored, so a broken/AI-refused image never sticks to a post.
+        const verifying = nextImageStatus(post.imageStatus, "uploaded");
+        if (verifyImageUrl(input.imageUrl)) {
+          const status = nextImageStatus(verifying, "verified");
+          await db
+            .update(posts)
+            .set({ imageUrl: input.imageUrl, imageStatus: status })
+            .where(and(eq(posts.id, input.postId), eq(posts.userId, ctx.user.id)));
+          return { applied: true as const, imageStatus: status };
+        }
+        const failed = nextImageStatus(verifying, "verifyFailed");
+        await db
+          .update(posts)
+          .set({ imageStatus: failed })
+          .where(and(eq(posts.id, input.postId), eq(posts.userId, ctx.user.id)));
+        return { applied: true as const, reason: "invalid_url" as const, imageStatus: failed };
       }),
 
-    // Prompt-engineering layer: rewrite a plain idea into a sharper, professional
-    // content brief BEFORE generation. Returns the enhanced text for preview/edit;
-    // does not consume post quota.
+    // Claim the image slot for a NEW image generation and move it to "generating"
+    // so the UI shows a skeleton. Overwrites the owning generationId, so any older
+    // in-flight attempt's response is rejected by attachImage afterwards.
+    setImageGenerating: protectedProcedure
+      .input(z.object({ postId: z.number().int().positive(), generationId: z.string().min(1).max(64) }))
+      .mutation(async ({ ctx, input }) => {
+        const { getDb } = await import("../db");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+        const { posts } = await import("../../drizzle/schema");
+        const { eq, and } = await import("drizzle-orm");
+        await db
+          .update(posts)
+          .set({ imageGenerationId: input.generationId, imageStatus: "generating" })
+          .where(and(eq(posts.id, input.postId), eq(posts.userId, ctx.user.id)));
+        return { imageStatus: "generating" as const };
+      }),
+
     enhanceIdea: aiProcedure
       .input(z.object(contentOptionsShape))
       .mutation(async ({ input }) => {
@@ -195,8 +260,12 @@ export const contentRouter = router({
         // Check subscription - DALL-E 3 is Pro only
         const subscription = await getUserSubscription(ctx.user.id);
         if (!subscription || subscription.status === "trial") {
-          throw new Error("DALL-E 3 image generation requires a Pro subscription. Please upgrade or use Nano Banana (free).");
+          throw new TRPCError({ code: "FORBIDDEN", message: "DALL-E 3 krever et Pro-abonnement. Oppgrader, eller bruk FLUX (gratis)." });
         }
+        // Server-side image quota + cost cap (same meter as the FLUX path) so the
+        // Pro DALL-E route can't be used to run up unbounded OpenAI image spend.
+        const { enforceImageQuota } = await import("../db");
+        await enforceImageQuota(ctx.user.id);
         
         // Generate optimized prompt
         const optimizedPrompt = generateOptimizedImagePrompt({
@@ -358,7 +427,7 @@ export const contentRouter = router({
           throw new Error("Post not found or unauthorized");
         }
         
-        await deletePost(input.postId);
+        await deletePost(input.postId, ctx.user.id);
         return { success: true };
       }),
       
@@ -438,7 +507,7 @@ export const contentRouter = router({
         if (!post || post.userId !== ctx.user.id) {
           throw new Error("Post not found or unauthorized");
         }
-        await updatePost(input.postId, input.content);
+        await updatePost(input.postId, ctx.user.id, input.content);
         return { success: true };
       }),
       
@@ -481,17 +550,21 @@ export const contentRouter = router({
         }
 
         const when = new Date(input.scheduledFor);
-        // Keep the post's display date AND mark it scheduled.
-        await db.update(posts)
-          .set({ scheduledFor: when, status: "scheduled" })
-          .where(eq(posts.id, input.postId));
+        // Atomic: mark the post scheduled, cancel any prior pending schedule
+        // entry, and create the fresh schedule row in ONE transaction — so we can
+        // never end up with posts.status='scheduled' but no scheduled_posts row
+        // (or vice-versa) if a step fails midway.
+        await db.transaction(async (tx: any) => {
+          await tx.update(posts)
+            .set({ scheduledFor: when, status: "scheduled" })
+            .where(eq(posts.id, input.postId));
 
-        // Cancel any prior pending schedule entry, then create a fresh one the
-        // scheduler will actually act on (it reads scheduled_posts, not posts).
-        await db.update(scheduledPosts)
-          .set({ status: "cancelled" })
-          .where(and(eq(scheduledPosts.postId, input.postId), eq(scheduledPosts.status, "scheduled")));
-        await schedulePost(input.postId, ctx.user.id, post.platform, when);
+          await tx.update(scheduledPosts)
+            .set({ status: "cancelled" })
+            .where(and(eq(scheduledPosts.postId, input.postId), eq(scheduledPosts.status, "scheduled")));
+
+          await schedulePost(input.postId, ctx.user.id, post.platform, when, "UTC", tx);
+        });
 
         return { success: true };
       }),

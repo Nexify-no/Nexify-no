@@ -18,7 +18,15 @@ export default defineConfig({
   plugins: [],
   test: {
     environment: "node",
-    include: ["server/**/*.test.ts", "server/**/*.spec.ts"],
+    include: [
+      "server/**/*.test.ts",
+      "server/**/*.spec.ts",
+      "client/**/*.test.{ts,tsx}",
+    ],
+    // useUndoRedo.test.ts uses @testing-library/react renderHook, which needs a
+    // DOM (jsdom/happy-dom). That dependency is not installed, so exclude it here
+    // rather than adding a new dep — enable it once a DOM environment is added.
+    exclude: ["client/src/hooks/useUndoRedo.test.ts", "node_modules/**", "dist/**"],
     globals: true,
     setupFiles: ["./server/test-setup.ts"],
     mockReset: true,

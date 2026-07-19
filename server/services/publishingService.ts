@@ -24,16 +24,20 @@ export interface PublishResult {
 
 // LinkedIn Publishing
 export class LinkedInPublisher {
-  async publish(accessToken: string, content: PublishContent): Promise<PublishResult> {
+  async publish(accessToken: string, content: PublishContent, authorUrn?: string | null): Promise<PublishResult> {
     try {
       const postContent = this.formatContent(content);
 
-      // Delegate to the canonical Posts API implementation (/rest/posts). This also
-      // resolves the correct author URN — the previous "urn:li:person:me" was never
-      // a valid author, and /v2/ugcPosts is deprecated.
+      // Delegate to the canonical Posts API implementation (/rest/posts). When an
+      // explicit author is supplied (a Company Page urn:li:organization:xxx) we post
+      // as that Page; otherwise resolve the member's own URN via OpenID.
       const { getLinkedInProfile, createLinkedInPost } = await import("../linkedinService");
-      const profile = await getLinkedInProfile(accessToken);
-      const result = await createLinkedInPost(accessToken, profile.sub, postContent);
+      let author = authorUrn || null;
+      if (!author) {
+        const profile = await getLinkedInProfile(accessToken);
+        author = `urn:li:person:${profile.sub}`;
+      }
+      const result = await createLinkedInPost(accessToken, "", postContent, author, content.imageUrl);
 
       return {
         platform: "linkedin",
@@ -196,47 +200,62 @@ export class InstagramPublisher {
 
 // Facebook Publishing
 export class FacebookPublisher {
-  async publish(accessToken: string, content: PublishContent): Promise<PublishResult> {
+  private static readonly V = process.env.META_GRAPH_VERSION || "v21.0";
+
+  async publish(accessToken: string, content: PublishContent, pageId?: string): Promise<PublishResult> {
     try {
-      // Get user's pages
-      const pagesResponse = await fetch(
-        `https://graph.facebook.com/me/accounts?access_token=${accessToken}`
-      );
+      const V = FacebookPublisher.V;
+      let targetPageId = pageId;
 
-      if (!pagesResponse.ok) {
-        throw new Error("Failed to get Facebook pages");
+      if (!targetPageId) {
+        // Legacy fallback: older connections stored a USER token without a page id.
+        // New connections store a PAGE token + accountId, skipping this lookup.
+        const pagesResponse = await fetch(
+          `https://graph.facebook.com/${V}/me/accounts?access_token=${encodeURIComponent(accessToken)}`
+        );
+        const pagesData = (await pagesResponse.json().catch(() => ({}))) as {
+          data?: Array<{ id: string }>;
+          error?: { message: string; code?: number };
+        };
+        if (pagesData.error) {
+          const reconnect = pagesData.error.code === 190 ? " — koble til Facebook på nytt." : "";
+          throw new Error(`Facebook: ${pagesData.error.message}${reconnect}`);
+        }
+        if (!pagesData.data || pagesData.data.length === 0) {
+          throw new Error("Ingen Facebook-side funnet (du må være administrator for en side).");
+        }
+        targetPageId = pagesData.data[0].id;
       }
 
-      const pagesData = await pagesResponse.json() as { data: Array<{ id: string }> };
-      if (!pagesData.data || pagesData.data.length === 0) {
-        throw new Error("No Facebook pages found");
-      }
-
-      const pageId = pagesData.data[0].id;
       const postContent = this.formatContent(content);
 
-      // Post to the page
+      // Post to the page (the stored token IS the page token for new connections)
       const postResponse = await fetch(
-        `https://graph.facebook.com/${pageId}/feed?access_token=${accessToken}`,
+        `https://graph.facebook.com/${V}/${targetPageId}/feed`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
             message: postContent,
-            link: content.link,
+            ...(content.link ? { link: content.link } : {}),
+            access_token: accessToken,
           }),
         }
       );
 
-      if (!postResponse.ok) {
-        throw new Error("Failed to post to Facebook");
+      const postData = (await postResponse.json().catch(() => ({}))) as {
+        id?: string;
+        error?: { message: string; code?: number };
+      };
+      if (!postResponse.ok || postData.error) {
+        const e = postData.error;
+        const reconnect = e?.code === 190 ? " — koble til Facebook på nytt." : "";
+        throw new Error(`Facebook: ${e?.message ?? postResponse.statusText}${reconnect}`);
       }
-
-      const postData = await postResponse.json() as { id: string };
       return {
         platform: "facebook",
         success: true,
-        postId: postData.id,
+        postId: postData.id ?? "",
         timestamp: new Date(),
       };
     } catch (error) {
@@ -278,18 +297,27 @@ export class PublishingManager {
 
       let result: PublishResult;
       switch (platform) {
-        case "linkedin":
-          result = await this.linkedinPublisher.publish(token.accessToken, content);
+        case "linkedin": {
+          const author =
+            token.publishTarget === "organization" && token.organizationUrn
+              ? token.organizationUrn
+              : token.personUrn
+                ? (token.personUrn.startsWith("urn:li:") ? token.personUrn : `urn:li:person:${token.personUrn}`)
+                : null;
+          result = await this.linkedinPublisher.publish(token.accessToken, content, author);
           break;
+        }
         case "twitter":
           result = await this.twitterPublisher.publish(token.accessToken, content);
           break;
         case "instagram":
           result = await this.instagramPublisher.publish(token.accessToken, content);
           break;
-        case "facebook":
-          result = await this.facebookPublisher.publish(token.accessToken, content);
+        case "facebook": {
+          const conn = await platformManager.getPlatformConnection(userId, "facebook");
+          result = await this.facebookPublisher.publish(token.accessToken, content, conn?.accountId ?? undefined);
           break;
+        }
         default:
           result = {
             platform,
@@ -326,18 +354,27 @@ export class PublishingManager {
 
       let result: PublishResult;
       switch (platform) {
-        case "linkedin":
-          result = await this.linkedinPublisher.publish(token.accessToken, content);
+        case "linkedin": {
+          const author =
+            token.publishTarget === "organization" && token.organizationUrn
+              ? token.organizationUrn
+              : token.personUrn
+                ? (token.personUrn.startsWith("urn:li:") ? token.personUrn : `urn:li:person:${token.personUrn}`)
+                : null;
+          result = await this.linkedinPublisher.publish(token.accessToken, content, author);
           break;
+        }
         case "twitter":
           result = await this.twitterPublisher.publish(token.accessToken, content);
           break;
         case "instagram":
           result = await this.instagramPublisher.publish(token.accessToken, content);
           break;
-        case "facebook":
-          result = await this.facebookPublisher.publish(token.accessToken, content);
+        case "facebook": {
+          const conn = await platformManager.getPlatformConnection(userId, "facebook");
+          result = await this.facebookPublisher.publish(token.accessToken, content, conn?.accountId ?? undefined);
           break;
+        }
         default:
           result = {
             platform,

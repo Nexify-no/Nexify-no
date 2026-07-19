@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
 import { takeEditorHandoff, setAbTestHandoff } from "@/lib/editorHandoff";
+import { createGenerationGuard } from "@/lib/generationGuard";
 import { Copy, Loader2, Sparkles, Wand2, Upload, X, Image as ImageIcon, Mic, Flame, Save, Cloud } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
@@ -52,7 +53,7 @@ function nextOccurrenceFromLabel(timeStr: string): Date | null {
 
 /* ─── LinkedIn Sub-Components ─── */
 
-function PostToLinkedInButton({ content }: { content: string; platform: string }) {
+function PostToLinkedInButton({ content, postId }: { content: string; platform: string; postId?: number }) {
   const { data: connectionStatus } = trpc.linkedin.getConnectionStatus.useQuery();
   const postMutation = trpc.linkedin.createPost.useMutation({
     onSuccess: () => { toast.success("Publisert til LinkedIn!"); },
@@ -75,7 +76,7 @@ function PostToLinkedInButton({ content }: { content: string; platform: string }
 
   const handlePost = () => {
     if (!content.trim()) { toast.error("Innholdet kan ikke være tomt"); return; }
-    postMutation.mutate({ content });
+    postMutation.mutate({ content, postId: postId ?? undefined });
   };
 
   return (
@@ -236,6 +237,9 @@ export default function Generate() {
 
   // Auto-select the user's default preset on first load (only if form is empty).
   const appliedDefaultRef = useRef(false);
+  // Request-identity guard: every user-initiated generation gets a fresh id so
+  // late/out-of-order responses (text or image) can never overwrite a newer one.
+  const genGuardRef = useRef(createGenerationGuard());
   useEffect(() => {
     if (appliedDefaultRef.current || !presetsQuery.data || topic) return;
     const def = presetsQuery.data.find((p) => p.isDefault);
@@ -393,7 +397,10 @@ export default function Generate() {
 
   // Mutations
   const generateMutation = trpc.content.generate.useMutation({
-    onSuccess: (data) => {
+    onMutate: () => ({ genId: genGuardRef.current.current }),
+    onSuccess: (data, _vars, ctx) => {
+      // Drop a stale/late response that no longer matches the active generation.
+      if (ctx && !genGuardRef.current.isCurrent(ctx.genId)) return;
       setGeneratedContent(data.content);
       setMobileTab("resultat");
       setSavedPostId((data as any).postId ?? null);
@@ -406,11 +413,13 @@ export default function Generate() {
       // One-click flow: if "Generer bilde med AI" is enabled, generate the image
       // right after the text (Pro only), attached to the freshly-created post.
       // Runs in the background so it never blocks showing the generated text.
+      // The image is bound to THIS generation's id so a newer generation drops it.
       if (generateAIImage && subscription?.status !== "trial") {
-        void runImageGeneration((data as any).postId ?? null);
+        void runImageGeneration((data as any).postId ?? null, ctx?.genId ?? genGuardRef.current.current);
       }
     },
-    onError: (error) => {
+    onError: (error, _vars, ctx) => {
+      if (ctx && !genGuardRef.current.isCurrent(ctx.genId)) return;
       // The server sends a clear Norwegian message (e.g. monthly limit reached).
       toast.error(error.message || "Noe gikk galt");
     },
@@ -425,6 +434,9 @@ export default function Generate() {
   const nanoImageMutation = trpc.content.generateImageNanoBanana.useMutation();
   // Best-effort: persist a later-generated image onto the already-saved post.
   const attachImageMutation = trpc.content.attachImage.useMutation();
+  // Claims a post's image slot for a new attempt so late/superseded image
+  // responses are rejected by the server.
+  const setImageGeneratingMutation = trpc.content.setImageGenerating.useMutation();
 
   const handleSchedule = (timeLabel: string) => {
     if (!savedPostId) {
@@ -458,11 +470,16 @@ export default function Generate() {
   };
 
   const improveMutation = trpc.content.improve.useMutation({
-    onSuccess: (data) => {
+    onMutate: () => ({ genId: genGuardRef.current.current }),
+    onSuccess: (data, _vars, ctx) => {
+      if (ctx && !genGuardRef.current.isCurrent(ctx.genId)) return;
       setGeneratedContent(data.content);
       toast.success("Innholdet ble forbedret!");
     },
-    onError: () => toast.error("Kunne ikke forbedre innholdet"),
+    onError: (_e, _vars, ctx) => {
+      if (ctx && !genGuardRef.current.isCurrent(ctx.genId)) return;
+      toast.error("Kunne ikke forbedre innholdet");
+    },
   });
 
   // Posts are auto-saved when generated. Navigate to posts page to see them.
@@ -473,7 +490,16 @@ export default function Generate() {
       return;
     }
     if (!topic.trim()) { toast.error("Vennligst skriv inn et emne"); return; }
-    generateMutation.mutate({ ...buildOptions(), imageUrl: uploadedImage || undefined });
+    // Begin a new generation: invalidates any in-flight request and clears
+    // artifacts from the previous one so nothing bleeds into this post.
+    genGuardRef.current.start();
+    setGeneratedContent("");
+    setSavedPostId(null);
+    // An AI-generated image (marked by its prompt) belongs to the previous post
+    // -> drop it. A fresh user upload (no prompt) is kept and forwarded.
+    const carryImage = generatedImagePrompt ? undefined : (uploadedImage || undefined);
+    if (generatedImagePrompt) { setUploadedImage(null); setGeneratedImagePrompt(null); }
+    generateMutation.mutate({ ...buildOptions(), imageUrl: carryImage });
   };
 
   const handleImprove = (type: string) => {
@@ -515,20 +541,29 @@ export default function Generate() {
     setGeneratedImagePrompt(null);
   };
 
-  const runImageGeneration = async (postIdOverride?: number | null) => {
+  const runImageGeneration = async (postIdOverride?: number | null, genId: number = genGuardRef.current.current) => {
     if (!topic.trim()) { toast.error("Skriv inn et emne f\u00f8rst"); return; }
     setIsGeneratingImage(true);
+    // Each attempt gets a unique id and CLAIMS the post's image slot, so a rapid
+    // re-click supersedes the previous attempt and its late response is rejected.
+    const imageGenId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+    const pid = postIdOverride ?? savedPostId;
     try {
+      if (pid) {
+        try { await setImageGeneratingMutation.mutateAsync({ postId: pid, generationId: imageGenId }); } catch { /* non-fatal */ }
+      }
       const mutation = imageGenerationType === "dalle" ? dalleImageMutation : nanoImageMutation;
       const res = await mutation.mutateAsync({ topic, platform, tone, keywords: [] });
+      // A newer generation started while this image was rendering -> discard it
+      // so it never attaches to or displays on the wrong post.
+      if (!genGuardRef.current.isCurrent(genId)) return;
       if (res?.url) {
         setUploadedImage(res.url);
         setGeneratedImagePrompt(res.prompt || topic);
-        // Persist the image onto the saved post — the freshly-created one when
-        // auto-generating, otherwise the already-saved post. Errors are non-fatal.
-        const pid = postIdOverride ?? savedPostId;
+        // Attach with THIS attempt's id; the server rejects it if a newer attempt
+        // has since claimed the slot, so the wrong image never sticks to a post.
         if (pid) {
-          attachImageMutation.mutate({ postId: pid, imageUrl: res.url });
+          attachImageMutation.mutate({ postId: pid, imageUrl: res.url, generationId: imageGenId });
         }
         toast.success("AI-bilde generert!");
       } else {
@@ -691,7 +726,7 @@ export default function Generate() {
                     </button>
                     <button
                       onClick={() => deletePresetMutation.mutate({ id: p.id })}
-                      className="pr-2 pl-0.5 py-1 text-muted-foreground hover:text-destructive"
+                      className="inline-flex items-center justify-center min-h-[24px] min-w-[24px] px-1.5 py-1 text-muted-foreground hover:text-destructive"
                       aria-label={`Slett ${p.name}`}
                     >
                       <X className="h-3 w-3" />
@@ -1029,7 +1064,7 @@ export default function Generate() {
                     {subscription?.status === "trial" && (
                       <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
                         <p className="text-sm font-medium text-amber-800 dark:text-amber-300 mb-1">✨ 2 gratis AI-bilder</p>
-                        <p className="text-xs text-amber-700 dark:text-amber-400">Gratis-planen inkluderer 2 AI-bilder per måned. Oppgrader til Pro for flere.</p>
+                        <p className="text-xs text-amber-700 dark:text-amber-400">Gratis-planen inkluderer 2 gratis AI-bilder (engangs). Oppgrader til Pro for flere.</p>
                       </div>
                     )}
                     {(
@@ -1227,7 +1262,7 @@ export default function Generate() {
                   </div>
 
                   {/* Post to LinkedIn */}
-                  <PostToLinkedInButton content={generatedContent} platform={platform} />
+                  <PostToLinkedInButton content={generatedContent} platform={platform} postId={savedPostId ?? undefined} />
 
                   {/* Schedule this post — jumps to the Smart Scheduling panel */}
                   <Button

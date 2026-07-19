@@ -28,6 +28,7 @@ export type SessionPayload = {
   openId: string;
   appId: string;
   name: string;
+  tokenVersion?: number;
 };
 
 const EXCHANGE_TOKEN_PATH = `/webdev.v1.WebDevAuthPublicService/ExchangeToken`;
@@ -174,11 +175,21 @@ class SDKServer {
     openId: string,
     options: { expiresInMs?: number; name?: string } = {}
   ): Promise<string> {
+    // Stamp the token with the user's current tokenVersion so it can be revoked
+    // server-side later (logout / password reset increments the version).
+    let tokenVersion = 0;
+    try {
+      const u = await db.getUserByOpenId(openId);
+      tokenVersion = ((u as any)?.tokenVersion ?? 0) as number;
+    } catch {
+      tokenVersion = 0;
+    }
     return this.signSession(
       {
         openId,
         appId: ENV.appId,
         name: options.name || "",
+        tokenVersion,
       },
       options
     );
@@ -197,6 +208,7 @@ class SDKServer {
       openId: payload.openId,
       appId: payload.appId,
       name: payload.name,
+      tv: payload.tokenVersion ?? 0,
     })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setExpirationTime(expirationSeconds)
@@ -205,7 +217,7 @@ class SDKServer {
 
   async verifySession(
     cookieValue: string | undefined | null
-  ): Promise<{ openId: string; appId: string; name: string } | null> {
+  ): Promise<{ openId: string; appId: string; name: string; tv: number | null } | null> {
     if (!cookieValue) {
       console.warn("[Auth] Missing session cookie");
       return null;
@@ -216,7 +228,7 @@ class SDKServer {
       const { payload } = await jwtVerify(cookieValue, secretKey, {
         algorithms: ["HS256"],
       });
-      const { openId, appId, name } = payload as Record<string, unknown>;
+      const { openId, appId, name, tv } = payload as Record<string, unknown>;
 
       // Only openId is required to identify the user. `appId` is a vestigial
       // field (was the Manus app id, removed) and is empty when VITE_APP_ID is
@@ -230,6 +242,9 @@ class SDKServer {
         openId,
         appId: typeof appId === "string" ? appId : "",
         name: typeof name === "string" ? name : "",
+        // Legacy tokens (issued before session revocation) have no `tv` — treat
+        // as null so they are NOT rejected until they expire / user re-logs in.
+        tv: typeof tv === "number" ? tv : null,
       };
     } catch (error) {
       console.warn("[Auth] Session verification failed", String(error));
@@ -295,6 +310,13 @@ class SDKServer {
 
     if (!user) {
       throw ForbiddenError("User not found");
+    }
+
+    // Session revocation: reject a token whose stamped version is stale. Legacy
+    // tokens (tv === null) are exempt until they naturally expire.
+    const currentTv = ((user as any).tokenVersion ?? 0) as number;
+    if (session.tv != null && session.tv !== currentTv) {
+      throw ForbiddenError("Session has been revoked");
     }
 
     await db.upsertUser({

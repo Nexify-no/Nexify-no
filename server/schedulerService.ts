@@ -5,8 +5,8 @@
  */
 
 import * as cron from 'node-cron';
-import { posts, scheduledPosts, linkedinConnections, users } from '../drizzle/schema';
-import { eq, and, lte, lt, gte } from 'drizzle-orm';
+import { posts, scheduledPosts, linkedinConnections, users, subscriptions } from '../drizzle/schema';
+import { eq, and, lte, lt, gte, or, isNull } from 'drizzle-orm';
 import { createLinkedInPost } from './linkedinService';
 import { getDb as getDatabase, recordPostAnalytics } from './db';
 import { notifyOwner } from './_core/notification';
@@ -24,6 +24,7 @@ let schedulerTask: cron.ScheduledTask | null = null;
 let weeklyRitualTask: cron.ScheduledTask | null = null;
 let linkedinExpiryTask: cron.ScheduledTask | null = null;
 let lifecycleTask: cron.ScheduledTask | null = null;
+let subscriptionReminderTask: cron.ScheduledTask | null = null;
 
 // In-process overlap guard: a run that exceeds the 5-min interval must not be
 // re-entered by the next tick on the same instance.
@@ -339,6 +340,43 @@ async function remindExpiringLinkedInTokens() {
 }
 
 /**
+ * Periodic "your subscription is active" reminder — at least every 6 months, per
+ * digitalytelsesloven / Forbrukertilsynet. Daily cron; each active subscription is
+ * reminded when it has never been reminded or the last reminder is >6 months old.
+ */
+async function remindActiveSubscriptions() {
+  const db = await getDatabase();
+  if (!db) return;
+  const sixMonthsAgo = new Date(Date.now() - 182 * 24 * 60 * 60 * 1000);
+  const due = await db
+    .select()
+    .from(subscriptions)
+    .where(
+      and(
+        eq(subscriptions.status, 'active'),
+        or(isNull(subscriptions.lastActiveReminderAt), lte(subscriptions.lastActiveReminderAt, sixMonthsAgo)),
+      ),
+    );
+  if (due.length === 0) return;
+  const { sendSubscriptionActiveReminderEmail } = await import('./_core/email');
+  let sent = 0;
+  for (const sub of due) {
+    try {
+      const [u] = await db.select().from(users).where(eq(users.id, sub.userId)).limit(1);
+      if (!u?.email) continue;
+      await sendSubscriptionActiveReminderEmail(u.email, u.name || '');
+      await db.update(subscriptions).set({ lastActiveReminderAt: new Date() }).where(eq(subscriptions.id, sub.id));
+      sent++;
+    } catch (e) {
+      console.error('[Scheduler:SubReminder] failed for user', sub.userId, e);
+    }
+    await new Promise((res) => setTimeout(res, 200));
+  }
+  console.log(`[Scheduler:SubReminder] reminders sent: ${sent}/${due.length}`);
+}
+
+
+/**
  * Start the scheduler — runs every 5 minutes to check for due posts.
  */
 export function startScheduler() {
@@ -411,6 +449,10 @@ export function startScheduler() {
   }, { timezone: 'Europe/Oslo' });
 
   console.log('[Scheduler] Started - scheduled posts + A/B every 5 min, Competitor Radar hourly, best-times daily 03:30, weekly ritual Mon 08:00, lifecycle daily 10:00');
+  // Subscription-active reminder — daily at 10:00; each active sub reminded ≤ every 6 months.
+  subscriptionReminderTask = cron.schedule('0 10 * * *', async () => {
+    try { await remindActiveSubscriptions(); } catch (e) { console.error('[Scheduler:SubReminder] error', e); }
+  });
 }
 
 export function stopScheduler() {
@@ -442,6 +484,10 @@ export function stopScheduler() {
   if (linkedinExpiryTask) {
     void linkedinExpiryTask.stop();
     linkedinExpiryTask = null;
+  }
+  if (subscriptionReminderTask) {
+    void subscriptionReminderTask.stop();
+    subscriptionReminderTask = null;
     console.log('[Scheduler:LinkedInExpiry] Stopped');
   }
   if (lifecycleTask) {

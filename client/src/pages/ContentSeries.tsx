@@ -180,7 +180,7 @@ export default function ContentSeries() {
       toast.error("Fyll inn tittel og beskrivelse");
       return;
     }
-    createMutation.mutate({ title, description, postCount, platform, tone, language: seriesLanguage, generateImage });
+    createMutation.mutate({ title, description, postCount, platform: platform as "linkedin" | "twitter" | "instagram" | "facebook", tone: tone as "professional" | "friendly" | "formal" | "casual" | "humorous", language: seriesLanguage as "no" | "en", generateImage });
   };
 
   return (

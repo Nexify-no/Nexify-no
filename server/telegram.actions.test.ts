@@ -38,7 +38,7 @@ describe("Telegram Action Procedures", () => {
     avatarUrl: null,
     createdAt: new Date(),
     updatedAt: new Date(),
-    lastSignedIn: new Date(),
+    lastSignedIn: new Date(), passwordHash: null, emailVerified: null, twoFactorSecret: null, twoFactorEnabled: 0, twoFactorBackupCodes: null, tokenVersion: 0,
   };
 
   const mockContext: TrpcContext = {
@@ -75,7 +75,7 @@ describe("Telegram Action Procedures", () => {
           expect(result).toHaveProperty('success');
         }
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });
@@ -91,7 +91,7 @@ describe("Telegram Action Procedures", () => {
 
         expect(result).toBeDefined();
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });
@@ -107,7 +107,7 @@ describe("Telegram Action Procedures", () => {
 
         expect(result).toBeDefined();
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -122,7 +122,7 @@ describe("Telegram Action Procedures", () => {
 
         expect(result).toBeDefined();
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });

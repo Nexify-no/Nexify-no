@@ -10,6 +10,7 @@ import timeGridPlugin from "@fullcalendar/timegrid";
 import listPlugin from "@fullcalendar/list";
 import interactionPlugin from "@fullcalendar/interaction";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +56,17 @@ export default function Calendar() {
   const reschedulePost = trpc.content.reschedule.useMutation({
     onSuccess: () => {
       refetch();
+    },
+  });
+
+  // Mutation to delete a post (ownership enforced server-side).
+  const deletePost = trpc.content.delete.useMutation({
+    onSuccess: () => {
+      refetch();
+      toast.success("Innlegget ble slettet");
+    },
+    onError: (e) => {
+      toast.error(e.message || "Kunne ikke slette innlegget");
     },
   });
 
@@ -125,10 +137,12 @@ export default function Calendar() {
     window.location.href = `/posts?id=${eventId}`;
   };
 
-  // Handle delete event
-  const handleDeleteEvent = (_eventId: string) => {
+  // Handle delete event — now actually deletes (was a no-op stub).
+  const handleDeleteEvent = (eventId: string) => {
+    const postId = parseInt(eventId, 10);
+    if (Number.isNaN(postId)) return;
     if (confirm("Er du sikker på at du vil slette dette innlegget?")) {
-      // TODO: Implement delete mutation
+      deletePost.mutate({ postId });
     }
   };
 

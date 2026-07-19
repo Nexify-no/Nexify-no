@@ -33,15 +33,15 @@ export default function Dashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  const { data: subscription, isLoading: subLoading } = trpc.user.getSubscription.useQuery(undefined, {
+  const { data: subscription, isLoading: subLoading, isError: subError, refetch: refetchSub } = trpc.user.getSubscription.useQuery(undefined, {
     enabled: isAuthenticated,
   });
 
-  const { data: posts, isLoading: postsLoading } = trpc.content.list.useQuery(undefined, {
+  const { data: posts, isLoading: postsLoading, isError: postsError, refetch: refetchPosts } = trpc.content.list.useQuery(undefined, {
     enabled: isAuthenticated,
   });
   
-  const { data: activityData, isLoading: activityLoading } = trpc.content.getActivityData.useQuery(undefined, {
+  const { data: activityData, isLoading: activityLoading, isError: activityError, refetch: refetchActivity } = trpc.content.getActivityData.useQuery(undefined, {
     enabled: isAuthenticated,
   });
 
@@ -160,9 +160,24 @@ export default function Dashboard() {
       <main className="container py-6 md:py-8 max-w-6xl">
         <LinkedInExpiryBanner />
         <WizardResumeCard />
+        {(subError || postsError || activityError) && (
+          <div className="mb-6 flex items-center justify-between gap-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <span>
+              {language === "no"
+                ? "Noe gikk galt under lasting av dashbordet. Sjekk nettforbindelsen."
+                : "Something went wrong loading the dashboard. Check your connection."}
+            </span>
+            <button
+              onClick={() => { refetchSub(); refetchPosts(); refetchActivity(); }}
+              className="shrink-0 rounded-md border border-destructive/40 px-3 py-1 font-medium hover:bg-destructive/20"
+            >
+              {language === "no" ? "Prøv igjen" : "Retry"}
+            </button>
+          </div>
+        )}
         {/* Welcome Header */}
         <div className="mb-8 page-enter">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
@@ -181,7 +196,7 @@ export default function Dashboard() {
                   : (language === "no" ? "Klar til å lage noe fantastisk i dag?" : "Ready to create something amazing today?")}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {isAdmin && (
                 <>
                   <Button 
@@ -328,7 +343,7 @@ export default function Dashboard() {
                 {Math.round(postsUsed * 0.25)}h
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                ~45 {language === "no" ? "min spart per innlegg" : "min saved per post"}
+                ~45 {language === "no" ? "min spart per innlegg (estimat)" : "min saved per post (estimate)"}
               </p>
             </div>
 

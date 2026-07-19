@@ -244,6 +244,20 @@ function LinkedInConnectionStatus({ language }: { language: "no" | "en" }) {
     },
   });
 
+  // Company-Page publishing: list Pages the member administers + save the choice.
+  // Only active when the operator has enabled org posting (env flag) after the
+  // LinkedIn app was approved for the Community Management API.
+  const orgList = trpc.linkedin.listOrganizations.useQuery(undefined, {
+    enabled: !!connectionStatus?.connected && !!(connectionStatus as any)?.orgPostingEnabled && !!(connectionStatus as any)?.orgConnected,
+  });
+  const setTargetMutation = trpc.linkedin.setPublishTarget.useMutation({
+    onSuccess: () => {
+      toast.success(language === "no" ? "Publiseringsmål oppdatert" : "Publish target updated");
+      refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const utils = trpc.useUtils();
   
   const handleConnect = async () => {
@@ -254,6 +268,17 @@ function LinkedInConnectionStatus({ language }: { language: "no" | "en" }) {
       }
     } catch (error: any) {
       toast.error(error.message || (language === "no" ? "Kunne ikke generere autorisasjons-URL" : "Could not generate authorization URL"));
+    }
+  };
+
+  const handleConnectOrg = async () => {
+    try {
+      const result = await utils.linkedin.getOrgAuthUrl.fetch();
+      if (result?.url) {
+        window.location.href = result.url;
+      }
+    } catch (error: any) {
+      toast.error(error.message || (language === "no" ? "Kunne ikke koble til bedriftsside" : "Could not connect Company Page"));
     }
   };
 
@@ -280,6 +305,69 @@ function LinkedInConnectionStatus({ language }: { language: "no" | "en" }) {
           <p><strong>{language === "no" ? "E-post:" : "Email:"}</strong> {connectionStatus.profileEmail}</p>
           <p><strong>{language === "no" ? "Utløper:" : "Expires:"}</strong> {connectionStatus.expiresAt ? new Date(connectionStatus.expiresAt).toLocaleDateString() : "N/A"}</p>
         </div>
+        {(connectionStatus as any).orgPostingEnabled && (
+          <div className="space-y-2 pt-3 border-t">
+            {!(connectionStatus as any).orgConnected ? (
+              <>
+                <p className="text-sm font-medium">
+                  {language === "no" ? "Bedriftsside (Company Page)" : "Company Page"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {language === "no"
+                    ? "Koble til bedriftsappen for å publisere som en LinkedIn-side."
+                    : "Connect the company app to publish as a LinkedIn Page."}
+                </p>
+                <Button variant="outline" size="sm" onClick={handleConnectOrg}>
+                  <Linkedin className="h-4 w-4 mr-2" />
+                  {language === "no" ? "Koble til bedriftsside" : "Connect Company Page"}
+                </Button>
+              </>
+             ) : (
+              <>
+                <p className="text-sm font-medium">
+                  {language === "no" ? "Publiser som" : "Publish as"}
+                </p>
+                <select
+              className="w-full rounded-lg border px-2 py-1.5 text-sm bg-white dark:bg-slate-900"
+                value={
+                (connectionStatus as any).publishTarget === "organization" && (connectionStatus as any).organizationUrn
+                  ? (connectionStatus as any).organizationUrn
+                  : "person"
+              }
+              disabled={setTargetMutation.isPending}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "person") {
+                  setTargetMutation.mutate({ target: "person" });
+                } else {
+                  const org = (orgList.data?.organizations || []).find((o) => o.urn === val);
+                  setTargetMutation.mutate({ target: "organization", organizationUrn: val, organizationName: org?.name });
+                }
+              }}
+            >
+              <option value="person">
+                {language === "no" ? "Personlig profil" : "Personal profile"}
+              </option>
+              {(orgList.data?.organizations || []).map((o) => (
+                <option key={o.urn} value={o.urn}>{o.name}</option>
+              ))}
+            </select>
+            {orgList.isLoading && (
+              <p className="text-xs text-muted-foreground">
+                {language === "no" ? "Henter sider..." : "Loading pages..."}
+              </p>
+            )}
+            {orgList.data && orgList.data.organizations.length === 0 && !orgList.isLoading && (
+              <p className="text-xs text-muted-foreground">
+                {language === "no"
+                  ? "Ingen sider funnet der du er administrator."
+                  : "No pages found where you are an administrator."}
+              </p>
+            )}
+              </>
+            )}
+          </div>
+        )}
         <Button 
           variant="destructive" 
           size="sm"
@@ -563,9 +651,7 @@ export default function Settings() {
         <Tabs defaultValue="account" className="w-full">
           <TabsList className="flex w-full h-auto flex-wrap gap-1 bg-slate-100/80 dark:bg-slate-800/50 p-1.5 rounded-xl">
             <TabsTrigger value="account">{language === "no" ? "Konto" : "Account"}</TabsTrigger>
-            <TabsTrigger value="notifications">{language === "no" ? "Varsler" : "Notifications"}</TabsTrigger>
             <TabsTrigger value="platforms">{language === "no" ? "Plattformer" : "Platforms"}</TabsTrigger>
-            <TabsTrigger value="content">{language === "no" ? "Innhold" : "Content"}</TabsTrigger>
             <TabsTrigger value="security">{language === "no" ? "Sikkerhet" : "Security"}</TabsTrigger>
             <TabsTrigger value="faq">{language === "no" ? "FAQ" : "FAQ"}</TabsTrigger>
             <TabsTrigger value="billing">{language === "no" ? "Fakturering" : "Billing"}</TabsTrigger>
@@ -740,18 +826,6 @@ export default function Settings() {
           </TabsContent>
 
           {/* Notifications Tab */}
-          <TabsContent value="notifications" className="space-y-6 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>{language === "no" ? "Varslingsinnstillinger" : "Notification Settings"}</CardTitle>
-                <CardDescription>{language === "no" ? "Administrer dine varslinger" : "Manage your notifications"}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">{language === "no" ? "Varslingsinnstillinger kommer snart" : "Notification settings coming soon"}</p>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
           {/* Platforms Tab */}
           <TabsContent value="platforms" className="space-y-6 mt-6">
           <Card>
@@ -875,18 +949,6 @@ export default function Settings() {
           </TabsContent>
 
           {/* Content Tab */}
-          <TabsContent value="content" className="space-y-6 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>{language === "no" ? "Innholdsinnstillinger" : "Content Settings"}</CardTitle>
-                <CardDescription>{language === "no" ? "Administrer dine innholdsinnstillinger" : "Manage your content settings"}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">{language === "no" ? "Innholdsinnstillinger kommer snart" : "Content settings coming soon"}</p>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
           {/* Security Tab */}
           <TabsContent value="security" className="space-y-6 mt-6">
             <SecuritySettings language={language} />

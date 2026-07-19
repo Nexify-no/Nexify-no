@@ -31,7 +31,7 @@ export default function Salgsbetingelser() {
         icon: CreditCard,
         title: "2. Betaling",
         content: [
-          "Alle priser er oppgitt i norske kroner (NOK) og inkluderer merverdiavgift (MVA) der dette er aktuelt.",
+          "Alle priser er oppgitt i norske kroner (NOK). Selskapet er foreløpig ikke registrert i Merverdiavgiftsregisteret, og prisene er derfor uten merverdiavgift (MVA). Gjeldende pris vises alltid før kjøpet bekreftes.",
           "**Priser**: Pro 199 NOK/måned (årlig 2149 NOK/år) og Premium 399 NOK/måned (årlig 4309 NOK/år). Årsabonnement gir 10% rabatt. Gjeldende priser fremgår alltid på prissiden før kjøpet bekreftes.",
           "**Betalingsmetoder**: Vi aksepterer betalings-/kredittkort og Vipps.",
           "**Trekk**: Abonnementet er en fast, gjentakende betaling som trekkes automatisk ved starten av hver fakturaperiode (måned eller år) frem til kunden sier opp.",

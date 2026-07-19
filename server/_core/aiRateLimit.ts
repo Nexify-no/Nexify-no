@@ -55,6 +55,17 @@ async function withinLimit(key: string, limit: number, windowMs: number): Promis
 export async function enforceAiRateLimit(userId: number): Promise<void> {
   if (isTestEnv()) return;
 
+  // Fail-closed in production: the in-memory fallback is per-instance and thus
+  // bypassable across a scaled deployment, so a missing shared store must DENY
+  // paid-AI calls rather than silently allow unbounded cost. (validateEnv also
+  // refuses to boot prod without REDIS_URL; this is defense-in-depth.)
+  if (process.env.NODE_ENV === "production" && !getRedis()) {
+    throw new TRPCError({
+      code: "SERVICE_UNAVAILABLE",
+      message: "AI temporarily unavailable (rate limiter store not reachable).",
+    });
+  }
+
   const now = Date.now();
   const minuteKey = `ai:rl:${userId}:m:${Math.floor(now / 60000)}`;
   const dayKey = `ai:rl:${userId}:d:${Math.floor(now / 86400000)}`;

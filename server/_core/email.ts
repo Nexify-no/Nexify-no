@@ -348,3 +348,19 @@ export async function sendWeeklyReportEmail(
 
   return sendEmail(email, "Din ukentlige rapport", htmlContent);
 }
+
+/**
+ * Periodic reminder that a paid subscription is still active + how to cancel.
+ * Required by digitalytelsesloven / Forbrukertilsynet (at least every 6 months).
+ */
+export async function sendSubscriptionActiveReminderEmail(email: string, name: string): Promise<boolean> {
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto;">
+      <h2>Hei ${name || "der"}!</h2>
+      <p>Dette er en vennlig påminnelse om at Penna-abonnementet ditt fortsatt er aktivt og fornyes automatisk.</p>
+      <p>Du kan når som helst se abonnementet, endre plan eller si opp – like enkelt som du meldte deg på – under
+      <strong>Innstillinger → Fakturering</strong> i appen. Ingen bindingstid.</p>
+      <p style="color:#666;font-size:13px;">Nexify CRM Systems AS · Org.nr 936 300 278</p>
+    </div>`;
+  return sendEmail(email, "Påminnelse: Penna-abonnementet ditt er aktivt", htmlContent);
+}

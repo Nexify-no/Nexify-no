@@ -61,7 +61,7 @@ describe("Dashboard Activity Data", () => {
           avatarUrl: null,
           createdAt: new Date(),
           updatedAt: new Date(),
-          lastSignedIn: new Date(),
+          lastSignedIn: new Date(), passwordHash: null, emailVerified: null, twoFactorSecret: null, twoFactorEnabled: 0, twoFactorBackupCodes: null, tokenVersion: 0,
         },
         req: {} as any,
         res: {} as any,
@@ -81,7 +81,7 @@ describe("Dashboard Activity Data", () => {
         });
       }
     } catch (error) {
-      expect(true).toBe(true);
+      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
     }
   });
 
@@ -109,7 +109,7 @@ describe("Dashboard Activity Data", () => {
           avatarUrl: null,
           createdAt: new Date(),
           updatedAt: new Date(),
-          lastSignedIn: new Date(),
+          lastSignedIn: new Date(), passwordHash: null, emailVerified: null, twoFactorSecret: null, twoFactorEnabled: 0, twoFactorBackupCodes: null, tokenVersion: 0,
         },
         req: {} as any,
         res: {} as any,
@@ -122,7 +122,7 @@ describe("Dashboard Activity Data", () => {
         expect(allZero).toBe(true);
       }
     } catch (error) {
-      expect(true).toBe(true);
+      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
     }
   });
 
@@ -151,7 +151,7 @@ describe("Dashboard Activity Data", () => {
           avatarUrl: null,
           createdAt: new Date(),
           updatedAt: new Date(),
-          lastSignedIn: new Date(),
+          lastSignedIn: new Date(), passwordHash: null, emailVerified: null, twoFactorSecret: null, twoFactorEnabled: 0, twoFactorBackupCodes: null, tokenVersion: 0,
         },
         req: {} as any,
         res: {} as any,
@@ -161,7 +161,7 @@ describe("Dashboard Activity Data", () => {
 
       expect(activityData).toBeDefined();
     } catch (error) {
-      expect(true).toBe(true);
+      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
     }
   });
 
@@ -181,7 +181,7 @@ describe("Dashboard Activity Data", () => {
           avatarUrl: null,
           createdAt: new Date(),
           updatedAt: new Date(),
-          lastSignedIn: new Date(),
+          lastSignedIn: new Date(), passwordHash: null, emailVerified: null, twoFactorSecret: null, twoFactorEnabled: 0, twoFactorBackupCodes: null, tokenVersion: 0,
         },
         req: {} as any,
         res: {} as any,
@@ -191,7 +191,7 @@ describe("Dashboard Activity Data", () => {
 
       expect(activityData).toBeDefined();
     } catch (error) {
-      expect(true).toBe(true);
+      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
     }
   });
 });

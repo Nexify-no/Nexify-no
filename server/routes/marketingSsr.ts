@@ -44,6 +44,19 @@ function escText(s: string): string {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+/**
+ * Serialize an object for safe embedding inside a <script type="application/ld+json">.
+ * Escapes `<`, `>` and `&` so a value containing "</script>" (or "<!--", "]]>")
+ * cannot break out of the script element (stored-XSS via JSON-LD).
+ */
+function safeJsonLd(obj: unknown): string {
+  return JSON.stringify(obj)
+    .replace(/&/g, "\\u0026")
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e");
+}
+
+
 function stripHomepageHead(html: string): string {
   return html
     .replace(/<title>[\s\S]*?<\/title>/i, "")
@@ -52,14 +65,24 @@ function stripHomepageHead(html: string): string {
     .replace(/\s*<meta\s+property="(og|twitter):[^"]*"[^>]*>/gi, "");
 }
 
-function metaBlock(o: { title: string; desc: string; url: string; ogType?: string }): string {
+function metaBlock(o: {
+  title: string;
+  desc: string;
+  url: string;
+  ogType?: string;
+  alternates?: { hreflang: string; href: string }[];
+}): string {
   const img = `${SITE}/og-image.png`;
+  const hreflangTags = (o.alternates ?? [])
+    .map((a) => `\n    <link rel="alternate" hreflang="${escAttr(a.hreflang)}" href="${escAttr(a.href)}" />`)
+    .join("");
   return (
     `\n    <title>${escText(o.title)}</title>` +
     `\n    <meta name="title" content="${escAttr(o.title)}" />` +
     `\n    <meta name="description" content="${escAttr(o.desc)}" />` +
     `\n    <meta name="robots" content="index, follow" />` +
     `\n    <link rel="canonical" href="${escAttr(o.url)}" />` +
+    hreflangTags +
     `\n    <meta property="og:type" content="${o.ogType || "website"}" />` +
     `\n    <meta property="og:url" content="${escAttr(o.url)}" />` +
     `\n    <meta property="og:title" content="${escAttr(o.title)}" />` +
@@ -74,7 +97,7 @@ function metaBlock(o: { title: string; desc: string; url: string; ogType?: strin
 }
 
 function ld(obj: unknown): string {
-  return `\n    <script type="application/ld+json">${JSON.stringify(obj)}</script>`;
+  return `\n    <script type="application/ld+json">${safeJsonLd(obj)}</script>`;
 }
 
 const ORGANIZATION = {
@@ -111,7 +134,7 @@ const FAQS: { q: string; a: string }[] = [
   { q: "Hva er Penna?", a: "Penna er en norsk AI-tjeneste som hjelper deg å lage profesjonelt innhold til sosiale medier (LinkedIn, X, Instagram og Facebook) på sekunder – med riktig tone for hver plattform." },
   { q: "Trenger jeg kredittkort for å prøve?", a: "Nei. Du får 2 gratis innlegg uten å oppgi betalingsinformasjon, og kan avbryte når som helst." },
   { q: "Hvilke plattformer støttes?", a: "LinkedIn, X (Twitter), Instagram og Facebook. Automatisk publisering til LinkedIn er tilgjengelig nå; flere plattformer kommer." },
-  { q: "Hva koster Penna?", a: "Pro koster 199 kr/måned (15 innlegg) og Premium 399 kr/måned (30 innlegg) – begge med AI-bilder og planlegging. Alle priser er i NOK og inkluderer mva." },
+  { q: "Hva koster Penna?", a: "Pro koster 199 kr/måned (15 innlegg) og Premium 399 kr/måned (30 innlegg) – begge med AI-bilder og planlegging. Alle priser er i NOK. Selskapet er foreløpig ikke registrert i Merverdiavgiftsregisteret, og prisene er derfor uten MVA." },
   { q: "Kan jeg si opp når som helst?", a: "Ja. Det er ingen bindingstid. Du sier opp i Innstillinger og beholder tilgangen ut perioden du allerede har betalt for." },
   { q: "Hvilke betalingsmetoder kan jeg bruke?", a: "Du kan betale med kort eller Vipps." },
   { q: "Lager Penna innhold på norsk?", a: "Ja. Penna er bygget spesielt for norsk språk og tone, så innholdet høres naturlig ut – ikke maskinoversatt." },
@@ -121,7 +144,10 @@ const FAQS: { q: string; a: string }[] = [
 ];
 
 function injectBody(html: string, body: string): string {
-  return html.replace('<div id="root"></div>', `<div id="root">${body}</div>`);
+  // Wrap the crawler/AEO prerender in a visually-hidden container so real users
+  // never see an unstyled flash (FOUC) before React (createRoot) replaces #root.
+  // The text stays in the HTML response, so non-JS crawlers still read it.
+  return html.replace('<div id="root"></div>', `<div id="root"><div data-ssr-fallback style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;margin:-1px;padding:0">${body}</div></div>`);
 }
 function injectHead(html: string, head: string): string {
   return html.replace("</head>", `${head}\n  </head>`);
@@ -154,7 +180,7 @@ function renderHome(): string {
     `</ul>` +
     `<h2>Priser</h2>` +
     `<ul>` +
-    `<li><strong>Gratis</strong> — 0 kr: 2 innlegg per måned, alle plattformer.</li>` +
+    `<li><strong>Gratis</strong> — 0 kr: 2 gratis innlegg (engangs), alle plattformer.</li>` +
     `<li><strong>Pro</strong> — 199 kr/mnd: 15 innlegg, AI-bilder, stemmetrening, trend, kalender, gjenbruk, AI coach.</li>` +
     `<li><strong>Premium</strong> — 399 kr/mnd: 30 innlegg, alt i Pro, automatisering og planlegging, månedlige rapporter.</li>` +
     `</ul>` +
@@ -162,7 +188,7 @@ function renderHome(): string {
     `</main>`;
   // Homepage shell already has correct title/meta + SoftwareApplication LD.
   // Just add Organization LD and inject the body content.
-  let html = injectBody(shell, body);
+  const html = injectBody(shell, body);
   return html;
 }
 
@@ -171,11 +197,17 @@ function renderPricing(): string {
   const shell = readShell();
   if (!shell) return "";
   const url = `${SITE}/pricing`;
+  const alternates = [
+    { hreflang: "en", href: `${SITE}/pricing` },
+    { hreflang: "no", href: `${SITE}/priser` },
+    { hreflang: "x-default", href: `${SITE}/pricing` },
+  ];
   const head =
     metaBlock({
       title: "Priser — Penna | Fra 0 kr, Pro 199 kr/mnd, Premium 399 kr/mnd",
       desc: "Penna-priser i NOK: Gratis (2 innlegg), Pro 199 kr/mnd (15 innlegg, AI-bilder, stemmetrening) og Premium 399 kr/mnd (30 innlegg). Ingen bindingstid, betal med kort eller Vipps.",
       url,
+      alternates,
     }) +
     ld({
       "@context": "https://schema.org",
@@ -192,8 +224,8 @@ function renderPricing(): string {
   const body =
     `<main data-ssr="pricing">` +
     `<h1>Enkel prising</h1>` +
-    `<p>Start gratis, oppgrader når du er klar. Mindre enn en kaffe per dag — spar 5+ timer hver uke. Alle priser er i NOK og inkluderer mva. Ingen bindingstid.</p>` +
-    `<h2>Gratis — 0 kr</h2><ul><li>2 innlegg per måned</li><li>Alle plattformer</li><li>Grunnleggende dashboard</li></ul>` +
+    `<p>Start gratis, oppgrader når du er klar. Mindre enn en kaffe per dag — spar 5+ timer hver uke. Alle priser er i NOK og uten MVA. Ingen bindingstid.</p>` +
+    `<h2>Gratis — 0 kr</h2><ul><li>2 gratis innlegg (engangs)</li><li>Alle plattformer</li><li>Grunnleggende dashboard</li></ul>` +
     `<h2>Pro — 199 kr/måned (6,63 kr/dag)</h2><ul><li>15 innlegg per måned</li><li>AI-genererte bilder inkludert</li><li>Stemmetrening (din stil)</li><li>Trend og inspirasjon</li><li>Innholdskalender</li><li>Gjenbruk-maskin</li><li>AI Coach og analyse</li><li>Prioritert support</li></ul>` +
     `<h2>Premium — 399 kr/måned (13,30 kr/dag)</h2><ul><li>30 innlegg per måned</li><li>Alt i Pro inkludert</li><li>Avansert stemmetrening</li><li>Automatisering og planlegging</li><li>Månedlige rapporter</li><li>Dedikert support</li></ul>` +
     `<p>Betal med kort eller Vipps. Ingen bindingstid — avbryt når som helst. <a href="/">Start gratis</a></p>` +
@@ -235,11 +267,17 @@ function renderAbout(): string {
   const shell = readShell();
   if (!shell) return "";
   const url = `${SITE}/about-us`;
+  const alternates = [
+    { hreflang: "en", href: `${SITE}/about-us` },
+    { hreflang: "no", href: `${SITE}/om-oss` },
+    { hreflang: "x-default", href: `${SITE}/about-us` },
+  ];
   const head =
     metaBlock({
       title: "Om oss — Penna",
       desc: "Penna er en norsk AI-tjeneste for innhold til sosiale medier, utviklet av Nexify CRM Systems AS i Porsgrunn. Vår misjon: hjelpe norske bedrifter å lage bedre innhold på kortere tid.",
       url,
+      alternates,
     });
   const body =
     `<main data-ssr="about">` +
@@ -258,10 +296,16 @@ function renderContact(): string {
   const shell = readShell();
   if (!shell) return "";
   const url = `${SITE}/contact`;
+  const alternates = [
+    { hreflang: "en", href: `${SITE}/contact` },
+    { hreflang: "no", href: `${SITE}/kontakt` },
+    { hreflang: "x-default", href: `${SITE}/contact` },
+  ];
   const head = metaBlock({
     title: "Kontakt — Penna",
     desc: "Kontakt Penna: support@penna.no eller +47 921 46 050. Nexify CRM Systems AS, Nedre Sølen 5, 3913 Porsgrunn.",
     url,
+      alternates,
   });
   const body =
     `<main data-ssr="contact">` +
@@ -281,11 +325,11 @@ function renderContact(): string {
 }
 
 // ---- Legal pages (correct per-page meta + canonical; React renders full text) ----
-function legalPage(opts: { path: string; title: string; desc: string; h1: string; intro: string }): string {
+function legalPage(opts: { path: string; title: string; desc: string; h1: string; intro: string; alternates?: { hreflang: string; href: string }[] }): string {
   const shell = readShell();
   if (!shell) return "";
   const url = `${SITE}${opts.path}`;
-  const head = metaBlock({ title: opts.title, desc: opts.desc, url });
+  const head = metaBlock({ title: opts.title, desc: opts.desc, url, alternates: opts.alternates });
   const body =
     `<main data-ssr="legal">` +
     `<h1>${escText(opts.h1)}</h1>` +
@@ -298,8 +342,8 @@ function legalPage(opts: { path: string; title: string; desc: string; h1: string
   html = injectBody(html, body);
   return html;
 }
-function renderPrivacy() { return legalPage({ path: "/privacy", title: "Personvernerklæring — Penna", desc: "Personvernerklæring for Penna: hvilke personopplysninger vi behandler, hvorfor, hvilke databehandlere vi bruker og hvilke rettigheter du har etter GDPR.", h1: "Personvernerklæring", intro: "Denne erklæringen forklarer hvordan Penna (Nexify CRM Systems AS) behandler personopplysninger i samsvar med personvernforordningen (GDPR) og norsk personvernlovgivning." }); }
-function renderTerms() { return legalPage({ path: "/terms", title: "Vilkår for bruk — Penna", desc: "Vilkår for bruk av Penna — abonnement, ansvar, rettigheter og bruk av tjenesten.", h1: "Vilkår for bruk", intro: "Disse vilkårene regulerer bruken av Penna. Ved å opprette en konto eller bruke tjenesten godtar du vilkårene." }); }
+function renderPrivacy() { return legalPage({ path: "/privacy", alternates: [{ hreflang: "en", href: `${SITE}/privacy` }, { hreflang: "no", href: `${SITE}/personvern` }, { hreflang: "x-default", href: `${SITE}/privacy` }], title: "Personvernerklæring — Penna", desc: "Personvernerklæring for Penna: hvilke personopplysninger vi behandler, hvorfor, hvilke databehandlere vi bruker og hvilke rettigheter du har etter GDPR.", h1: "Personvernerklæring", intro: "Denne erklæringen forklarer hvordan Penna (Nexify CRM Systems AS) behandler personopplysninger i samsvar med personvernforordningen (GDPR) og norsk personvernlovgivning." }); }
+function renderTerms() { return legalPage({ path: "/terms", alternates: [{ hreflang: "en", href: `${SITE}/terms` }, { hreflang: "no", href: `${SITE}/vilkar` }, { hreflang: "x-default", href: `${SITE}/terms` }], title: "Vilkår for bruk — Penna", desc: "Vilkår for bruk av Penna — abonnement, ansvar, rettigheter og bruk av tjenesten.", h1: "Vilkår for bruk", intro: "Disse vilkårene regulerer bruken av Penna. Ved å opprette en konto eller bruke tjenesten godtar du vilkårene." }); }
 function renderCookies() { return legalPage({ path: "/cookie-policy", title: "Informasjonskapsler (cookies) — Penna", desc: "Slik bruker Penna informasjonskapsler (cookies), og hvordan du styrer samtykke etter norsk lov og GDPR.", h1: "Informasjonskapsler", intro: "Penna bruker informasjonskapsler for å få nettstedet til å fungere og, med ditt samtykke, til statistikk. Du kan når som helst endre samtykket ditt." }); }
 function renderSalg(): string {
   const shell = readShell();
@@ -322,7 +366,7 @@ function renderSalg(): string {
     `<p><strong>E-post</strong>: <a href="mailto:support@penna.no">support@penna.no</a> &middot; <strong>Telefon</strong>: +47 921 46 050.</p>` +
     `<p><strong>Kj\u00f8per</strong> er den forbrukeren eller virksomheten som foretar bestillingen, heretter kalt kunden.</p>` +
     `<h2>2. Betaling</h2>` +
-    `<p>Alle priser er oppgitt i norske kroner (NOK) og inkluderer merverdiavgift (MVA) der dette er aktuelt.</p>` +
+    `<p>Alle priser er oppgitt i norske kroner (NOK). Selskapet er foreløpig ikke registrert i Merverdiavgiftsregisteret, og prisene er derfor uten merverdiavgift (MVA). Gjeldende pris vises alltid før kjøpet bekreftes.</p>` +
     `<p><strong>Priser</strong>: Pro 199 NOK/m\u00e5ned (\u00e5rlig 2149 NOK/\u00e5r) og Premium 399 NOK/m\u00e5ned (\u00e5rlig 4309 NOK/\u00e5r). \u00c5rsabonnement gir 10% rabatt. Gjeldende priser fremg\u00e5r alltid p\u00e5 prissiden f\u00f8r kj\u00f8pet bekreftes.</p>` +
     `<p><strong>Betalingsmetoder</strong>: Vi aksepterer betalings-/kredittkort og Vipps.</p>` +
     `<p><strong>Trekk</strong>: Abonnementet er en fast, gjentakende betaling som trekkes automatisk ved starten av hver fakturaperiode (m\u00e5ned eller \u00e5r) frem til kunden sier opp. Betaling belastes ved bestilling og deretter ved hver fornyelse.</p>` +
@@ -374,5 +418,14 @@ router.get("/privacy", makeHandler(renderPrivacy));
 router.get("/terms", makeHandler(renderTerms));
 router.get("/cookie-policy", makeHandler(renderCookies));
 router.get("/salgsbetingelser", makeHandler(renderSalg));
+
+// Norwegian URL aliases — serve the SAME prerendered content so crawlers/AEO get
+// real HTML instead of the empty SPA shell. Canonical still points to the English
+// URL (dedupe), and hreflang tags advertise the language pair.
+router.get("/priser", makeHandler(renderPricing));
+router.get("/om-oss", makeHandler(renderAbout));
+router.get("/kontakt", makeHandler(renderContact));
+router.get("/personvern", makeHandler(renderPrivacy));
+router.get("/vilkar", makeHandler(renderTerms));
 
 export default router;

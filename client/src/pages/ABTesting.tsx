@@ -512,7 +512,7 @@ function ExperimentDetail({
 
   const statByVariant = useMemo(() => {
     const m = new Map<number, any>();
-    (detail.data?.stats ?? []).forEach((s: any) => m.set(s.variantId, s));
+    (((detail.data as { stats?: { variantId: number }[] } | undefined)?.stats) ?? []).forEach((s: any) => m.set(s.variantId, s));
     return m;
   }, [detail.data]);
 

@@ -23,6 +23,7 @@
  */
 import { storagePut } from "server/storage";
 import { ENV } from "./env";
+import { safeFetch } from "./urlGuard";
 
 export type GenerateImageOptions = {
   prompt: string;
@@ -36,6 +37,22 @@ export type GenerateImageOptions = {
 export type GenerateImageResponse = {
   url?: string;
 };
+
+// P0-4: FLUX/DALL·E render garbled letters when a scene implies signage/banners.
+// Forbid ALL rendered text everywhere (positive instruction + FLUX negative prompt)
+// and strip the user's quoted literals that most often get "written" into the image.
+const NO_TEXT_POSITIVE =
+  " The image must contain absolutely no text: no letters, no words, no numbers, no captions, no signage, no banners, no posters, no labels, no logos and no typography of any kind anywhere in the image.";
+const NO_TEXT_NEGATIVE =
+  "text, letters, words, numbers, caption, subtitle, signage, sign, banner, poster, label, logo, watermark, typography, writing, fonts, handwriting";
+
+/** Remove quoted phrases (usually the exact words a model tries to render as signage). */
+function sanitizeImagePrompt(prompt: string): string {
+  return String(prompt || "")
+    .replace(/["“”«»']([^"“”«»']{1,80})["“”«»']/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
 
 async function withImageRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
   let lastErr: any;
@@ -58,10 +75,12 @@ export async function generateImage(
 ): Promise<GenerateImageResponse> {
   // Pick the configured provider. Defaults to OpenAI so behaviour is unchanged
   // until IMAGE_PROVIDER is set. fal.ai (FLUX) is the best quality-per-cost option.
+  // Guarantee a text-free composition regardless of provider or call path.
+  const safePrompt = sanitizeImagePrompt(options.prompt) + NO_TEXT_POSITIVE;
   const buffer = await withImageRetry(() =>
     ENV.imageProvider === "fal"
-      ? generateWithFal(options.prompt)
-      : generateWithOpenAI(options.prompt)
+      ? generateWithFal(safePrompt, NO_TEXT_NEGATIVE)
+      : generateWithOpenAI(safePrompt)
   );
 
   // Save to object storage; if storage isn't configured/reachable (the legacy
@@ -108,7 +127,7 @@ async function generateWithOpenAI(prompt: string): Promise<Buffer> {
       const item = result.data?.[0];
       if (item?.b64_json) return Buffer.from(item.b64_json, "base64");
       if (item?.url) {
-        const img = await fetch(item.url);
+        const img = await safeFetch(item.url); // SSRF-guarded (provider-returned URL)
         if (!img.ok) throw new Error(`Failed to download generated image (${img.status})`);
         return Buffer.from(await img.arrayBuffer());
       }
@@ -132,7 +151,7 @@ async function generateWithOpenAI(prompt: string): Promise<Buffer> {
 }
 
 /** fal.ai synchronous run — FLUX dev by default. Returns hosted image URLs. */
-async function generateWithFal(prompt: string): Promise<Buffer> {
+async function generateWithFal(prompt: string, negativePrompt?: string): Promise<Buffer> {
   if (!ENV.falApiKey) {
     throw new Error("FAL_API_KEY is not configured (required when IMAGE_PROVIDER=fal)");
   }
@@ -146,6 +165,7 @@ async function generateWithFal(prompt: string): Promise<Buffer> {
     },
     body: JSON.stringify({
       prompt,
+      ...(negativePrompt ? { negative_prompt: negativePrompt } : {}),
       image_size: "square_hd",
       num_images: 1,
     }),
@@ -167,7 +187,7 @@ async function generateWithFal(prompt: string): Promise<Buffer> {
   }
 
   // fal returns a hosted URL — download it so we can persist to our own storage.
-  const imageResponse = await fetch(imageUrl);
+  const imageResponse = await safeFetch(imageUrl); // SSRF-guarded (provider-returned URL)
   if (!imageResponse.ok) {
     throw new Error(`Failed to download fal.ai image: ${imageResponse.statusText}`);
   }

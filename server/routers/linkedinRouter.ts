@@ -97,6 +97,18 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
       return { url: authUrl, state };
     }),
 
+    // Authorization URL for connecting the Company-Page app (org scopes).
+    getOrgAuthUrl: protectedProcedure.query(async ({ ctx }) => {
+      const { getLinkedInOrgAuthUrl, resolveLinkedInOrgCredentials } = await import("../linkedinService");
+      const orgCreds = resolveLinkedInOrgCredentials();
+      if (!orgCreds) throw new Error("Company-Page app not configured");
+      const redirectUri = process.env.LINKEDIN_ORG_REDIRECT_URI
+        || `https://${ctx.req.headers.host || "penna.no"}/api/linkedin/org/callback`;
+      const { signOAuthState } = await import("../_core/oauthState");
+      const state = signOAuthState(ctx.user.id);
+      return { url: getLinkedInOrgAuthUrl(orgCreds, redirectUri, state), state };
+    }),
+
     // Get user's LinkedIn connection status
     getConnectionStatus: protectedProcedure.query(async ({ ctx }) => {
       const { getDb } = await import("../db");
@@ -117,13 +129,70 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
       
       const expired = isTokenExpired(connection[0].expiresAt);
       
+      const { isOrgPostingEnabled } = await import("../linkedinService");
       return {
         connected: !expired,
         profileName: connection[0].profileName,
         profileEmail: connection[0].profileEmail,
         expiresAt: connection[0].expiresAt,
+        // Company-Page publishing controls (only meaningful when enabled).
+        orgPostingEnabled: isOrgPostingEnabled(),
+        orgConnected: !!(connection[0] as any).orgAccessToken,
+        publishTarget: (connection[0] as any).publishTarget || "person",
+        organizationUrn: (connection[0] as any).organizationUrn || null,
+        organizationName: (connection[0] as any).organizationName || null,
       };
     }),
+
+    // List the Company Pages the connected member administers, so the UI can
+    // offer them as publish targets. Returns { enabled:false } unless org posting
+    // is turned on (env flag) AND the app was approved for the scopes.
+    listOrganizations: protectedProcedure.query(async ({ ctx }) => {
+      const { isOrgPostingEnabled, getAdminOrganizations } = await import("../linkedinService");
+      if (!isOrgPostingEnabled()) return { enabled: false, organizations: [] as { urn: string; id: string; name: string }[] };
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      const { linkedinConnections } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const conn = await db.select().from(linkedinConnections).where(eq(linkedinConnections.userId, ctx.user.id)).limit(1);
+      if (conn.length === 0) return { enabled: true, orgConnected: false, organizations: [] };
+      const orgToken = (conn[0] as any).orgAccessToken;
+      if (!orgToken) return { enabled: true, orgConnected: false, organizations: [] };
+      const { decryptSecret } = await import("../_core/tokenCrypto");
+      try {
+        const organizations = await getAdminOrganizations(decryptSecret(orgToken) ?? "");
+        return { enabled: true, orgConnected: true, organizations };
+      } catch (e) {
+        return { enabled: true, orgConnected: true, organizations: [], error: (e as Error).message };
+      }
+    }),
+
+    // Choose whether to publish to the personal feed or a Company Page.
+    setPublishTarget: protectedProcedure
+      .input(z.object({
+        target: z.enum(["person", "organization"]),
+        organizationUrn: z.string().optional(),
+        organizationName: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (input.target === "organization" && !input.organizationUrn) {
+          throw new Error("Velg en side å publisere til.");
+        }
+        const { getDb } = await import("../db");
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const { linkedinConnections } = await import("../../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        await db.update(linkedinConnections)
+          .set({
+            publishTarget: input.target,
+            organizationUrn: input.target === "organization" ? (input.organizationUrn ?? null) : null,
+            organizationName: input.target === "organization" ? (input.organizationName ?? null) : null,
+          })
+          .where(eq(linkedinConnections.userId, ctx.user.id));
+        return { success: true };
+      }),
 
     // Disconnect LinkedIn
     disconnect: protectedProcedure.mutation(async ({ ctx }) => {
@@ -144,6 +213,7 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
       .input(z.object({
         content: z.string().min(1).max(3000),
         postId: z.number().optional(),
+        imageUrl: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { getDb } = await import("../db");
@@ -168,12 +238,34 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
           throw new Error("LinkedIn token expired. Please reconnect.");
         }
         
-        // Create post (token is encrypted at rest)
+        // Create post (tokens are encrypted at rest). Company-Page posting uses
+        // the SEPARATE org token from the Community-Management app; personal
+        // posting uses the member token.
         const { decryptSecret } = await import("../_core/tokenCrypto");
+        const toOrg =
+          (connection[0] as any).publishTarget === "organization" && (connection[0] as any).organizationUrn;
+        const authorOverride = toOrg ? (connection[0] as any).organizationUrn : null;
+        if (toOrg && !(connection[0] as any).orgAccessToken) {
+          throw new Error("Bedriftsside ikke tilkoblet. Koble til bedriftsside først.");
+        }
+        const activeToken = toOrg
+          ? decryptSecret((connection[0] as any).orgAccessToken) ?? ""
+          : decryptSecret(connection[0].accessToken) ?? "";
+        // Resolve the image to attach: prefer the saved post's stored image
+        // (source of truth), else the one passed in. Text-only if none.
+        let imageUrl: string | null = input.imageUrl ?? null;
+        if (input.postId) {
+          const row = await db.select().from(posts)
+            .where(and(eq(posts.id, input.postId), eq(posts.userId, ctx.user.id)))
+            .limit(1);
+          if (row.length > 0 && (row[0] as any).imageUrl) imageUrl = (row[0] as any).imageUrl;
+        }
         const result = await createLinkedInPost(
-          decryptSecret(connection[0].accessToken) ?? "",
+          activeToken,
           connection[0].personUrn,
-          input.content
+          input.content,
+          authorOverride,
+          imageUrl
         );
 
         // Record the publication locally so "Mine innlegg" reflects it as published

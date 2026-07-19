@@ -129,7 +129,7 @@ export function Analytics() {
             <CardTitle>Filter Analytics</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 [&>*]:min-w-0">
               <div>
                 <label className="text-sm font-medium">Start Date</label>
                 <input
@@ -164,11 +164,11 @@ export function Analytics() {
                 </Select>
               </div>
               <div className="flex items-end gap-2">
-                <Button onClick={handleExportPDF} variant="outline" size="sm" className="flex-1">
+                <Button onClick={handleExportPDF} variant="outline" size="sm" className="flex-1 min-w-0">
                   <Download className="h-4 w-4 mr-2" />
                   PDF
                 </Button>
-                <Button onClick={handleExportCSV} variant="outline" size="sm" className="flex-1">
+                <Button onClick={handleExportCSV} variant="outline" size="sm" className="flex-1 min-w-0">
                   <Download className="h-4 w-4 mr-2" />
                   CSV
                 </Button>

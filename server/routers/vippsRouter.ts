@@ -10,9 +10,28 @@
  */
 
 import { router, protectedProcedure, publicProcedure } from "../_core/trpc";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { vippsService } from "../_core/vipps";
 import { vippsAuthService } from "../_core/vippsAuth";
+import { sdk } from "../_core/sdk";
+import { getSessionCookieOptions } from "../_core/cookies";
+import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
+import * as db from "../db";
+
+/**
+ * Load a payment order and assert it belongs to the calling user. Prevents IDOR:
+ * a user must never read/cancel/refund another tenant's order via a guessed orderId.
+ * Returns the owned order (with the server-side expectedAmount).
+ */
+async function assertOwnedOrder(userId: number, orderId: string) {
+  const { getPaymentOrder } = await import("../db");
+  const order = await getPaymentOrder(orderId);
+  if (!order || order.userId !== userId) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Order not found or not yours" });
+  }
+  return order;
+}
 
 export const vippsRouter = router({
   /**
@@ -89,17 +108,17 @@ export const vippsRouter = router({
    */
   getPaymentStatus: protectedProcedure
     .input(z.object({ orderId: z.string() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       if (!vippsService) {
-        throw new Error("Vipps service not configured");
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Vipps service not configured" });
       }
-
+      // Ownership check BEFORE touching the payment provider.
+      await assertOwnedOrder(ctx.user.id, input.orderId);
       try {
-        const status = await vippsService.getPaymentStatus(input.orderId);
-        return status;
+        return await vippsService.getPaymentStatus(input.orderId);
       } catch (error) {
         console.error("Failed to get payment status:", error);
-        throw new Error("Failed to get payment status");
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to get payment status" });
       }
     }),
 
@@ -108,21 +127,19 @@ export const vippsRouter = router({
    */
   cancelPayment: protectedProcedure
     .input(z.object({ orderId: z.string() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       if (!vippsService) {
-        throw new Error("Vipps service not configured");
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Vipps service not configured" });
       }
-
+      await assertOwnedOrder(ctx.user.id, input.orderId);
       try {
         await vippsService.cancelPayment(input.orderId);
-
         const { markPaymentOrderStatus } = await import("../db");
         await markPaymentOrderStatus(input.orderId, "cancelled");
-
         return { success: true };
       } catch (error) {
         console.error("Failed to cancel payment:", error);
-        throw new Error("Failed to cancel payment");
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to cancel payment" });
       }
     }),
 
@@ -130,19 +147,17 @@ export const vippsRouter = router({
    * Refund a payment
    */
   refundPayment: protectedProcedure
-    .input(
-      z.object({
-        orderId: z.string(),
-        amount: z.number().positive(),
-      })
-    )
-    .mutation(async ({ input }: any) => {
+    // `amount` is intentionally NOT accepted from the client — the refund amount
+    // is derived from the trusted server-side order (expectedAmount).
+    .input(z.object({ orderId: z.string() }))
+    .mutation(async ({ ctx, input }: any) => {
       if (!vippsService) {
-        throw new Error("Vipps service not configured");
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Vipps service not configured" });
       }
-
+      const order = await assertOwnedOrder(ctx.user.id, input.orderId);
       try {
-        await vippsService.refundPayment(input.orderId, input.amount);
+        // Refund exactly what we recorded at initiation — never a client value.
+        await vippsService.refundPayment(input.orderId, order.expectedAmount);
 
         // The payment_orders enum has no "refunded" state, so mark it cancelled
         // (no longer an active/captured payment) to keep the DB consistent.
@@ -152,7 +167,7 @@ export const vippsRouter = router({
         return { success: true };
       } catch (error) {
         console.error("Failed to refund payment:", error);
-        throw new Error("Failed to refund payment");
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to refund payment" });
       }
     }),
 
@@ -180,29 +195,44 @@ export const vippsRouter = router({
         state: z.string(),
       })
     )
-    .mutation(async ({ input }: { input: { code: string; state: string } }) => {
+    .mutation(async ({ ctx, input }: any) => {
       if (!vippsAuthService) {
         throw new Error("Vipps Auth service not configured");
       }
 
       try {
-        // Exchange code for tokens
+        // Exchange code for Vipps tokens, then decode the id_token for identity.
         const tokens = await vippsAuthService.exchangeCodeForToken(input.code);
-
-        // Decode ID token to get user info
         const userInfo = vippsAuthService.decodeIdToken(tokens.id_token);
 
+        // SECURITY: establish a real app session server-side (httpOnly cookie),
+        // exactly like the Google flow — and NEVER return the raw Vipps
+        // access/refresh tokens to the browser (they used to be stored in
+        // localStorage, readable by any XSS). The Vipps tokens stay on the server.
+        const openId = `vipps_${userInfo.sub}`;
+        const displayName = userInfo.name || userInfo.email?.split("@")[0] || "Vipps-bruker";
+        await db.upsertUser({
+          openId,
+          name: displayName,
+          email: userInfo.email ?? null,
+          loginMethod: "vipps",
+          lastSignedIn: new Date(),
+        });
+        const sessionToken = await sdk.createSessionToken(openId, {
+          name: displayName,
+          expiresInMs: ONE_YEAR_MS,
+        });
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+
+        // Return only non-sensitive profile info — no tokens.
         return {
           success: true,
           userInfo: {
             id: userInfo.sub,
-            phone: userInfo.phone_number,
             email: userInfo.email,
             name: userInfo.name,
           },
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token,
-          expiresIn: tokens.expires_in,
         };
       } catch (error) {
         console.error("Failed to handle Vipps login callback:", error);

@@ -282,7 +282,14 @@ export const userRouter = router({
 
     // Export user data (GDPR right to data portability)
     exportData: protectedProcedure.mutation(async ({ ctx }) => {
-      // Get user data (already in ctx.user)
+      // Get user data (already in ctx.user). Strip secret material — a GDPR export
+      // must never contain passwordHash / TOTP secret / backup codes.
+      const {
+        passwordHash: _ph,
+        twoFactorSecret: _t2s,
+        twoFactorBackupCodes: _t2b,
+        ...safeUser
+      } = ctx.user as any;
       const preferenceData = await getUserPreference(ctx.user.id);
       
       // Get the user's own posts and subscription so the GDPR export is
@@ -291,7 +298,7 @@ export const userRouter = router({
       const userSubscription = await getUserSubscription(ctx.user.id);
 
       return {
-        user: ctx.user,
+        user: safeUser,
         preferences: preferenceData,
         posts: userPosts,
         subscription: userSubscription,

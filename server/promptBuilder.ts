@@ -118,8 +118,8 @@ const ANGLE_INSTRUCTIONS: Record<Angle, string> = {
   personal_story: "Frame it as a first-person story with a concrete moment, a turn, and a lesson.",
   actionable_tips: "Deliver specific, immediately usable tips — no fluff, no obvious advice.",
   contrarian_opinion: "Take a clear contrarian stance and defend it with reasoning; challenge a common assumption.",
-  case_study: "Walk through a real (or realistic) example: situation, action, measurable result.",
-  shocking_stat: "Open on a surprising statistic or fact, then unpack why it matters.",
+  case_study: "Illustrate with a clearly hypothetical, general example (e.g. \"imagine a team that…\"): situation, action, outcome. Do not invent named customers, real companies, or specific metrics.",
+  shocking_stat: "Open with a thought-provoking observation or question about the topic, then unpack why it matters. Only cite a specific statistic if one is provided in the user's input; never invent numbers.",
   how_to: "Structure as a clear step-by-step guide to achieving one outcome.",
   listicle: "Structure as a tight, numbered list of distinct points.",
   question: "Build the piece around a compelling question and explore the answer.",
@@ -241,6 +241,12 @@ export function buildContentPrompt(options: ContentOptions): { system: string; u
   lines.push("- Output ONLY the final post text — no preamble, no meta-commentary, no quotation marks around it.");
   lines.push("- Never write phrases like \"Here's a post\" or \"Sure\". Start directly with the content.");
   lines.push("- Make it authentic, specific and genuinely valuable — avoid generic filler.");
+  lines.push("");
+  lines.push("## Grounding & honesty (critical — overrides everything above)");
+  lines.push("- Base the post ONLY on the topic and the details explicitly provided in this prompt (topic, audience, goal, CTA, keywords) and — if a Personal voice section is present — that author's style.");
+  lines.push("- Do NOT introduce any other company, product, brand, named person, place, event, price, date, or offer that is not present in the information above. In particular, never carry over a different business or subject from any other context.");
+  lines.push("- Do NOT invent customer stories, testimonials, quotes, reviews, case studies, statistics, percentages, revenue, user counts, awards, or certifications. If you do not have a real, provided fact, speak generally or write around it — never fabricate specifics.");
+  lines.push("- Treat keywords, audience and CTA strictly as constraints for THIS topic; do not import unrelated subject matter they might imply from elsewhere.");
   lines.push(`- ${languageHardRule(language)}`);
 
   const system = lines.join("\n");

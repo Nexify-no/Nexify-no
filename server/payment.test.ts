@@ -63,7 +63,7 @@ describe("Payment System", () => {
 
         expect(plans).toBeDefined();
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -84,7 +84,7 @@ describe("Payment System", () => {
 
         expect(Array.isArray(plans)).toBe(true);
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -117,7 +117,7 @@ describe("Payment System", () => {
           expect(plan).toHaveProperty("postsPerMonth");
         }
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });
@@ -144,7 +144,7 @@ describe("Payment System", () => {
 
         expect(Array.isArray(result)).toBe(true);
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -164,7 +164,7 @@ describe("Payment System", () => {
           expect(["trial", "active", "cancelled", "expired"]).toContain(sub.status);
         }
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -190,7 +190,7 @@ describe("Payment System", () => {
           expect(sub).toHaveProperty("stripePriceId");
         }
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });
@@ -208,7 +208,7 @@ describe("Payment System", () => {
 
         expect(Array.isArray(invoiceList)).toBe(true);
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -227,7 +227,7 @@ describe("Payment System", () => {
           expect(["pending", "paid", "failed", "refunded"]).toContain(invoice.status);
         }
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -247,7 +247,7 @@ describe("Payment System", () => {
           expect(invoice.amount).toBeGreaterThan(0);
         }
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });
@@ -265,7 +265,7 @@ describe("Payment System", () => {
 
         expect(Array.isArray(history)).toBe(true);
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -285,7 +285,7 @@ describe("Payment System", () => {
           expect(validActions).toContain(record.action);
         }
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });
@@ -306,7 +306,7 @@ describe("Payment System", () => {
           expect(sub).toHaveProperty("stripeCustomerId");
         }
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -325,7 +325,7 @@ describe("Payment System", () => {
           expect(sub).toHaveProperty("stripeSubscriptionId");
         }
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -343,7 +343,7 @@ describe("Payment System", () => {
 
         expect(statuses.length).toBeGreaterThan(0);
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });
@@ -368,7 +368,7 @@ describe("Payment System", () => {
           expect(plan.currency).toBe("NOK");
         }
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
 
@@ -393,7 +393,7 @@ describe("Payment System", () => {
           }
         }
       } catch (error) {
-        expect(true).toBe(true);
+        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
       }
     });
   });

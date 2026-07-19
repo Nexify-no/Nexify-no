@@ -125,4 +125,57 @@ export function registerLinkedInCallback(app: Express) {
       return res.redirect(`${errorTarget}?linkedin_error=${encodeURIComponent(error.message || "unknown_error")}`);
     }
   });
+
+  // Company-Page (organization) OAuth callback — separate LinkedIn app carrying
+  // only the Community Management API. Stores an org-scoped token alongside the
+  // user's existing personal connection.
+  app.get("/api/linkedin/org/callback", async (req, res) => {
+    try {
+      const { code, state, error, error_description } = req.query;
+      if (error) {
+        console.error(`[LinkedIn Org OAuth] Error: ${error} - ${error_description}`);
+        return res.redirect(`/innstillinger?linkedin_org_error=${encodeURIComponent((error_description as string) || (error as string))}`);
+      }
+      if (!code || !state) {
+        return res.redirect("/innstillinger?linkedin_org_error=missing_parameters");
+      }
+      const userId = verifyOAuthState(state as string);
+      if (userId === null) {
+        return res.redirect("/innstillinger?linkedin_org_error=invalid_state");
+      }
+      const { resolveLinkedInOrgCredentials, exchangeCodeForToken, calculateExpirationDate } = await import("../linkedinService");
+      const orgCreds = resolveLinkedInOrgCredentials();
+      if (!orgCreds) {
+        return res.redirect("/innstillinger?linkedin_org_error=org_app_not_configured");
+      }
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      const { linkedinConnections } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const redirectUri = process.env.LINKEDIN_ORG_REDIRECT_URI
+        || `https://${req.get("host") || "penna.no"}/api/linkedin/org/callback`;
+      const tokenResponse = await exchangeCodeForToken(orgCreds, code as string, redirectUri);
+      const orgTokenExpiresAt = calculateExpirationDate(tokenResponse.expires_in);
+
+      const existing = await db.select().from(linkedinConnections).where(eq(linkedinConnections.userId, userId)).limit(1);
+      if (existing.length === 0) {
+        // The org token attaches to an existing connection (personUrn is required).
+        return res.redirect("/innstillinger?linkedin_org_error=connect_personal_first");
+      }
+      await db.update(linkedinConnections)
+        .set({
+          orgAccessToken: encryptSecret(tokenResponse.access_token),
+          orgTokenExpiresAt,
+        })
+        .where(eq(linkedinConnections.userId, userId));
+
+      console.log(`[LinkedIn Org OAuth] Stored org token for user ${userId}`);
+      return res.redirect("/innstillinger?linkedin_org_success=true");
+    } catch (error: any) {
+      console.error("[LinkedIn Org OAuth] Callback error:", error);
+      return res.redirect(`/innstillinger?linkedin_org_error=${encodeURIComponent(error.message || "unknown_error")}`);
+    }
+  });
 }

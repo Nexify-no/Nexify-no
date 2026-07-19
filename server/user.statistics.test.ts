@@ -23,7 +23,7 @@ describe("User Statistics and Invoices", () => {
       role: "user" as const,
       createdAt: new Date(),
       updatedAt: new Date(),
-      lastSignedIn: new Date(),
+      lastSignedIn: new Date(), passwordHash: null, emailVerified: null, twoFactorSecret: null, twoFactorEnabled: 0, twoFactorBackupCodes: null, tokenVersion: 0,
     },
     req: {} as any,
     res: {} as any,

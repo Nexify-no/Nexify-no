@@ -516,8 +516,57 @@
     {
       "idx": 73,
       "version": "5",
+      "when": 1783194457697,
+      "tag": "0073_add_token_version",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "5",
+      "when": 1783199988583,
+      "tag": "0074_add_user_id_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "5",
+      "when": 1783203924397,
+      "tag": "0075_subscription_reminder",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "5",
+      "when": 1783204024397,
+      "tag": "0076_linkedin_org_publish",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "5",
+      "when": 1783204124397,
+      "tag": "0077_linkedin_org_token",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "5",
+      "when": 1783204224397,
+      "tag": "0078_generation_provenance",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "5",
+      "when": 1783204324397,
+      "tag": "0079_image_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "5",
       "when": 1783900000000,
-      "tag": "0073_lifecycle_emails",
+      "tag": "0080_lifecycle_emails",
       "breakpoints": true
     }
   ]

@@ -36,6 +36,13 @@ export const users = mysqlTable("users", {
   twoFactorEnabled: tinyint("two_factor_enabled").default(0).notNull(),
   /** JSON array of bcrypt-hashed one-time backup codes. */
   twoFactorBackupCodes: text("two_factor_backup_codes"),
+  /**
+   * Session-revocation counter. Every issued session JWT carries the value of
+   * this field at sign time (claim `tv`); a request is rejected if the token's
+   * `tv` no longer matches. Incrementing it (logout / password reset) instantly
+   * invalidates ALL of the user's existing sessions.
+   */
+  tokenVersion: int("token_version").default(0).notNull(),
 });
 
 /**
@@ -69,11 +76,24 @@ export const posts = mysqlTable("posts", {
   imageUrl: text("image_url"),
   tags: json("tags").$type<string[]>(),
   status: mysqlEnum("status", ["draft", "scheduled", "published", "failed"]).default("draft").notNull(),
+  // Provenance: a unique id per generation request + the voice-profile version
+  // used, so every post is traceable to exactly one generation and never mixes
+  // context from another request. profileVersion is 0 when no voice profile was used.
+  generationId: varchar("generation_id", { length: 36 }),
+  profileVersion: int("profile_version"),
+  // Image lifecycle: which generation owns the current image + its status
+  // (none→pending→generating→verifying→completed/failed). A late image whose
+  // generation no longer owns the slot is rejected server-side.
+  imageStatus: mysqlEnum("image_status", ["none", "pending", "generating", "verifying", "completed", "failed"]).default("none").notNull(),
+  imageGenerationId: varchar("image_generation_id", { length: 64 }),
   scheduledFor: timestamp("scheduled_for"),
   publishedAt: timestamp("published_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("idx_posts_user_id").on(table.userId),
+  statusSchedIdx: index("idx_posts_status_scheduled_for").on(table.status, table.scheduledFor),
+}));
 
 export type Post = typeof posts.$inferSelect;
 export type InsertPost = typeof posts.$inferInsert;
@@ -110,6 +130,8 @@ export const subscriptions = mysqlTable("subscriptions", {
   vippsOrderId: varchar("vipps_order_id", { length: 255 }),
   subscriptionStartDate: timestamp("subscription_start_date"),
   subscriptionEndDate: timestamp("subscription_end_date"),
+  /** Last time we sent the periodic "subscription is active" reminder (digitalytelsesloven). */
+  lastActiveReminderAt: timestamp("last_active_reminder_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
@@ -193,6 +215,17 @@ export const linkedinConnections = mysqlTable("linkedin_connections", {
   personUrn: varchar("person_urn", { length: 255 }).notNull(), // urn:li:person:xxx
   profileName: varchar("profile_name", { length: 255 }),
   profileEmail: varchar("profile_email", { length: 320 }),
+  // LinkedIn publish target: post to the member's own feed ('person', default)
+  // or to a Company Page ('organization'). Org fields are null until a Page is
+  // chosen (only possible when org posting is enabled + the app is approved).
+  publishTarget: varchar("publish_target", { length: 16 }).default("person"),
+  organizationUrn: varchar("organization_urn", { length: 255 }), // urn:li:organization:123
+  organizationName: varchar("organization_name", { length: 255 }),
+  // Separate token from the Company-Page app (Community Management API). Kept
+  // apart from the personal access token because LinkedIn requires that API to
+  // live on its own app, so org posting uses a distinct OAuth connection.
+  orgAccessToken: text("org_access_token"),
+  orgTokenExpiresAt: timestamp("org_token_expires_at"),
   expiresAt: timestamp("expires_at").notNull(), // Access token expiration (60 days)
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
@@ -376,6 +409,9 @@ export const voiceProfiles = mysqlTable("voice_profiles", {
   
   // Full profile summary (AI-generated description)
   profileSummary: text("profile_summary"),
+  // Bumped every time the profile is retrained, so generated posts can record
+  // exactly which version of the author's profile produced them.
+  version: int("version").default(1).notNull(),
   
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
@@ -478,7 +514,9 @@ export const postAnalytics = mysqlTable("post_analytics", {
   platformPostId: varchar("platform_post_id", { length: 255 }),
   metricsFetchedAt: timestamp("metrics_fetched_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("idx_post_analytics_user_id").on(table.userId),
+}));
 
 export type PostAnalytics = typeof postAnalytics.$inferSelect;
 export type InsertPostAnalytics = typeof postAnalytics.$inferInsert;
@@ -513,7 +551,9 @@ export const competitors = mysqlTable("competitors", {
   lastChecked: timestamp("last_checked"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("idx_competitors_user_id").on(table.userId),
+}));
 
 export type Competitor = typeof competitors.$inferSelect;
 export type InsertCompetitor = typeof competitors.$inferInsert;
@@ -550,7 +590,9 @@ export const contentSeries = mysqlTable("content_series", {
   status: mysqlEnum("status", ["planning", "in_progress", "completed"]).default("planning").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("idx_content_series_user_id").on(table.userId),
+}));
 
 export type ContentSeries = typeof contentSeries.$inferSelect;
 export type InsertContentSeries = typeof contentSeries.$inferInsert;
@@ -677,7 +719,9 @@ export const ideas = mysqlTable("ideas", {
   convertedPostId: int("converted_post_id"), // Reference to post if converted
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("idx_ideas_user_id").on(table.userId),
+}));
 
 export type Idea = typeof ideas.$inferSelect;
 export type InsertIdea = typeof ideas.$inferInsert;
@@ -699,7 +743,9 @@ export const drafts = mysqlTable("drafts", {
   /** Last auto-save timestamp */
   lastSavedAt: timestamp("last_saved_at").defaultNow().onUpdateNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("idx_drafts_user_id").on(table.userId),
+}));
 
 export type Draft = typeof drafts.$inferSelect;
 export type InsertDraft = typeof drafts.$inferInsert;
@@ -916,7 +962,10 @@ export const scheduledPosts = mysqlTable("scheduled_posts", {
   
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("idx_scheduled_posts_user_id").on(table.userId),
+  statusSchedIdx: index("idx_scheduled_posts_status_scheduled_for").on(table.status, table.scheduledFor),
+}));
 
 export type ScheduledPost = typeof scheduledPosts.$inferSelect;
 export type InsertScheduledPost = typeof scheduledPosts.$inferInsert;
@@ -945,7 +994,9 @@ export const postingTimesAnalytics = mysqlTable("posting_times_analytics", {
   
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("idx_posting_times_analytics_user_id").on(table.userId),
+}));
 
 export type PostingTimesAnalytic = typeof postingTimesAnalytics.$inferSelect;
 export type InsertPostingTimesAnalytic = typeof postingTimesAnalytics.$inferInsert;
@@ -1384,7 +1435,9 @@ export const activityLog = mysqlTable("activity_log", {
   errorMessage: text("error_message"), // If failed, what was the error
   metadata: json("metadata").$type<Record<string, any>>(), // Additional context
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("idx_activity_log_user_id").on(table.userId),
+}));
 
 export type ActivityLog = typeof activityLog.$inferSelect;
 export type InsertActivityLog = typeof activityLog.$inferInsert;
@@ -1578,7 +1631,9 @@ export const abExperiments = mysqlTable("ab_experiments", {
   startedAt: timestamp("started_at"),
   endsAt: timestamp("ends_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("idx_ab_experiments_user_id").on(table.userId),
+}));
 
 export type AbExperiment = typeof abExperiments.$inferSelect;
 export type InsertAbExperiment = typeof abExperiments.$inferInsert;

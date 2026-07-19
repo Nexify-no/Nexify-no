@@ -40,7 +40,7 @@ describe("Google OAuth Configuration", () => {
     try {
       expect(typeof process.env.GOOGLE_CLIENT_ID).toBe("string");
     } catch (error) {
-      expect(true).toBe(true);
+      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
     }
   });
 
@@ -48,7 +48,7 @@ describe("Google OAuth Configuration", () => {
     try {
       expect(typeof process.env.GOOGLE_CLIENT_SECRET).toBe("string");
     } catch (error) {
-      expect(true).toBe(true);
+      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
     }
   });
 
@@ -65,7 +65,7 @@ describe("Google OAuth Configuration", () => {
       expect(url).toContain("accounts.google.com");
       expect(url).toContain("client_id=test");
     } catch (error) {
-      expect(true).toBe(true);
+      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
     }
   });
 
@@ -78,7 +78,7 @@ describe("Google OAuth Configuration", () => {
       expect(tokens.id_token).toBe("mock_id_token");
       expect(tokens.access_token).toBe("mock_access_token");
     } catch (error) {
-      expect(true).toBe(true);
+      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
     }
   });
 
@@ -96,7 +96,7 @@ describe("Google OAuth Configuration", () => {
       expect(payload?.email).toBe("test@example.com");
       expect(payload?.name).toBe("Test User");
     } catch (error) {
-      expect(true).toBe(true);
+      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
     }
   });
 
@@ -107,7 +107,7 @@ describe("Google OAuth Configuration", () => {
       expect(openId).toBe("google_123456789");
       expect(openId.startsWith("google_")).toBe(true);
     } catch (error) {
-      expect(true).toBe(true);
+      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
     }
   });
 
@@ -117,7 +117,7 @@ describe("Google OAuth Configuration", () => {
       const COOKIE_NAME = "app_session_id";
       expect(COOKIE_NAME).toBe("app_session_id");
     } catch (error) {
-      expect(true).toBe(true);
+      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
     }
   });
 });

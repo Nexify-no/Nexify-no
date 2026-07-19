@@ -45,8 +45,39 @@ export default function Privacy() {
         ]
       },
       {
+        icon: Shield,
+        title: "3. Behandlingsgrunnlag (GDPR art. 6)",
+        content: [
+          "**Oppfyllelse av avtale (art. 6 nr. 1 b)**: kontoadministrasjon, levering av tjenesten, innholdsgenerering og betalingsbehandling.",
+          "**Samtykke (art. 6 nr. 1 a)**: AI-behandling av innholdet ditt hos OpenAI, og ikke-nødvendige informasjonskapsler (analyse). Samtykket kan trekkes tilbake når som helst.",
+          "**Berettiget interesse (art. 6 nr. 1 f)**: sikkerhet, forebygging av misbruk, feilsøking og forbedring av tjenesten.",
+          "**Rettslig forpliktelse (art. 6 nr. 1 c)**: oppbevaring av regnskaps- og faktureringsdata etter bokføringsloven."
+        ]
+      },
+      {
+        icon: Database,
+        title: "4. Lagringstid",
+        content: [
+          "**Kontodata**: lagres så lenge du har en aktiv konto, og slettes ved kontosletting.",
+          "**Generert innhold og utkast**: til du sletter dem eller kontoen din.",
+          "**Faktura- og betalingsdata**: oppbevares i inntil 5 år etter regnskapsårets slutt (bokføringsloven).",
+          "**Tekniske logger og feilovervåking (Sentry)**: normalt inntil 90 dager.",
+          "**AI-forespørsler hos OpenAI**: inntil 30 dager (sikkerhet), deretter slettet."
+        ]
+      },
+      {
         icon: Lock,
-        title: "3. Datasikkerhet",
+        title: "5. Overføring til tredjeland og databehandleravtaler",
+        content: [
+          "Enkelte databehandlere ligger utenfor EU/EØS (bl.a. USA). Overføring skjer på et lovlig overføringsgrunnlag:",
+          "- **OpenAI**, **Stripe**, **Amazon S3 (AWS)**, **SendGrid (Twilio)**, **Sentry** og **Google**: EU-US Data Privacy Framework (DPF) og/eller EUs standardkontraktsvilkår (SCC).",
+          "- **fal.ai**: EUs standardkontraktsvilkår (SCC).",
+          "Der personopplysninger behandles på våre vegne, benyttes databehandleravtale (DPA) i samsvar med GDPR art. 28."
+        ]
+      },
+      {
+        icon: Lock,
+        title: "6. Datasikkerhet",
         content: [
           "**Kryptering**: All data overføres via HTTPS (SSL/TLS-kryptering)",
           "**Lagring**: Dataene dine lagres sikkert i TiDB Cloud (GDPR-kompatibel database)",
@@ -56,7 +87,7 @@ export default function Privacy() {
       },
       {
         icon: Shield,
-        title: "4. Dine rettigheter (GDPR)",
+        title: "7. Dine rettigheter (GDPR)",
         content: [
           "**Rett til innsyn**: Du kan når som helst be om en kopi av dine data",
           "**Rett til sletting**: Du kan slette kontoen din og alle tilknyttede data fra Innstillinger",
@@ -67,7 +98,7 @@ export default function Privacy() {
       },
       {
         icon: UserX,
-        title: "5. Datasletting",
+        title: "8. Datasletting",
         content: [
           "Du kan slette kontoen din når som helst fra **Innstillinger > Slett konto**",
           "Når du sletter kontoen din, fjernes følgende permanent:",
@@ -80,7 +111,7 @@ export default function Privacy() {
       },
       {
         icon: Mail,
-        title: "6. Kontakt oss",
+        title: "9. Kontakt oss",
         content: [
           "Hvis du har spørsmål om personvern eller ønsker å utøve dine GDPR-rettigheter, kontakt oss:",
           "**E-post**: privacy@penna.no",

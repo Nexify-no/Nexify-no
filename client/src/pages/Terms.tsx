@@ -29,7 +29,7 @@ export default function Terms() {
         icon: CreditCard,
         title: "2. Abonnement og betaling",
         content: [
-          "**Priser**: Pro 199 NOK/måned (2149 NOK/år) og Premium 399 NOK/måned (4309 NOK/år). Alle priser er i NOK og inkluderer mva.",
+          "**Priser**: Pro 199 NOK/måned (2149 NOK/år) og Premium 399 NOK/måned (4309 NOK/år). Alle priser er i NOK. Selskapet er foreløpig ikke registrert i Merverdiavgiftsregisteret, og prisene er derfor uten MVA.",
           "**Inkludert**: Pro gir 15 innlegg per måned, Premium gir 30 innlegg per måned. Nye brukere får en gratis prøveperiode med 2 innlegg.",
           "**Fakturering**: Abonnementer fornyes automatisk som en fast, gjentakende betaling hver måned/år til de sies opp. Ingen bindingstid.",
           "**Betalingsmetoder**: Vi aksepterer kredittkort, debetkort og Vipps.",

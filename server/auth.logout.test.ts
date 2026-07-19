@@ -28,7 +28,7 @@ function createAuthContext(): { ctx: TrpcContext; clearedCookies: CookieCall[] }
     role: "user",
     createdAt: new Date(),
     updatedAt: new Date(),
-    lastSignedIn: new Date(),
+    lastSignedIn: new Date(), passwordHash: null, emailVerified: null, twoFactorSecret: null, twoFactorEnabled: 0, twoFactorBackupCodes: null, tokenVersion: 0,
   };
 
   const ctx: TrpcContext = {
@@ -67,7 +67,7 @@ describe("auth.logout", () => {
         path: "/",
       });
     } catch (error) {
-      expect(true).toBe(true);
+      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
     }
   });
 });

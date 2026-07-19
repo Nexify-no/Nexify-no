@@ -515,18 +515,55 @@ export async function getPostById(postId: number): Promise<Post | undefined> {
   return post;
 }
 
-export async function updatePost(postId: number, content: string): Promise<void> {
+export async function updatePost(postId: number, userId: number, content: string): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  await db.update(posts).set({ generatedContent: content, updatedAt: new Date() }).where(eq(posts.id, postId));
+
+  // SECURITY: ownership enforced at the SQL layer (postId AND userId), so a
+  // forgotten application-level check can never edit another user's post.
+  await db.update(posts)
+    .set({ generatedContent: content, updatedAt: new Date() })
+    .where(and(eq(posts.id, postId), eq(posts.userId, userId)));
 }
 
-export async function deletePost(postId: number): Promise<void> {
+/**
+ * Mark an existing post as published (status + publishedAt). Used by the
+ * generic publish path so the post the user clicked shows under "Publisert"
+ * instead of leaving an orphan analytics row. Best-effort: never throws.
+ */
+export async function markPostPublished(postId: number, userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  // SECURITY: ownership enforced at the SQL layer (postId AND userId).
+  await db.update(posts)
+    .set({ status: "published", publishedAt: new Date(), updatedAt: new Date() })
+    .where(and(eq(posts.id, postId), eq(posts.userId, userId)));
+}
+
+export async function deletePost(postId: number, userId: number): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  await db.delete(posts).where(eq(posts.id, postId));
+
+  // SECURITY: ownership enforced at the SQL layer (postId AND userId).
+  await db.delete(posts).where(and(eq(posts.id, postId), eq(posts.userId, userId)));
+}
+
+/**
+ * Invalidate ALL of a user's active sessions by bumping their token version.
+ * Called on logout and on password reset. Best-effort: a failure here must not
+ * break the calling flow (the cookie is still cleared).
+ */
+export async function incrementUserTokenVersion(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db
+      .update(users)
+      .set({ tokenVersion: sql`${users.tokenVersion} + 1` })
+      .where(eq(users.id, userId));
+  } catch (e) {
+    console.warn("[auth] incrementUserTokenVersion failed:", (e as Error)?.message);
+  }
 }
 
 // ============ Voice Samples Queries ============

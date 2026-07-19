@@ -23,7 +23,6 @@ import {
   Mic,
   Calendar,
   RefreshCw,
-  Send,
   Brain,
   Flame,
   Layers,
@@ -44,7 +43,6 @@ import PricingPlans from "@/components/PricingPlans";
 import HowItWorksDemo from "@/components/HowItWorksDemo";
 import FeaturesDemo from "@/components/FeaturesDemo";
 import PricingDemo from "@/components/PricingDemo";
-import TestimonialsDemo from "@/components/TestimonialsDemo";
 import { PennaMark } from "@/components/PennaMark";
 
 // Animated counter hook
@@ -171,11 +169,11 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-white">
       {/* Navigation */}
-      <nav className="border-b border-gray-100 bg-white/95 backdrop-blur-md sticky top-0 z-50">
+      <nav className="border-b border-gray-100 bg-white/95 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <PennaMark className="h-10 w-10" />
-            <span className="text-xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
+            <span className="max-[359px]:hidden text-xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
               Penna
             </span>
           </div>
@@ -340,22 +338,13 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Trusted-by logo strip — replace placeholder wordmarks with real customer logos */}
+      {/* Honest early-stage note (no unverifiable "used by" claims / placeholder logos).
+          Re-introduce real, named, written-consent logos/testimonials only when available. */}
       <section className="py-12 bg-white">
         <div className="container mx-auto px-4">
-          <p className="text-center text-sm font-medium text-gray-400 uppercase tracking-wider mb-8">
-            Brukt av markedsteam i hele Norden
+          <p className="text-center text-base md:text-lg font-medium text-gray-500">
+            Ny norsk AI-plattform — bli blant de første som tar den i bruk.
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-6 md:gap-x-16">
-            {["Nordisk Media", "VekstByrå", "StartupLab", "Helse Norge", "Handel AS", "Fjord Digital"].map((name) => (
-              <span
-                key={name}
-                className="font-display text-lg md:text-xl font-bold text-gray-300 transition-colors duration-300 hover:text-gray-500"
-              >
-                {name}
-              </span>
-            ))}
-          </div>
         </div>
       </section>
 
@@ -465,13 +454,10 @@ export default function Home() {
               </div>
               <div className="flex items-center justify-center gap-4 mb-3">
                 <div className="h-10 w-10 bg-green-100 rounded-xl flex items-center justify-center">
-                  <Send className="h-5 w-5 text-green-600" />
-                </div>
-                <div className="h-10 w-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                  <MessageSquare className="h-5 w-5 text-blue-500" />
+                  <MessageSquare className="h-5 w-5 text-green-600" />
                 </div>
               </div>
-              <h3 className="text-lg font-bold mb-2 text-gray-900">WhatsApp & Telegram Bot</h3>
+              <h3 className="text-lg font-bold mb-2 text-gray-900">WhatsApp Bot</h3>
               <p className="text-gray-500 text-sm max-w-md mx-auto">
                 Send en melding eller talemelding → Få ferdig innlegg tilbake. Skap innhold mens du er på farten.
               </p>
@@ -635,12 +621,15 @@ export default function Home() {
           <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-gray-500">&copy; {new Date().getFullYear()} Penna. Alle rettigheter reservert.</p>
             <div className="flex items-center gap-5">
-              <a href="https://www.facebook.com/profile.php?id=61591542924941" target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="text-gray-400 hover:text-white transition-colors"><Facebook className="h-5 w-5" /></a>
-              <a href="https://www.instagram.com/penna.no/" target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="text-gray-400 hover:text-white transition-colors"><Instagram className="h-5 w-5" /></a>
-              <a href="https://x.com/Penna0no" target="_blank" rel="noopener noreferrer" aria-label="X" className="text-gray-400 hover:text-white transition-colors"><Twitter className="h-5 w-5" /></a>
-              <a href="https://www.linkedin.com/company/penna-no/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" className="text-gray-400 hover:text-white transition-colors"><Linkedin className="h-5 w-5" /></a>
+              <a href="https://www.facebook.com/profile.php?id=61591542924941" target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="inline-flex items-center justify-center p-1.5 text-gray-400 hover:text-white transition-colors"><Facebook className="h-5 w-5" /></a>
+              <a href="https://www.instagram.com/penna.no/" target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="inline-flex items-center justify-center p-1.5 text-gray-400 hover:text-white transition-colors"><Instagram className="h-5 w-5" /></a>
+              <a href="https://x.com/Penna0no" target="_blank" rel="noopener noreferrer" aria-label="X" className="inline-flex items-center justify-center p-1.5 text-gray-400 hover:text-white transition-colors"><Twitter className="h-5 w-5" /></a>
+              <a href="https://www.linkedin.com/company/penna-no/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" className="inline-flex items-center justify-center p-1.5 text-gray-400 hover:text-white transition-colors"><Linkedin className="h-5 w-5" /></a>
             </div>
             <p className="text-xs text-gray-600">Nexify CRM Systems AS · Org.nr: 936 300 278</p>
+            <p className="text-xs text-gray-600 max-w-3xl mx-auto text-center">
+              Varemerker tilhører sine respektive eiere. Penna er ikke tilknyttet OpenAI, Google eller LinkedIn.
+            </p>
           </div>
         </div>
       </footer>

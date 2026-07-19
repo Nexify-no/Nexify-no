@@ -25,6 +25,31 @@ export function initSentry() {
     release: process.env.SENTRY_RELEASE || "nexify-ai@1.0.0",
     // 100% tracing is expensive in production — sample down there.
     tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
+    // Never let Sentry auto-attach IP/cookies/user PII.
+    sendDefaultPii: false,
+    // Scrub PII/secrets from every event before it leaves the process.
+    beforeSend(event) {
+      const SECRET_KEY = /pass(word)?|token|secret|authorization|cookie|api[_-]?key|session/i;
+      const scrub = (obj: unknown): void => {
+        if (!obj || typeof obj !== "object") return;
+        const rec = obj as Record<string, unknown>;
+        for (const k of Object.keys(rec)) {
+          if (SECRET_KEY.test(k)) rec[k] = "[redacted]";
+          else if (rec[k] && typeof rec[k] === "object") scrub(rec[k]);
+        }
+      };
+      if (event.request) {
+        // Drop cookies + auth headers entirely.
+        delete (event.request as { cookies?: unknown }).cookies;
+        const headers = event.request.headers as Record<string, string> | undefined;
+        if (headers) {
+          for (const h of ["authorization", "Authorization", "cookie", "Cookie"]) delete headers[h];
+        }
+        scrub(event.request.data);
+      }
+      scrub(event.extra);
+      return event;
+    },
   });
 
   console.log("[Sentry] Initialized successfully");

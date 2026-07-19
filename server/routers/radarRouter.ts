@@ -121,9 +121,8 @@ export const radarRouter = router({
   /** List the user's competitors with a per-competitor activity summary. */
   list: protectedProcedure.query(async ({ ctx }) => {
     const { getDb } = await import("../db");
-    const { competitors, competitorTopics } = await import("../../drizzle/schema");
-    const { eq, desc } = await import("drizzle-orm");
-    const { summaryStats } = await import("../services/radarService");
+    const { competitors, competitorTopics, competitorContent } = await import("../../drizzle/schema");
+    const { eq, desc, inArray } = await import("drizzle-orm");
     const db = await getDb();
     if (!db) throw new Error("Database not available");
 
@@ -133,29 +132,64 @@ export const radarRouter = router({
       .where(eq(competitors.userId, ctx.user.id))
       .orderBy(desc(competitors.createdAt));
 
-    const enriched = await Promise.all(
-      rows.map(async (c) => {
-        const stats = await summaryStats(c.id);
-        const topics = await db
-          .select()
-          .from(competitorTopics)
-          .where(eq(competitorTopics.competitorId, c.id))
-          .orderBy(desc(competitorTopics.score))
-          .limit(3);
-        return {
-          id: c.id,
-          name: c.name,
-          website: c.website ?? null,
-          createdAt: c.createdAt,
-          itemCount: stats.itemCount,
-          lastPublishedAt: stats.lastPublishedAt,
-          postsPerWeek: stats.postsPerWeek,
-          topTopics: topics.map((t) => ({ topic: t.topic, score: t.score })),
-        };
-      }),
-    );
+    if (rows.length === 0) return [];
+    const ids = rows.map((c) => c.id);
 
-    return enriched;
+    // Batch the previously per-competitor queries (was 2N queries + unbounded)
+    // into exactly two IN-list queries, then group in memory. Same output shape
+    // and identical stats computation as radarService.summaryStats.
+    const [contentRows, topicRows] = await Promise.all([
+      db.select().from(competitorContent).where(inArray(competitorContent.competitorId, ids)),
+      db
+        .select()
+        .from(competitorTopics)
+        .where(inArray(competitorTopics.competitorId, ids))
+        .orderBy(desc(competitorTopics.score)),
+    ]);
+
+    const contentByComp = new Map<number, typeof contentRows>();
+    for (const r of contentRows) {
+      const arr = contentByComp.get(r.competitorId) ?? [];
+      arr.push(r);
+      contentByComp.set(r.competitorId, arr);
+    }
+    // topicRows already sorted by score desc → keep the first 3 per competitor.
+    const topicsByComp = new Map<number, typeof topicRows>();
+    for (const t of topicRows) {
+      const arr = topicsByComp.get(t.competitorId) ?? [];
+      if (arr.length < 3) arr.push(t);
+      topicsByComp.set(t.competitorId, arr);
+    }
+
+    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const computeStats = (items: typeof contentRows) => {
+      let itemCount = 0;
+      let lastPublishedAt: Date | null = null;
+      for (const r of items) {
+        const when = r.publishedAt ? new Date(r.publishedAt) : r.createdAt ? new Date(r.createdAt) : null;
+        if (when) {
+          if (when.getTime() >= thirtyDaysAgo) itemCount++;
+          if (!lastPublishedAt || when.getTime() > lastPublishedAt.getTime()) lastPublishedAt = when;
+        }
+      }
+      const postsPerWeek = Math.round((itemCount / 30) * 7 * 10) / 10;
+      return { itemCount, lastPublishedAt, postsPerWeek };
+    };
+
+    return rows.map((c) => {
+      const stats = computeStats(contentByComp.get(c.id) ?? []);
+      const topics = topicsByComp.get(c.id) ?? [];
+      return {
+        id: c.id,
+        name: c.name,
+        website: c.website ?? null,
+        createdAt: c.createdAt,
+        itemCount: stats.itemCount,
+        lastPublishedAt: stats.lastPublishedAt,
+        postsPerWeek: stats.postsPerWeek,
+        topTopics: topics.map((t) => ({ topic: t.topic, score: t.score })),
+      };
+    });
   }),
 
   /** Full detail view for one competitor (ownership-checked). */
