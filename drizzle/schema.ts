@@ -1796,3 +1796,87 @@ export const competitorGaps = mysqlTable("competitor_gaps", {
 
 export type CompetitorGap = typeof competitorGaps.$inferSelect;
 export type InsertCompetitorGap = typeof competitorGaps.$inferInsert;
+
+/**
+ * Enkel-modus: 4-ukers innholdsplaner (content_plans) + planlagte innlegg
+ * (planned_posts). MVP: ÉN plattform per plan. Merkehjerne fryses som snapshot
+ * ved create; arbeideren leser aldri live-profilen. Lease-kolonner + lease_token
+ * gir trygg bakgrunnskjøring: hver claim får et nytt lease_token, og ALLE
+ * resultat-lagringer betinges av at lease_token fortsatt matcher (ellers ignoreres
+ * en sen respons fra en arbeider som mistet eierskapet). next_attempt_at styrer
+ * exponential backoff. Datoer i DATE, tidsstempler i UTC. Bilde-kolonner er
+ * reservert for Fase 2. Hele funksjonen er bak FEATURE_ENKEL_PLAN (av i prod).
+ */
+export const contentPlans = mysqlTable("content_plans", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("user_id").notNull(),
+  workspaceId: int("workspace_id").notNull(),
+  idempotencyKey: varchar("idempotency_key", { length: 120 }).notNull(),
+  goal: mysqlEnum("goal", ["customers", "trust", "showcase", "engagement", "offer", "mixed"]).notNull(),
+  platform: mysqlEnum("plan_platform", ["linkedin", "facebook", "instagram"]).notNull(),
+  weeksCount: int("weeks_count").default(4).notNull(),
+  postsPerWeek: int("posts_per_week").notNull(),
+  timeZone: varchar("time_zone", { length: 64 }).default("Europe/Oslo").notNull(),
+  brandSnapshot: json("brand_snapshot"),
+  companyProfileVersion: int("company_profile_version").default(0).notNull(),
+  visualIdentityVersion: int("visual_identity_version").default(0).notNull(),
+  totalContentQuota: int("total_content_quota").default(0).notNull(),
+  totalImageQuota: int("total_image_quota").default(0).notNull(),
+  status: mysqlEnum("status", ["queued", "processing", "ready", "partial", "failed", "cancelled"]).default("queued").notNull(),
+  cancelRequested: boolean("cancel_requested").default(false).notNull(),
+  deletedAt: timestamp("deleted_at"),
+  leaseToken: varchar("lease_token", { length: 36 }),
+  lockedBy: varchar("locked_by", { length: 64 }),
+  lockedAt: timestamp("locked_at"),
+  lockExpiresAt: timestamp("lock_expires_at"),
+  attemptCount: int("attempt_count").default(0).notNull(),
+  nextAttemptAt: timestamp("next_attempt_at"),
+  lastError: varchar("last_error", { length: 300 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  wsIdx: index("idx_content_plans_ws").on(table.workspaceId),
+  claimIdx: index("idx_content_plans_claim").on(table.status, table.nextAttemptAt, table.lockExpiresAt),
+  idemUniq: unique("uq_content_plans_ws_idem").on(table.workspaceId, table.idempotencyKey),
+}));
+
+export type ContentPlan = typeof contentPlans.$inferSelect;
+export type InsertContentPlan = typeof contentPlans.$inferInsert;
+
+export const plannedPosts = mysqlTable("planned_posts", {
+  id: int("id").autoincrement().primaryKey(),
+  contentPlanId: int("content_plan_id").notNull(),
+  userId: int("user_id").notNull(),
+  workspaceId: int("workspace_id").notNull(),
+  postGenerationId: varchar("post_generation_id", { length: 36 }).notNull().unique(),
+  weekNumber: int("week_number").notNull(),
+  suggestedDate: date("suggested_date").notNull(),
+  platform: mysqlEnum("planned_platform", ["linkedin", "facebook", "instagram"]).notNull(),
+  contentType: varchar("content_type", { length: 32 }).notNull(),
+  topic: varchar("topic", { length: 300 }),
+  content: text("content"),
+  reason: varchar("reason", { length: 300 }),
+  imageUrl: text("image_url"),
+  imageStatus: mysqlEnum("planned_image_status", ["none", "pending", "generating", "verifying", "completed", "failed"]).default("none").notNull(),
+  imageGenerationId: varchar("image_generation_id", { length: 64 }),
+  imageIdempotencyKey: varchar("image_idempotency_key", { length: 80 }),
+  verificationStatus: mysqlEnum("verification_status", ["verified", "needs_review", "unsupported", "high_risk"]).default("needs_review").notNull(),
+  approvalStatus: mysqlEnum("approval_status", ["draft", "approved", "needs_edit"]).default("draft").notNull(),
+  generationStatus: mysqlEnum("generation_status", ["pending", "generating", "done", "failed"]).default("pending").notNull(),
+  contentQuotaCharged: boolean("content_quota_charged").default(false).notNull(),
+  leaseToken: varchar("post_lease_token", { length: 36 }),
+  lockedBy: varchar("post_locked_by", { length: 64 }),
+  lockExpiresAt: timestamp("post_lock_expires_at"),
+  attemptCount: int("post_attempt_count").default(0).notNull(),
+  nextAttemptAt: timestamp("post_next_attempt_at"),
+  lastError: varchar("post_last_error", { length: 300 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  planIdx: index("idx_planned_posts_plan").on(table.contentPlanId),
+  wsIdx: index("idx_planned_posts_ws").on(table.workspaceId),
+  claimIdx: index("idx_planned_posts_claim").on(table.contentPlanId, table.generationStatus, table.nextAttemptAt, table.lockExpiresAt),
+}));
+
+export type PlannedPost = typeof plannedPosts.$inferSelect;
+export type InsertPlannedPost = typeof plannedPosts.$inferInsert;
