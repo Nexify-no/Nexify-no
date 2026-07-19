@@ -1003,6 +1003,7 @@ body::after {
 }
 @media (prefers-reduced-motion: reduce) {
   .ink-mote { display: none; }
+}
 
 /* Accessibility + performance: honour reduced-motion — pause the continuous
    background/decor animations that otherwise consume paint budget while scrolling. */
