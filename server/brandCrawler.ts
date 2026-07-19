@@ -57,7 +57,7 @@ async function assertPublicUrl(url: URL) {
   if (["localhost", "localhost.localdomain"].includes(url.hostname.toLowerCase())) {
     throw new Error("Lokale eller private nettadresser er ikke tillatt.");
   }
-  let addresses: Awaited<ReturnType<typeof lookup>>;
+  let addresses: { address: string; family: number }[];
   try {
     addresses = await lookup(url.hostname, { all: true, verbatim: true });
   } catch {
