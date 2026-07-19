@@ -164,6 +164,8 @@ export default function Generate() {
   // Voice profile (declared before buildOptions, which depends on it).
   const { data: voiceProfile } = trpc.voice.getProfile.useQuery();
   const [useVoiceProfile, setUseVoiceProfile] = useState(false);
+  const [createMode, setCreateMode] = useState<"dna" | "write">("write");
+  const brandProfileQuery = trpc.brand.get.useQuery();
 
   // Build the option object shared by generate + enhance + save-preset.
   const buildOptions = useCallback(() => ({
@@ -621,6 +623,58 @@ export default function Generate() {
   return (
     <div className="bg-gradient-to-b from-slate-50/80 via-background to-background dark:from-slate-950/50">
       <main className="container py-6 md:py-8 max-w-7xl">
+
+        {/* ─── Lag innlegg: velg metode ─── */}
+        <div className="mb-6">
+          <div className="inline-flex rounded-xl border border-border bg-muted/40 p-1 gap-1">
+            <button
+              type="button"
+              onClick={() => setCreateMode("dna")}
+              className={"px-4 h-9 rounded-lg text-sm font-medium transition-colors " + (createMode === "dna" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
+            >
+              Fra Merkehjerne (DNA)
+            </button>
+            <button
+              type="button"
+              onClick={() => setCreateMode("write")}
+              className={"px-4 h-9 rounded-lg text-sm font-medium transition-colors " + (createMode === "write" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
+            >
+              Skriv selv + trender
+            </button>
+          </div>
+
+          {createMode === "dna" && (
+            <div className="mt-4 rounded-xl border border-primary/20 bg-card p-4">
+              {brandProfileQuery.data && brandProfileQuery.data.status === "ready" ? (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-3">Innlegg bygges på din Merkehjerne ({brandProfileQuery.data.companyName}). Velg en idé for å starte:</p>
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {(brandProfileQuery.data.contentIdeas ?? []).slice(0, 12).map((idea, index) => (
+                      <button
+                        key={`${idea.title}-${index}`}
+                        type="button"
+                        onClick={() => {
+                          setTopic(`${idea.title}\n\nVinkel: ${idea.angle}`);
+                          if (idea.platform) setPlatform(idea.platform);
+                          setCreateMode("write");
+                        }}
+                        className="text-left rounded-lg border border-border p-3 hover:border-primary/40 hover:bg-muted/40 transition-colors"
+                      >
+                        <span className="text-xs font-medium text-primary">{idea.pillar}</span>
+                        <span className="block font-medium text-sm mt-1">{idea.title}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-sm text-muted-foreground mb-3">Bygg din Merkehjerne først — lim inn nettstedet ditt, så leser Penna det og lager innhold basert på bedriften din.</p>
+                  <a href="/merkehjerne" className="inline-flex items-center h-10 px-5 rounded-lg bg-primary text-primary-foreground text-sm font-medium">Bygg Merkehjerne</a>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* ─── Header ─── */}
         <div className="mb-6">
