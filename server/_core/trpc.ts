@@ -53,7 +53,12 @@ export const aiProcedure = protectedProcedure.use(async ({ ctx, next }) => {
   // and therefore exempt (their openId is not prefixed "email_").
   const { getUserById } = await import("../db");
   const u = await getUserById(ctx.user.id);
-  if (u && !u.emailVerified && typeof u.openId === "string" && u.openId.startsWith("email_")) {
+  // Owner account (OWNER_EMAIL) is exempt from the verification gate — the owner
+  // may be unable to receive the verification email (e.g. their own mail host
+  // blocks the sender), and must never be locked out of their own product.
+  const ownerEmail = process.env.OWNER_EMAIL?.toLowerCase();
+  const isOwnerAccount = !!ownerEmail && !!u?.email && u.email.toLowerCase() === ownerEmail;
+  if (u && !u.emailVerified && !isOwnerAccount && typeof u.openId === "string" && u.openId.startsWith("email_")) {
     throw new TRPCError({ code: "FORBIDDEN", message: "EMAIL_NOT_VERIFIED" });
   }
   const { enforceAiRateLimit } = await import("./aiRateLimit");
