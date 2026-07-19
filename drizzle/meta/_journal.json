@@ -568,6 +568,7 @@
       "when": 1783900000000,
       "tag": "0080_lifecycle_emails",
       "breakpoints": true
-    }
+    },
+    {"idx":81,"version":"5","when":1784000000000,"tag":"0081_view_mode","breakpoints":true}
   ]
 }
