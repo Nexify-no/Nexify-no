@@ -592,6 +592,7 @@ export default function Onboarding() {
       return true;
     }
   });
+  const setViewModeMut = trpc.user.setViewMode.useMutation();
   const patch = useCallback(
     (p: Partial<WizardState>) => setState((s) => ({ ...s, ...p })),
     []
@@ -1005,7 +1006,7 @@ export default function Onboarding() {
           <div className="space-y-3 md:grid md:grid-cols-2 md:items-stretch md:gap-4 md:space-y-0">
             <button
               type="button"
-              onClick={() => patch({ choiceMade: true })}
+              onClick={() => { setViewModeMut.mutate({ viewMode: "simple" }); patch({ choiceMade: true }); }}
               className="w-full rounded-xl border-2 border-primary bg-card p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-[0.995]"
             >
               <span className="flex items-center gap-2">
