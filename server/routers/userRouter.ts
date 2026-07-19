@@ -12,6 +12,18 @@ import { getSessionCookieOptions } from "../_core/cookies";
 import { getUserPosts, getUserSubscription, getUserPreference } from "../db";
 
 export const userRouter = router({
+  // --- UI view mode (simple = essential nav; advanced = full nav) — per-account ---
+  getViewMode: protectedProcedure.query(async ({ ctx }) => {
+    const { getUserViewMode } = await import("../db");
+    return getUserViewMode(ctx.user.id);
+  }),
+  setViewMode: protectedProcedure
+    .input(z.object({ viewMode: z.enum(["simple", "advanced"]) }))
+    .mutation(async ({ ctx, input }) => {
+      const { updateUserViewMode } = await import("../db");
+      await updateUserViewMode(ctx.user.id, input.viewMode);
+      return { viewMode: input.viewMode };
+    }),
     getPreference: protectedProcedure.query(async ({ ctx }) => {
       const { getUserPreference, createUserPreference } = await import("../db");
       let preference = await getUserPreference(ctx.user.id);

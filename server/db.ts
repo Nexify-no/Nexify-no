@@ -1891,3 +1891,28 @@ export async function getWeeklyRitualRecipients(): Promise<{ email: string; name
       r.subStatus !== "cancelled" && r.subStatus !== "expired")
     .map((r: any) => ({ email: r.email as string, name: r.name || "" }));
 }
+
+/**
+ * Update a user's UI view mode (simple = essential nav only; advanced = full nav).
+ * Per-account preference stored on user_preferences. Ensures a row exists first.
+ */
+export async function updateUserViewMode(
+  userId: number,
+  viewMode: "simple" | "advanced",
+): Promise<void> {
+  await getUserPreference(userId);
+  const db = await getDb();
+  if (!db) throw new Error("Database not initialized");
+  await db
+    .update(userPreferences)
+    .set({ viewMode })
+    .where(eq(userPreferences.userId, userId));
+}
+
+/**
+ * Read a user's UI view mode with a safe default of "advanced" (full nav).
+ */
+export async function getUserViewMode(userId: number): Promise<"simple" | "advanced"> {
+  const pref = (await getUserPreference(userId)) as { viewMode?: "simple" | "advanced" } | undefined;
+  return pref?.viewMode === "simple" ? "simple" : "advanced";
+}
