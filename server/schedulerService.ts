@@ -24,6 +24,7 @@ let schedulerTask: cron.ScheduledTask | null = null;
 let weeklyRitualTask: cron.ScheduledTask | null = null;
 let linkedinExpiryTask: cron.ScheduledTask | null = null;
 let lifecycleTask: cron.ScheduledTask | null = null;
+let planTask: cron.ScheduledTask | null = null;
 let subscriptionReminderTask: cron.ScheduledTask | null = null;
 
 // In-process overlap guard: a run that exceeds the 5-min interval must not be
@@ -448,6 +449,21 @@ export function startScheduler() {
     }
   }, { timezone: 'Europe/Oslo' });
 
+  // Enkel 4-ukers plan-arbeider - hvert minutt; no-op nar FEATURE_ENKEL_PLAN er av.
+  // Lease-basert (planLease/planStore): trygg ved flere instanser og restarts.
+  planTask = cron.schedule('* * * * *', async () => {
+    try {
+      const { ENV } = await import('./_core/env');
+      if (!ENV.featureEnkelPlan) return;
+      const { runPlanTick } = await import('./planWorker');
+      const { buildPlanWorkerDeps } = await import('./planStore');
+      const deps = await buildPlanWorkerDeps();
+      await runPlanTick(deps, `web-${process.pid}`);
+    } catch (e) {
+      console.error('[Scheduler:Plan] tick failed', e);
+    }
+  });
+
   console.log('[Scheduler] Started - scheduled posts + A/B every 5 min, Competitor Radar hourly, best-times daily 03:30, weekly ritual Mon 08:00, lifecycle daily 10:00');
   // Subscription-active reminder — daily at 10:00; each active sub reminded ≤ every 6 months.
   subscriptionReminderTask = cron.schedule('0 10 * * *', async () => {
@@ -456,6 +472,11 @@ export function startScheduler() {
 }
 
 export function stopScheduler() {
+  if (planTask) {
+    void planTask.stop();
+    planTask = null;
+    console.log('[Scheduler:Plan] Stopped');
+  }
   if (schedulerTask) {
     void schedulerTask.stop();
     schedulerTask = null;

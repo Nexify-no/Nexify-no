@@ -570,6 +570,7 @@
       "breakpoints": true
     },
     {"idx":81,"version":"5","when":1784000000000,"tag":"0081_view_mode","breakpoints":true},
-    {"idx":82,"version":"5","when":1784100000000,"tag":"0082_brand_profiles","breakpoints":true}
+    {"idx":82,"version":"5","when":1784100000000,"tag":"0082_brand_profiles","breakpoints":true},
+    {"idx":83,"version":"5","when":1784200000000,"tag":"0083_content_plans","breakpoints":true}
   ]
 }
