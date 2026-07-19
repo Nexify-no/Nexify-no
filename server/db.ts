@@ -4,7 +4,7 @@
  * Unauthorized copying, distribution, or use is strictly prohibited.
  */
 
-import { desc, eq, and, count, gte, lte, lt, sql, isNotNull } from "drizzle-orm";
+import { desc, eq, and, count, gte, lte, lt, sql, isNotNull, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import * as schema from "../drizzle/schema";
 import { sanitizeHtml } from "./_core/sanitizeHtml";
@@ -1044,7 +1044,7 @@ export async function deleteUser(userId: number): Promise<void> {
     s.abTests, s.activityLog, s.backupSchedule, s.competitors, s.contentAnalysis,
     s.contentSchedule, s.contentSeries, s.deletedPosts, s.drafts, s.generationPresets, s.hashtagPerformance,
     s.hashtagSuggestions, s.ideas, s.invoices, s.linkedinConnections, s.notificationSettings,
-    s.onboardingStatus, s.paymentOrders, s.platformIntegrationSettings, s.platformIntegrations,
+    s.lifecycleEmails, s.onboardingStatus, s.paymentOrders, s.platformIntegrationSettings, s.platformIntegrations,
     s.postAnalytics, s.postAuditLog, s.postBackups, s.postVersions, s.postingTimesAnalytics,
     s.posts, s.repurposedContent, s.savedExamples, s.scheduledPosts, s.schedulingPreferences,
     s.schedulingQueue, s.securityAlerts, s.stripePaymentIntents, s.subscriptionHistory,
@@ -1743,6 +1743,129 @@ export async function updateTrendingHashtag(hashtagId: number, updates: Partial<
  * in within the last 60 days and have not opted out (notification_settings.emailNotifications
  * false or emailFrequency 'never'). A missing settings row counts as opted-in (defaults).
  */
+/** Per-user state the lifecycle engine needs to decide which journey email is due. */
+export interface LifecycleUserState {
+  userId: number;
+  email: string;
+  name: string;
+  createdAt: Date;
+  lastSignedIn: Date;
+  verified: boolean;
+  subStatus: string | null;
+  onboardingCompleted: boolean;
+  hasPosted: boolean;
+  hasLinkedIn: boolean;
+  sentKeys: string[];
+  lastLifecycleAt: Date | null;
+}
+
+/**
+ * Load state for all users eligible for the automated customer-journey emails,
+ * in a bounded, batched way (4 queries total, no N+1). Filters out opted-out
+ * accounts and ended subscriptions up front — same bar as the weekly ritual.
+ */
+export async function getLifecycleUserStates(): Promise<LifecycleUserState[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+
+  const base = await db
+    .select({
+      userId: users.id,
+      email: users.email,
+      name: users.name,
+      openId: users.openId,
+      createdAt: users.createdAt,
+      lastSignedIn: users.lastSignedIn,
+      emailVerified: users.emailVerified,
+      emailNotifications: schema.notificationSettings.emailNotifications,
+      emailFrequency: schema.notificationSettings.emailFrequency,
+      subStatus: subscriptions.status,
+      onboardingCompleted: schema.onboardingStatus.completed,
+    })
+    .from(users)
+    .leftJoin(schema.notificationSettings, eq(schema.notificationSettings.userId, users.id))
+    .leftJoin(subscriptions, eq(subscriptions.userId, users.id))
+    .leftJoin(schema.onboardingStatus, eq(schema.onboardingStatus.userId, users.id))
+    .where(and(isNotNull(users.email), gte(users.createdAt, ninetyDaysAgo)))
+    .limit(500);
+
+  const eligible = base.filter(
+    (r: any) =>
+      !!r.email &&
+      (r.emailNotifications ?? true) &&
+      (r.emailFrequency ?? "daily") !== "never" &&
+      r.subStatus !== "cancelled" &&
+      r.subStatus !== "expired"
+  );
+  if (eligible.length === 0) return [];
+
+  const ids = eligible.map((r: any) => r.userId);
+  const [sent, posted, linked] = await Promise.all([
+    db
+      .select({
+        userId: schema.lifecycleEmails.userId,
+        emailKey: schema.lifecycleEmails.emailKey,
+        sentAt: schema.lifecycleEmails.sentAt,
+      })
+      .from(schema.lifecycleEmails)
+      .where(inArray(schema.lifecycleEmails.userId, ids)),
+    db.selectDistinct({ userId: posts.userId }).from(posts).where(inArray(posts.userId, ids)),
+    db
+      .select({ userId: schema.linkedinConnections.userId })
+      .from(schema.linkedinConnections)
+      .where(inArray(schema.linkedinConnections.userId, ids)),
+  ]);
+
+  const sentByUser = new Map<number, { keys: string[]; last: Date | null }>();
+  for (const s of sent as any[]) {
+    const e = sentByUser.get(s.userId) ?? { keys: [], last: null };
+    e.keys.push(s.emailKey);
+    if (!e.last || s.sentAt > e.last) e.last = s.sentAt;
+    sentByUser.set(s.userId, e);
+  }
+  const postedSet = new Set((posted as any[]).map((p) => p.userId));
+  const linkedSet = new Set((linked as any[]).map((l) => l.userId));
+
+  return eligible.map((r: any) => {
+    const se = sentByUser.get(r.userId);
+    const verified =
+      r.emailVerified != null ||
+      (typeof r.openId === "string" && !r.openId.startsWith("email_"));
+    return {
+      userId: r.userId,
+      email: r.email as string,
+      name: r.name || "",
+      createdAt: r.createdAt,
+      lastSignedIn: r.lastSignedIn,
+      verified,
+      subStatus: r.subStatus ?? null,
+      onboardingCompleted: (r.onboardingCompleted ?? 0) === 1,
+      hasPosted: postedSet.has(r.userId),
+      hasLinkedIn: linkedSet.has(r.userId),
+      sentKeys: se?.keys ?? [],
+      lastLifecycleAt: se?.last ?? null,
+    };
+  });
+}
+
+/**
+ * Atomically claim a lifecycle email step for a user. The UNIQUE(user_id,
+ * email_key) constraint means only the first caller inserts the row (returns
+ * true) and actually sends; any overlapping run gets a duplicate and returns
+ * false. Claim BEFORE sending so a step is never delivered twice.
+ */
+export async function claimLifecycleEmail(userId: number, emailKey: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  try {
+    await db.insert(schema.lifecycleEmails).values({ userId, emailKey });
+    return true;
+  } catch {
+    return false; // duplicate (already claimed) — or a transient DB error; skip either way
+  }
+}
+
 export async function getWeeklyRitualRecipients(): Promise<{ email: string; name: string }[]> {
   const db = await getDb();
   if (!db) return [];

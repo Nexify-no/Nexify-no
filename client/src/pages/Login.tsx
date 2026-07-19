@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
 import { VippsLoginButton } from "@/components/VippsLogin";
 import { PennaMark } from "@/components/PennaMark";
+import { SIG_WORD } from "@/components/pennaSignature";
 
 const LAST_LOGIN_KEY = "penna_last_login_method";
 
@@ -102,7 +103,8 @@ export function LoginPage() {
           return;
         }
         rememberMethod("email");
-        window.location.href = "/dashboard";
+        // Fresh signups land in the first-run wizard; returning users go to the app.
+        window.location.href = mode === "register" ? "/kom-i-gang" : "/dashboard";
         return;
       }
       const data = await res.json().catch(() => ({}));
@@ -177,8 +179,16 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-6">
+    <div className="penna-wash relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      {/* brand watermark: the signature, resting quietly behind the card */}
+      <svg
+        viewBox="0 -60 180 66"
+        aria-hidden="true"
+        className="pointer-events-none absolute -bottom-16 -right-28 w-[620px] -rotate-6"
+      >
+        <path d={SIG_WORD} className="fill-primary/[0.04]" />
+      </svg>
+      <div className="relative w-full max-w-md space-y-6">
         {/* Logo */}
         <div className="text-center">
           <div className="inline-flex items-center gap-2.5 mb-2">

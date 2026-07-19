@@ -1,10 +1,5 @@
 /**
- 
-  // Subscription-active reminder — daily at 10:00; each active sub reminded ≤ every 6 months.
-  subscriptionReminderTask = cron.schedule('0 10 * * *', async () => {
-    try { await remindActiveSubscriptions(); } catch (e) { console.error('[Scheduler:SubReminder] error', e); }
-  });
-* Copyright © 2026 Nexify CRM Systems AS. All rights reserved.
+ * Copyright © 2026 Nexify CRM Systems AS. All rights reserved.
  * Org.nr: 936300278 — Proprietary and confidential.
  * Unauthorized copying, distribution, or use is strictly prohibited.
  */
@@ -28,6 +23,7 @@ import { notifyOwner } from './_core/notification';
 let schedulerTask: cron.ScheduledTask | null = null;
 let weeklyRitualTask: cron.ScheduledTask | null = null;
 let linkedinExpiryTask: cron.ScheduledTask | null = null;
+let lifecycleTask: cron.ScheduledTask | null = null;
 let subscriptionReminderTask: cron.ScheduledTask | null = null;
 
 // In-process overlap guard: a run that exceeds the 5-min interval must not be
@@ -439,7 +435,24 @@ export function startScheduler() {
     catch (e) { console.error('[Scheduler:LinkedInExpiry] job failed', e); }
   }, { timezone: 'Europe/Oslo' });
 
-  console.log('[Scheduler] Started - scheduled posts + A/B every 5 min, Competitor Radar hourly, best-times daily 03:30, weekly ritual Mon 08:00');
+  // Automated customer-journey emails — daily 10:00 (Europe/Oslo). Sends at most
+  // one behavior-aware onboarding/education/re-engagement step per user per day,
+  // each step exactly once (see server/services/lifecycleService.ts).
+  lifecycleTask = cron.schedule('0 10 * * *', async () => {
+    try {
+      const { runLifecycleEmails } = await import('./services/lifecycleService');
+      const summary = await runLifecycleEmails();
+      console.log(`[Scheduler:Lifecycle] scanned ${summary.scanned}, sent ${summary.sent}`);
+    } catch (e) {
+      console.error('[Scheduler:Lifecycle] job failed', e);
+    }
+  }, { timezone: 'Europe/Oslo' });
+
+  console.log('[Scheduler] Started - scheduled posts + A/B every 5 min, Competitor Radar hourly, best-times daily 03:30, weekly ritual Mon 08:00, lifecycle daily 10:00');
+  // Subscription-active reminder — daily at 10:00; each active sub reminded ≤ every 6 months.
+  subscriptionReminderTask = cron.schedule('0 10 * * *', async () => {
+    try { await remindActiveSubscriptions(); } catch (e) { console.error('[Scheduler:SubReminder] error', e); }
+  });
 }
 
 export function stopScheduler() {
@@ -476,6 +489,11 @@ export function stopScheduler() {
     void subscriptionReminderTask.stop();
     subscriptionReminderTask = null;
     console.log('[Scheduler:LinkedInExpiry] Stopped');
+  }
+  if (lifecycleTask) {
+    void lifecycleTask.stop();
+    lifecycleTask = null;
+    console.log('[Scheduler:Lifecycle] Stopped');
   }
 }
 

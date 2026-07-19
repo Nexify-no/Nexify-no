@@ -4,7 +4,7 @@
  * Unauthorized copying, distribution, or use is strictly prohibited.
  */
 
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, tinyint, date, boolean, json, decimal, double, index } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, tinyint, date, boolean, json, decimal, double, index, unique } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -680,6 +680,28 @@ export const onboardingStatus = mysqlTable("onboarding_status", {
 
 export type OnboardingStatus = typeof onboardingStatus.$inferSelect;
 export type InsertOnboardingStatus = typeof onboardingStatus.$inferInsert;
+
+/**
+ * Lifecycle emails — one row per (user, email step) actually sent. The composite
+ * UNIQUE(user_id, email_key) makes the automated customer-journey sequence
+ * idempotent: a step is never sent to the same user twice, even across
+ * scheduler restarts or overlapping runs. Read by the daily lifecycle cron.
+ */
+export const lifecycleEmails = mysqlTable(
+  "lifecycle_emails",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("user_id").notNull(),
+    emailKey: varchar("email_key", { length: 64 }).notNull(),
+    sentAt: timestamp("sent_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    userKey: unique("uq_lifecycle_user_key").on(t.userId, t.emailKey),
+  })
+);
+
+export type LifecycleEmail = typeof lifecycleEmails.$inferSelect;
+export type InsertLifecycleEmail = typeof lifecycleEmails.$inferInsert;
 
 
 /**

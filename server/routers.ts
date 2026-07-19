@@ -47,6 +47,7 @@ import { linkedinRouter } from "./routers/linkedinRouter";
 import { schedulerRouter } from "./routers/schedulerRouter";
 import { templatesRouter } from "./routers/templatesRouter";
 import { presetsRouter } from "./routers/presetsRouter";
+import { onboardingRouter } from "./routers/onboardingRouter";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -59,7 +60,10 @@ export const appRouter = router({
   auth: authRouter,
 
   user: userRouter,
-  
+
+  // First-run wizard (Kom i gang)
+  onboarding: onboardingRouter,
+
   content: contentRouter,
   
   // voice router moved to voiceRouter.ts

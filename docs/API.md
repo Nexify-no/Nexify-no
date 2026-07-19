@@ -1,6 +1,6 @@
 # 📚 Innlegg API Documentation
 
-**Complete API Reference for Innlegg - Din AI Innholdsassistent**
+**Complete API Reference for Penna - Din AI Innholdsassistent**
 
 ---
 
@@ -938,8 +938,8 @@ A: Use Sentry integration for error tracking. See [Error Handling](#error-handli
 
 ## Support
 
-- **Documentation**: https://innlegg.no/docs
-- **Email**: support@innlegg.no
+- **Documentation**: https://penna.no/docs
+- **Email**: support@penna.no
 - **GitHub Issues**: https://github.com/yourusername/innlegg/issues
 - **Discord**: https://discord.gg/innlegg
 

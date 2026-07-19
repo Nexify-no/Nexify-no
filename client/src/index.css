@@ -817,6 +817,192 @@ html, body, #root {
   max-width: 100%;
 }
 
+/* Respect prefers-reduced-motion for the always-on decorative animations
+   (state changes still render instantly; only the motion is removed). */
+@media (prefers-reduced-motion: reduce) {
+  .success-pulse,
+  .skeleton,
+  .animate-float,
+  .animate-pulse-glow,
+  .animate-shimmer {
+    animation: none !important;
+  }
+}
+
+/* ============================================================
+   Penna brand motion — the pen writes the wordmark (wizard
+   opening), and a small pen "squiggle" loops while AI writes.
+   ============================================================ */
+.penna-word {
+  font-family: var(--font-display);
+  font-size: 46px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  fill: var(--foreground);
+  fill-opacity: 0;
+  stroke: var(--primary);
+  stroke-width: 1.25px;
+  stroke-dasharray: 300;
+  stroke-dashoffset: 300;
+  animation:
+    penna-draw 1.6s cubic-bezier(0.22, 1, 0.36, 1) 0.15s forwards,
+    penna-fill 0.7s ease-out 1.45s forwards;
+}
+@keyframes penna-draw { to { stroke-dashoffset: 0; } }
+@keyframes penna-fill { to { fill-opacity: 1; } }
+.penna-nib {
+  color: var(--primary);
+  transform: translate(8px, 49px);
+  animation:
+    penna-nib-move 1.6s cubic-bezier(0.22, 1, 0.36, 1) 0.15s forwards,
+    penna-nib-fade 0.35s ease-out 1.75s forwards;
+}
+@keyframes penna-nib-move {
+  0%   { transform: translate(8px, 49px); }
+  25%  { transform: translate(48px, 43px); }
+  50%  { transform: translate(90px, 50px); }
+  75%  { transform: translate(134px, 44px); }
+  100% { transform: translate(174px, 48px); }
+}
+@keyframes penna-nib-fade { to { opacity: 0; transform: translate(178px, 36px); } }
+
+.pen-loader-path {
+  stroke-dasharray: 90;
+  stroke-dashoffset: 90;
+  animation: pen-squiggle 1.5s cubic-bezier(0.4, 0, 0.4, 1) infinite;
+}
+@keyframes pen-squiggle {
+  0%   { stroke-dashoffset: 90; opacity: 1; }
+  72%  { stroke-dashoffset: 0;  opacity: 1; }
+  100% { stroke-dashoffset: 0;  opacity: 0; }
+}
+.pen-loader-nib {
+  animation: pen-loader-nib-move 1.5s cubic-bezier(0.4, 0, 0.4, 1) infinite;
+}
+@keyframes pen-loader-nib-move {
+  0%   { transform: translate(0px, 0px);  opacity: 1; }
+  18%  { transform: translate(9px, -4px); }
+  40%  { transform: translate(20px, 1px); }
+  60%  { transform: translate(30px, -3px); }
+  72%  { transform: translate(38px, 0px); opacity: 1; }
+  100% { transform: translate(38px, 0px); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .penna-word { animation: none; fill-opacity: 1; stroke: none; }
+  .penna-nib { display: none; }
+  .pen-loader-path { animation: none; stroke-dashoffset: 0; }
+  .pen-loader-nib { display: none; }
+}
+
+/* ---- Full-screen brand intro v3: the signature ------------------------
+   "Penna" in real cursive is written stroke by stroke. Two hand-authored
+   pen centerlines (P, then enna — the pen lifts between them) drive BOTH
+   the ink-reveal mask (dashoffset) and the quill (SMIL animateMotion on
+   the same paths), so pen and ink are geometrically locked. Durations are
+   proportional to real stroke lengths (221 vs 311 units) for a constant
+   writing speed. */
+.sig-word { fill: var(--foreground); }
+.sig-stroke {
+  fill: none;
+  stroke: #fff; /* luminance mask: white = ink revealed */
+  stroke-width: 8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+}
+.sig-p { animation: penna-draw 0.85s linear 0.35s forwards; }
+.sig-e { animation: penna-draw 1.2s linear 1.28s forwards; }
+.sig-inkdot {
+  fill: var(--primary);
+  opacity: 0;
+  transform-origin: 14px -3px;
+  animation: sig-dot 0.22s ease-out 0.28s forwards;
+}
+@keyframes sig-dot {
+  from { opacity: 0; transform: scale(0); }
+  to   { opacity: 0.85; transform: scale(1); }
+}
+.sig-nib {
+  color: var(--primary);
+  opacity: 0;
+  animation:
+    sig-nib-in 0.2s ease-out 0.3s forwards,
+    sig-nib-out 0.35s ease-out 2.55s forwards;
+}
+@keyframes sig-nib-in { to { opacity: 1; } }
+@keyframes sig-nib-out { to { opacity: 0; } }
+/* Static variant — after the intro owns the animation, the small wordmark rests */
+.penna-still .penna-word { animation: none; fill-opacity: 1; stroke: none; }
+.penna-still .penna-nib { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sig-stroke { animation: none; stroke-dashoffset: 0; }
+  .sig-inkdot, .sig-nib { display: none; }
+}
+
+/* ---- Ambient layer: paper + ink -----------------------------------------
+   The page Penna writes on. A single static film-grain overlay covers the
+   WHOLE app (body::after) so every surface shares the same paper. Brand
+   surfaces (chooser, auth) add a richer ink-wash tint and, on the chooser,
+   slow drifting motes. All layers pointer-events: none, so nothing is ever
+   clickable through them. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.025;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.dark body::after {
+  opacity: 0.04;
+  mix-blend-mode: screen;
+}
+.penna-wash::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(42rem 42rem at 12% -8%, oklch(0.54 0.22 262 / 0.06), transparent 62%),
+    radial-gradient(38rem 38rem at 104% 92%, oklch(0.55 0.22 290 / 0.05), transparent 62%);
+}
+.penna-paper::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0.032;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.dark .penna-paper::after {
+  opacity: 0.05;
+  mix-blend-mode: screen;
+}
+.ink-mote {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--primary);
+  filter: blur(7px);
+  opacity: 0;
+  pointer-events: none;
+  animation: mote-drift var(--mote-dur, 32s) linear var(--mote-delay, 0s) infinite;
+}
+@keyframes mote-drift {
+  0%   { opacity: 0; transform: translate(0, 0); }
+  12%  { opacity: 0.10; }
+  60%  { opacity: 0.07; }
+  100% { opacity: 0; transform: translate(var(--mote-x, 60px), var(--mote-y, -140px)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ink-mote { display: none; }
 
 /* Accessibility + performance: honour reduced-motion — pause the continuous
    background/decor animations that otherwise consume paint budget while scrolling. */

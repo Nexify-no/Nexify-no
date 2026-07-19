@@ -52,6 +52,58 @@ export async function sendEmail(
   }
 }
 
+/** Canonical site URL for links inside emails. */
+function siteUrl(): string {
+  return process.env.PUBLIC_SITE_URL || process.env.VITE_APP_URL || "https://penna.no";
+}
+
+/**
+ * Shared Penna email shell: wordmark header, a body, an optional gradient CTA,
+ * and a footer with an unsubscribe/settings link. Keeps every lifecycle/journey
+ * email visually consistent and on-brand. `bodyHtml` is trusted (server-authored
+ * copy only — never user input).
+ */
+export function pennaEmailShell(opts: {
+  bodyHtml: string;
+  ctaLabel?: string;
+  ctaHref?: string;
+  footerNote?: string;
+}): string {
+  const site = siteUrl();
+  const cta =
+    opts.ctaLabel && opts.ctaHref
+      ? `<div style="text-align:center; margin: 28px 0;">
+           <a href="${opts.ctaHref}" style="display:inline-block; padding:14px 28px; background:linear-gradient(90deg,#2563EB,#7C3AED); color:#ffffff; text-decoration:none; border-radius:10px; font-weight:700; font-size:16px;">${opts.ctaLabel}</a>
+         </div>`
+      : "";
+  const footer =
+    opts.footerNote ??
+    `Du får denne e-posten fordi du har en Penna-konto. Vil du ikke ha slike tips? <a href="${site}/innstillinger" style="color:#2563EB;">Endre varslingsinnstillingene</a>.`;
+  return `
+    <div style="font-family: Arial, Helvetica, sans-serif; max-width: 600px; margin: 0 auto; color:#0B132B;">
+      <div style="text-align:center; padding: 8px 0 4px;">
+        <span style="font-size: 22px; font-weight: 700; color:#2563EB;">Penna</span>
+      </div>
+      ${opts.bodyHtml}
+      ${cta}
+      <hr style="border:none; border-top:1px solid #E8EEF7; margin: 28px 0 14px;" />
+      <p style="color:#9AA6BF; font-size:12px; line-height:1.6;">${footer}</p>
+    </div>
+  `;
+}
+
+/**
+ * Send a Penna-branded email whose inner body is already server-authored HTML.
+ * Used by the lifecycle/customer-journey sequence.
+ */
+export async function sendBrandedEmail(
+  to: string,
+  subject: string,
+  opts: { bodyHtml: string; ctaLabel?: string; ctaHref?: string; footerNote?: string }
+): Promise<boolean> {
+  return sendEmail(to, subject, pennaEmailShell(opts));
+}
+
 /**
  * Send welcome email to new user
  */

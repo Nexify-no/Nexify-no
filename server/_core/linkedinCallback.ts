@@ -13,18 +13,36 @@ import { encryptSecret } from "./tokenCrypto";
  */
 export function registerLinkedInCallback(app: Express) {
   app.get("/api/linkedin/callback", async (req, res) => {
+    // The first-run wizard sets a short-lived `li_return_to` cookie before
+    // starting OAuth so BOTH success and error/cancel land back mid-wizard
+    // (a cancel on LinkedIn's consent screen must not strand the user on the
+    // homepage). Only exact allowlisted same-site paths are honored — never an
+    // arbitrary redirect target. Resolved up-front so every branch, including
+    // the catch-all, uses it.
+    const RETURN_ALLOWLIST = new Set(["/kom-i-gang", "/onboarding"]);
+    const cookieHeader = req.headers.cookie || "";
+    const returnToMatch = cookieHeader.match(/(?:^|;\s*)li_return_to=([^;]+)/);
+    let requested = "";
+    try {
+      requested = returnToMatch ? decodeURIComponent(returnToMatch[1]) : "";
+    } catch {
+      requested = "";
+    }
+    const returnTo = RETURN_ALLOWLIST.has(requested) ? requested : null;
+    res.setHeader("Set-Cookie", "li_return_to=; Path=/; Max-Age=0; SameSite=Lax");
+    const errorTarget = returnTo ?? "/";
     try {
       const { code, state, error, error_description } = req.query;
 
-      // Handle OAuth errors
+      // Handle OAuth errors (incl. the user pressing Cancel on the consent screen)
       if (error) {
         console.error(`[LinkedIn OAuth] Error: ${error} - ${error_description}`);
-        return res.redirect(`/?linkedin_error=${encodeURIComponent(error_description as string || error as string)}`);
+        return res.redirect(`${errorTarget}?linkedin_error=${encodeURIComponent(error_description as string || error as string)}`);
       }
 
       if (!code || !state) {
         console.error("[LinkedIn OAuth] Missing code or state parameter");
-        return res.redirect("/?linkedin_error=missing_parameters");
+        return res.redirect(`${errorTarget}?linkedin_error=missing_parameters`);
       }
 
       // Verify the HMAC-signed state (CSRF protection). A forged state with a
@@ -33,7 +51,7 @@ export function registerLinkedInCallback(app: Express) {
       const userId = verifyOAuthState(state as string);
       if (userId === null) {
         console.error("[LinkedIn OAuth] Invalid or expired state");
-        return res.redirect("/?linkedin_error=invalid_state");
+        return res.redirect(`${errorTarget}?linkedin_error=invalid_state`);
       }
 
       // Get app credentials
@@ -48,7 +66,7 @@ export function registerLinkedInCallback(app: Express) {
       const appCreds = resolveLinkedInCredentials(credentials[0] ?? null);
       if (!appCreds) {
         console.error("[LinkedIn OAuth] No credentials configured");
-        return res.redirect("/?linkedin_error=no_credentials");
+        return res.redirect(`${errorTarget}?linkedin_error=no_credentials`);
       }
 
       // Exchange code for token
@@ -100,11 +118,11 @@ export function registerLinkedInCallback(app: Express) {
 
       console.log(`[LinkedIn OAuth] Successfully connected user ${userId} to LinkedIn`);
 
-      // Redirect to settings page with success message
-      return res.redirect("/innstillinger?linkedin_success=true");
+      // Success: resume the wizard when it initiated the flow, else settings.
+      return res.redirect(`${returnTo ?? "/innstillinger"}?linkedin_success=true`);
     } catch (error: any) {
       console.error("[LinkedIn OAuth] Callback error:", error);
-      return res.redirect(`/?linkedin_error=${encodeURIComponent(error.message || "unknown_error")}`);
+      return res.redirect(`${errorTarget}?linkedin_error=${encodeURIComponent(error.message || "unknown_error")}`);
     }
   });
 

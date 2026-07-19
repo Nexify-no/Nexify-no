@@ -23,11 +23,28 @@ import {
   Globe,
   TrendingUp,
   CalendarDays,
+  BookOpen,
+  Newspaper,
+  MessagesSquare,
+  Hash,
+  Megaphone,
+  PenLine,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
+// Icon + tint per dashboard source card (ids from trends.getDashboard).
+const DASH_META: Record<string, { icon: typeof Flame; chip: string }> = {
+  google: { icon: TrendingUp, chip: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
+  wikipedia: { icon: BookOpen, chip: "bg-slate-500/10 text-slate-600 dark:text-slate-300" },
+  news: { icon: Newspaper, chip: "bg-red-500/10 text-red-600 dark:text-red-400" },
+  reddit: { icon: MessagesSquare, chip: "bg-orange-500/10 text-orange-600 dark:text-orange-400" },
+  mastodon: { icon: Hash, chip: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400" },
+  smt: { icon: Megaphone, chip: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+};
 
 // Source filter chips — map a chip to a substring matcher against the real
 // source names returned by getAggregatedTrends (Google Trends, NRK, Wikipedia,
@@ -103,6 +120,14 @@ export default function Trends() {
   });
   const { data: trendsData, isLoading: trendsLoading, error: trendsError, refetch } =
     trpc.trends.getAggregatedTrends.useQuery({}, { enabled: isAuthenticated });
+
+  // Source dashboard (per-source top lists) with Norway/global toggle.
+  const [geo, setGeo] = useState<"no" | "global">("no");
+  const {
+    data: dashData,
+    isLoading: dashLoading,
+    refetch: dashRefetch,
+  } = trpc.trends.getDashboard.useQuery({ geo }, { enabled: isAuthenticated });
 
   const isPro = subscription?.status === "active";
 
@@ -192,7 +217,7 @@ export default function Trends() {
 
   const handleRefresh = async () => {
     toast.success("Oppdaterer trender...");
-    await refetch();
+    await Promise.all([refetch(), dashRefetch()]);
   };
 
   const resetPaging = () => setVisibleCount(PAGE_SIZE);
@@ -271,6 +296,115 @@ export default function Trends() {
             </Button>
           </div>
         )}
+
+        {/* ===== SECTION 0 — SOURCE DASHBOARD (per-source top lists) ===== */}
+        <section className="mb-8" aria-label="Kildeoversikt">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold tracking-tight">Kildeoversikt</h2>
+              <p className="text-xs text-muted-foreground">
+                Topplistene fra hver kilde
+                {dashData?.updatedAt ? ` · oppdatert ${relativeTime(dashData.updatedAt)}` : ""}
+              </p>
+            </div>
+            <div role="group" aria-label="Område" className="flex rounded-lg border bg-card p-0.5">
+              {(["no", "global"] as const).map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  aria-pressed={geo === g}
+                  onClick={() => setGeo(g)}
+                  className={cn(
+                    "h-8 rounded-md px-3 text-sm font-medium transition-colors",
+                    geo === g
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {g === "no" ? "Norge" : "Globalt"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {dashLoading ? (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {Array.from({ length: 6 }, (_, i) => (
+                <div key={i} className="rounded-xl border bg-card p-4">
+                  <div className="skeleton mb-4 h-5 w-2/5 rounded" />
+                  {Array.from({ length: 5 }, (_, j) => (
+                    <div key={j} className="skeleton mb-2.5 h-3.5 w-full rounded" />
+                  ))}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {dashData?.sections.map((sec) => {
+                const meta = DASH_META[sec.id] ?? { icon: Globe, chip: "bg-muted text-muted-foreground" };
+                const Icon = meta.icon;
+                return (
+                  <div key={sec.id} className="overflow-hidden rounded-xl border bg-card shadow-sm">
+                    <div className="flex items-center gap-2.5 border-b px-4 py-3">
+                      <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", meta.chip)}>
+                        <Icon className="h-4 w-4" aria-hidden />
+                      </span>
+                      <h3 className="truncate text-sm font-semibold">{sec.label}</h3>
+                    </div>
+                    {sec.failed || sec.items.length === 0 ? (
+                      <p className="px-4 py-6 text-sm text-muted-foreground">
+                        Kilden svarte ikke akkurat nå. Prøv å oppdatere om litt.
+                      </p>
+                    ) : (
+                      <ul className="divide-y">
+                        {sec.items.map((it) => (
+                          <li key={it.rank} className="group flex items-center gap-3 px-4 py-2">
+                            <span className="w-4 shrink-0 text-right text-xs font-semibold tabular-nums text-muted-foreground">
+                              {it.rank}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm leading-snug" title={it.title}>
+                                {it.title}
+                              </p>
+                              {it.metric && <p className="text-xs text-muted-foreground">{it.metric}</p>}
+                            </div>
+                            {it.isNew && (
+                              <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                                Ny
+                              </span>
+                            )}
+                            <div className="flex shrink-0 items-center gap-0.5 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
+                              {it.url && (
+                                <a
+                                  href={it.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  aria-label={`Åpne kilden for ${it.title}`}
+                                  className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                                >
+                                  <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                                </a>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleUseTopic({ title: it.title, suggestedPlatforms: ["linkedin"] })}
+                                aria-label={`Lag innlegg om ${it.title}`}
+                                className="flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-primary hover:bg-primary/10"
+                              >
+                                <PenLine className="h-3.5 w-3.5" aria-hidden />
+                                Lag innlegg
+                              </button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
 
         {/* ===== SECTION 1 — KPI OVERVIEW ===== */}
         <section className="mb-8 grid grid-cols-2 lg:grid-cols-4 gap-3">

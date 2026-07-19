@@ -9,10 +9,11 @@ import { Button } from "@/components/ui/button";
 import { ShieldCheck, CheckCircle2, X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 
 export default function OpenAIConsentBanner() {
   const { language } = useLanguage();
+  const [location] = useLocation();
   const [isVisible, setIsVisible] = useState(false);
 
   const { data: preferences } = trpc.user.getPreference.useQuery();
@@ -37,7 +38,10 @@ export default function OpenAIConsentBanner() {
     updateConsentMutation.mutate({ consent: 2 }); // 2 = declined
   };
 
-  if (!isVisible) return null;
+  // The first-run wizard (one task per screen, fixed bottom CTA) handles the
+  // OpenAI disclosure itself in its step-1 microcopy — this z-50 bottom banner
+  // would cover the wizard's primary button and add competing choices.
+  if (!isVisible || location === "/kom-i-gang" || location === "/onboarding") return null;
 
   const norwegianContent = {
     title: "Vi bruker OpenAI for innholdsgenerering",

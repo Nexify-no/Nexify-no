@@ -1,4 +1,4 @@
-# 🚀 Innlegg - Din AI Innholdsassistent
+# 🚀 Penna - Din AI Innholdsassistent
 
 **Professional AI-powered content generation platform for Norwegian creators and businesses**
 
@@ -31,7 +31,7 @@
 
 ## 📖 Overview
 
-Innlegg is an AI-powered content generation platform designed specifically for Norwegian creators, businesses, and marketers. The application leverages advanced language models to generate professional social media content, blog posts, and marketing materials in Norwegian language.
+Penna is an AI-powered content generation platform designed specifically for Norwegian creators, businesses, and marketers. The application leverages advanced language models to generate professional social media content, blog posts, and marketing materials in Norwegian language.
 
 **Key Capabilities**:
 - Generate AI-powered content in seconds
@@ -639,7 +639,7 @@ docker run -p 5000:5000 --env-file .env innlegg          # start the app (non-ro
 # Check Google Analytics at https://analytics.google.com
 
 # Monitor uptime
-# Check status page at https://status.innlegg.no
+# Check status page at https://status.penna.no
 
 # View server logs
 # Check application logs in /var/log/innlegg/
@@ -801,7 +801,7 @@ pnpm test -- --reporter=summary
 1. **Check Documentation**: Review this README and docs/ folder
 2. **Search Issues**: Check GitHub issues for similar problems
 3. **Ask Community**: Post in discussions or forums
-4. **Contact Support**: Email support@innlegg.no
+4. **Contact Support**: Email support@penna.no
 
 ---
 
@@ -875,8 +875,8 @@ Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
 
 ### Getting Support
 
-- **Documentation**: https://innlegg.no/docs
-- **Email**: support@innlegg.no
+- **Documentation**: https://penna.no/docs
+- **Email**: support@penna.no
 - **Issues**: https://github.com/yourusername/innlegg/issues
 - **Discussions**: https://github.com/yourusername/innlegg/discussions
 
@@ -952,8 +952,8 @@ the full terms.
 ## 📞 Contact
 
 **Project Lead**: Nexify AI  
-**Email**: team@innlegg.no  
-**Website**: https://innlegg.no  
+**Email**: team@penna.no  
+**Website**: https://penna.no  
 **Twitter**: [@innlegg_no](https://twitter.com/innlegg_no)
 
 ---

@@ -13,6 +13,7 @@ import { FileText, Zap, TrendingUp, Clock, Target, Sparkles, Search, ChevronLeft
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
 import OnboardingTour from "@/components/OnboardingTour";
+import WizardResumeCard from "@/components/WizardResumeCard";
 import { LinkedInExpiryBanner } from "@/components/LinkedInExpiryBanner";
 import { useState, useMemo } from "react";
 import { SkeletonCard } from "@/components/SkeletonLoader";
@@ -158,6 +159,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gradient-to-b from-slate-50/80 via-background to-background dark:from-slate-950/50">
       <main className="container py-6 md:py-8 max-w-6xl">
         <LinkedInExpiryBanner />
+        <WizardResumeCard />
         {(subError || postsError || activityError) && (
           <div className="mb-6 flex items-center justify-between gap-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             <span>

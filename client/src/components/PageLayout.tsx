@@ -50,6 +50,7 @@ export default function PageLayout({ children }: PageLayoutProps) {
   // new pages get it automatically.
   const noSidebarExact = new Set([
     "/", "/landing", "/login", "/reset-password", "/404",
+    "/kom-i-gang", "/onboarding", // first-run wizard: full-screen, one task per screen
     "/blog", "/blogg",
     "/about-us", "/om-oss",
     "/faq",
