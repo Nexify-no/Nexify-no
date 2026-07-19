@@ -1906,3 +1906,11 @@ export async function updateUserViewMode(
     .set({ viewMode })
     .where(eq(userPreferences.userId, userId));
 }
+
+/**
+ * Read a user's UI view mode with a safe default of "advanced" (full nav).
+ */
+export async function getUserViewMode(userId: number): Promise<"simple" | "advanced"> {
+  const pref = (await getUserPreference(userId)) as { viewMode?: "simple" | "advanced" } | undefined;
+  return pref?.viewMode === "simple" ? "simple" : "advanced";
+}
