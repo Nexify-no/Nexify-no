@@ -45,6 +45,10 @@ export default function DashboardNav() {
     },
   });
 
+  // Enkel-plan feature flag (av i prod til Fase 3) - styrer Innholdsplan-innslaget.
+  const planFlagsQuery = trpc.plan.flags.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
+  const enkelPlanEnabled = planFlagsQuery.data?.enabled === true;
+
   // Primary navigation items
   const primaryNavItems = [
     { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -57,6 +61,7 @@ export default function DashboardNav() {
     {
       title: "Planlegging",
       items: [
+        ...(enkelPlanEnabled ? [{ label: "Innholdsplan", href: "/innholdsplan", icon: List }] : []),
         { label: "Kalender", href: "/kalender", icon: Calendar },
         { label: "Beste Tid", href: "/beste-tid", icon: Clock },
         { label: "Gjenbruk", href: "/gjenbruk", icon: Recycle },
@@ -117,7 +122,7 @@ export default function DashboardNav() {
     localStorage.setItem("penna-view-mode", next);
     setViewModeMutation.mutate({ viewMode: next });
   };
-  const SIMPLE_HREFS = new Set(["/dashboard", "/generer", "/innlegg", "/kalender", "/innstillinger"]);
+  const SIMPLE_HREFS = new Set(["/dashboard", "/generer", "/innholdsplan", "/innlegg", "/kalender", "/innstillinger"]);
   const visiblePrimary =
     viewMode === "simple" ? primaryNavItems.filter((i) => SIMPLE_HREFS.has(i.href)) : primaryNavItems;
   const visibleSections =
