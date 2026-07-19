@@ -1902,6 +1902,7 @@ export async function updateUserViewMode(
 ): Promise<void> {
   await getUserPreference(userId);
   const db = await getDb();
+  if (!db) throw new Error("Database not initialized");
   await db
     .update(userPreferences)
     .set({ viewMode })
