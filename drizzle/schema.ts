@@ -179,6 +179,7 @@ export const userPreferences = mysqlTable("user_preferences", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("user_id").notNull().unique(),
   language: mysqlEnum("language", ["no", "en"]).default("no").notNull(),
+  viewMode: mysqlEnum("view_mode", ["simple", "advanced"]).default("advanced").notNull(),
   openaiConsent: int("openai_consent").default(0).notNull(), // boolean as int: 0 = not asked, 1 = accepted, 2 = declined
   consentDate: timestamp("consent_date"),
   usagePreferences: text("usage_preferences"), // User's custom description of how they want to use the platform
