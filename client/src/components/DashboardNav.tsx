@@ -6,7 +6,7 @@
 
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Zap, LayoutDashboard, Sparkles, FileText, MessageSquare, Settings as SettingsIcon, LogOut, Flame, Mic, BarChart3, Lightbulb, Calendar, Clock, Recycle, Send, Target, List, FlaskConical, Mail, ChevronLeft, ChevronRight } from "lucide-react";
+import { Menu, X, Zap, LayoutDashboard, Sparkles, FileText, MessageSquare, Settings as SettingsIcon, LogOut, Flame, Mic, BarChart3, Lightbulb, Calendar, Clock, Recycle, Send, Target, List, FlaskConical, Mail, ChevronLeft, ChevronRight, BrainCircuit } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
@@ -74,6 +74,7 @@ export default function DashboardNav() {
     {
       title: "Tilpasning",
       items: [
+          { label: "Merkehjerne", href: "/merkehjerne", icon: BrainCircuit },
         { label: "Stemme", href: "/stemme", icon: Mic },
         { label: "Coach", href: "/coach", icon: MessageSquare },
       ]
