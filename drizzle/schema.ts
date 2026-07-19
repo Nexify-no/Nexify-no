@@ -175,6 +175,50 @@ export type InsertPaymentOrder = typeof paymentOrders.$inferInsert;
 /**
  * User preferences table - stores language and other settings
  */
+export type BrandFact = { statement: string; sourceUrl: string };
+export type BrandContentIdea = {
+  title: string;
+  angle: string;
+  pillar: string;
+  platform?: "linkedin" | "instagram" | "facebook" | "twitter";
+};
+
+/** One server-grounded business profile ("Merkehjerne") per user. */
+export const brandProfiles = mysqlTable("brand_profiles", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("user_id").notNull().unique(),
+  status: mysqlEnum("status", ["analyzing", "ready", "failed"]).default("analyzing").notNull(),
+  websiteUrl: varchar("website_url", { length: 1000 }).notNull(),
+  companyName: varchar("company_name", { length: 255 }),
+  industry: varchar("industry", { length: 255 }),
+  summary: text("summary"),
+  offers: json("offers").$type<string[]>(),
+  audiences: json("audiences").$type<string[]>(),
+  customerProblems: json("customer_problems").$type<string[]>(),
+  differentiators: json("differentiators").$type<string[]>(),
+  tonePersonality: json("tone_personality").$type<string[]>(),
+  writingStyle: text("writing_style"),
+  preferredWords: json("preferred_words").$type<string[]>(),
+  avoidWords: json("avoid_words").$type<string[]>(),
+  callsToAction: json("calls_to_action").$type<string[]>(),
+  contentPillars: json("content_pillars").$type<string[]>(),
+  contentIdeas: json("content_ideas").$type<BrandContentIdea[]>(),
+  facts: json("facts").$type<BrandFact[]>(),
+  brandColors: json("brand_colors").$type<string[]>(),
+  brandFonts: json("brand_fonts").$type<string[]>(),
+  logoUrl: varchar("logo_url", { length: 1000 }),
+  sourceUrls: json("source_urls").$type<string[]>(),
+  lastError: text("last_error"),
+  analyzedAt: timestamp("analyzed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  userIdIdx: index("idx_brand_profiles_user_id").on(table.userId),
+}));
+
+export type BrandProfile = typeof brandProfiles.$inferSelect;
+export type InsertBrandProfile = typeof brandProfiles.$inferInsert;
+
 export const userPreferences = mysqlTable("user_preferences", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("user_id").notNull().unique(),
