@@ -36,6 +36,7 @@ export const contentOptionsShape = {
   language: z.enum(["no", "en", "ar"]).optional(),
   // When true, the server loads the user's trained voice profile into the prompt.
   useVoiceProfile: z.boolean().optional(),
+  useBrandProfile: z.boolean().optional(),
   // Optional generated/uploaded image to persist on the post. May be a long
   // base64 data URL, hence the large max.
   imageUrl: z.string().max(2_000_000).optional(),
@@ -88,6 +89,7 @@ export const contentRouter = router({
         const generationId = randomUUID();
         let profileVersion = 0;
         let voiceProfile;
+        let brandProfile;
         if (input.useVoiceProfile) {
           const { getDb } = await import("../db");
           const db = await getDb();
@@ -108,9 +110,27 @@ export const contentRouter = router({
           }
         }
 
+        if (input.useBrandProfile !== false) {
+          const { getDb } = await import("../db");
+          const db = await getDb();
+          if (db) {
+            const { brandProfiles } = await import("../../drizzle/schema");
+            const { and, eq } = await import("drizzle-orm");
+            const [bp] = await db.select().from(brandProfiles).where(and(eq(brandProfiles.userId, ctx.user.id), eq(brandProfiles.status, "ready"))).limit(1);
+            if (bp) brandProfile = {
+              companyName: bp.companyName, industry: bp.industry, summary: bp.summary,
+              offers: bp.offers, audiences: bp.audiences, customerProblems: bp.customerProblems,
+              differentiators: bp.differentiators, tonePersonality: bp.tonePersonality,
+              writingStyle: bp.writingStyle, preferredWords: bp.preferredWords,
+              avoidWords: bp.avoidWords, callsToAction: bp.callsToAction,
+              contentPillars: bp.contentPillars, facts: bp.facts,
+            };
+          }
+        }
+
         // Generate content using OpenAI (full expanded option set is forwarded).
-        const { useVoiceProfile: _omit, imageUrl: _img, ...genInput } = input;
-        const content = await generateContent({ ...genInput, voiceProfile });
+        const { useVoiceProfile: _omit, useBrandProfile: _brand, imageUrl: _img, ...genInput } = input;
+        const content = await generateContent({ ...genInput, voiceProfile, brandProfile });
 
         // Provenance trail: one line per generation, strictly scoped to this user.
         console.info("[content.generate]", JSON.stringify({
