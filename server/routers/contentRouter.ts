@@ -160,7 +160,7 @@ export const contentRouter = router({
         imageUrl: z.string().max(2_000_000),
         // The generation that owns this image. The image is applied only if it
         // still owns the post's image slot; a late/superseded one is rejected.
-        generationId: z.string().min(1).max(64),
+        generationId: z.string().min(1).max(64).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { getDb } = await import("../db");
@@ -178,7 +178,7 @@ export const contentRouter = router({
         if (!post) throw new TRPCError({ code: "NOT_FOUND", message: "Fant ikke innlegget" });
 
         // Reject a late/superseded image: a newer generation now owns the slot.
-        if (!shouldApplyImage({ imageGenerationId: post.imageGenerationId }, input.generationId)) {
+        if (input.generationId && !shouldApplyImage({ imageGenerationId: post.imageGenerationId }, input.generationId)) {
           return { applied: false as const, reason: "superseded" as const, imageStatus: post.imageStatus };
         }
 
