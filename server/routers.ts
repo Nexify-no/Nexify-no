@@ -27,6 +27,7 @@ import { supportRouter } from "./routers/supportRouter";
 import { vippsRouter } from "./routers/vippsRouter";
 import { authRouter } from "./routers/authRouter";
 import { userRouter } from "./routers/userRouter";
+import { brandRouter } from "./routers/brandRouter";
 import { contentRouter } from "./routers/contentRouter";
 import { examplesRouter } from "./routers/examplesRouter";
 import { coachRouter } from "./routers/coachRouter";
@@ -60,6 +61,7 @@ export const appRouter = router({
   auth: authRouter,
 
   user: userRouter,
+  brand: brandRouter,
 
   // First-run wizard (Kom i gang)
   onboarding: onboardingRouter,
