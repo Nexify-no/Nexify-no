@@ -434,6 +434,9 @@ export default function Generate() {
   const nanoImageMutation = trpc.content.generateImageNanoBanana.useMutation();
   // Best-effort: persist a later-generated image onto the already-saved post.
   const attachImageMutation = trpc.content.attachImage.useMutation();
+  // Claims a post's image slot for a new attempt so late/superseded image
+  // responses are rejected by the server.
+  const setImageGeneratingMutation = trpc.content.setImageGenerating.useMutation();
 
   const handleSchedule = (timeLabel: string) => {
     if (!savedPostId) {
@@ -541,7 +544,14 @@ export default function Generate() {
   const runImageGeneration = async (postIdOverride?: number | null, genId: number = genGuardRef.current.current) => {
     if (!topic.trim()) { toast.error("Skriv inn et emne f\u00f8rst"); return; }
     setIsGeneratingImage(true);
+    // Each attempt gets a unique id and CLAIMS the post's image slot, so a rapid
+    // re-click supersedes the previous attempt and its late response is rejected.
+    const imageGenId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+    const pid = postIdOverride ?? savedPostId;
     try {
+      if (pid) {
+        try { await setImageGeneratingMutation.mutateAsync({ postId: pid, generationId: imageGenId }); } catch { /* non-fatal */ }
+      }
       const mutation = imageGenerationType === "dalle" ? dalleImageMutation : nanoImageMutation;
       const res = await mutation.mutateAsync({ topic, platform, tone, keywords: [] });
       // A newer generation started while this image was rendering -> discard it
@@ -550,11 +560,10 @@ export default function Generate() {
       if (res?.url) {
         setUploadedImage(res.url);
         setGeneratedImagePrompt(res.prompt || topic);
-        // Persist the image onto the saved post — the freshly-created one when
-        // auto-generating, otherwise the already-saved post. Errors are non-fatal.
-        const pid = postIdOverride ?? savedPostId;
+        // Attach with THIS attempt's id; the server rejects it if a newer attempt
+        // has since claimed the slot, so the wrong image never sticks to a post.
         if (pid) {
-          attachImageMutation.mutate({ postId: pid, imageUrl: res.url });
+          attachImageMutation.mutate({ postId: pid, imageUrl: res.url, generationId: imageGenId });
         }
         toast.success("AI-bilde generert!");
       } else {

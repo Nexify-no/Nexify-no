@@ -81,6 +81,11 @@ export const posts = mysqlTable("posts", {
   // context from another request. profileVersion is 0 when no voice profile was used.
   generationId: varchar("generation_id", { length: 36 }),
   profileVersion: int("profile_version"),
+  // Image lifecycle: which generation owns the current image + its status
+  // (none→pending→generating→verifying→completed/failed). A late image whose
+  // generation no longer owns the slot is rejected server-side.
+  imageStatus: mysqlEnum("image_status", ["none", "pending", "generating", "verifying", "completed", "failed"]).default("none").notNull(),
+  imageGenerationId: varchar("image_generation_id", { length: 64 }),
   scheduledFor: timestamp("scheduled_for"),
   publishedAt: timestamp("published_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
