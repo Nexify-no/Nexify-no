@@ -47,7 +47,12 @@ export async function sendEmail(
     console.log(`[SendGrid] Email sent to ${to}`);
     return true;
   } catch (error) {
-    console.error("[SendGrid] Failed to send email:", error);
+    const err = error as { code?: number; message?: string; response?: { body?: unknown } };
+    console.error(
+      "[SendGrid] Failed to send email:",
+      err?.code ?? "",
+      err?.response?.body ? JSON.stringify(err.response.body) : err?.message ?? String(error),
+    );
     return false;
   }
 }
