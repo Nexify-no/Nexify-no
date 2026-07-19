@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
 import { takeEditorHandoff, setAbTestHandoff } from "@/lib/editorHandoff";
+import { createGenerationGuard } from "@/lib/generationGuard";
 import { Copy, Loader2, Sparkles, Wand2, Upload, X, Image as ImageIcon, Mic, Flame, Save, Cloud } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
@@ -236,6 +237,9 @@ export default function Generate() {
 
   // Auto-select the user's default preset on first load (only if form is empty).
   const appliedDefaultRef = useRef(false);
+  // Request-identity guard: every user-initiated generation gets a fresh id so
+  // late/out-of-order responses (text or image) can never overwrite a newer one.
+  const genGuardRef = useRef(createGenerationGuard());
   useEffect(() => {
     if (appliedDefaultRef.current || !presetsQuery.data || topic) return;
     const def = presetsQuery.data.find((p) => p.isDefault);
@@ -393,7 +397,10 @@ export default function Generate() {
 
   // Mutations
   const generateMutation = trpc.content.generate.useMutation({
-    onSuccess: (data) => {
+    onMutate: () => ({ genId: genGuardRef.current.current }),
+    onSuccess: (data, _vars, ctx) => {
+      // Drop a stale/late response that no longer matches the active generation.
+      if (ctx && !genGuardRef.current.isCurrent(ctx.genId)) return;
       setGeneratedContent(data.content);
       setMobileTab("resultat");
       setSavedPostId((data as any).postId ?? null);
@@ -406,11 +413,13 @@ export default function Generate() {
       // One-click flow: if "Generer bilde med AI" is enabled, generate the image
       // right after the text (Pro only), attached to the freshly-created post.
       // Runs in the background so it never blocks showing the generated text.
+      // The image is bound to THIS generation's id so a newer generation drops it.
       if (generateAIImage && subscription?.status !== "trial") {
-        void runImageGeneration((data as any).postId ?? null);
+        void runImageGeneration((data as any).postId ?? null, ctx?.genId ?? genGuardRef.current.current);
       }
     },
-    onError: (error) => {
+    onError: (error, _vars, ctx) => {
+      if (ctx && !genGuardRef.current.isCurrent(ctx.genId)) return;
       // The server sends a clear Norwegian message (e.g. monthly limit reached).
       toast.error(error.message || "Noe gikk galt");
     },
@@ -458,11 +467,16 @@ export default function Generate() {
   };
 
   const improveMutation = trpc.content.improve.useMutation({
-    onSuccess: (data) => {
+    onMutate: () => ({ genId: genGuardRef.current.current }),
+    onSuccess: (data, _vars, ctx) => {
+      if (ctx && !genGuardRef.current.isCurrent(ctx.genId)) return;
       setGeneratedContent(data.content);
       toast.success("Innholdet ble forbedret!");
     },
-    onError: () => toast.error("Kunne ikke forbedre innholdet"),
+    onError: (_e, _vars, ctx) => {
+      if (ctx && !genGuardRef.current.isCurrent(ctx.genId)) return;
+      toast.error("Kunne ikke forbedre innholdet");
+    },
   });
 
   // Posts are auto-saved when generated. Navigate to posts page to see them.
@@ -473,7 +487,16 @@ export default function Generate() {
       return;
     }
     if (!topic.trim()) { toast.error("Vennligst skriv inn et emne"); return; }
-    generateMutation.mutate({ ...buildOptions(), imageUrl: uploadedImage || undefined });
+    // Begin a new generation: invalidates any in-flight request and clears
+    // artifacts from the previous one so nothing bleeds into this post.
+    genGuardRef.current.start();
+    setGeneratedContent("");
+    setSavedPostId(null);
+    // An AI-generated image (marked by its prompt) belongs to the previous post
+    // -> drop it. A fresh user upload (no prompt) is kept and forwarded.
+    const carryImage = generatedImagePrompt ? undefined : (uploadedImage || undefined);
+    if (generatedImagePrompt) { setUploadedImage(null); setGeneratedImagePrompt(null); }
+    generateMutation.mutate({ ...buildOptions(), imageUrl: carryImage });
   };
 
   const handleImprove = (type: string) => {
@@ -515,12 +538,15 @@ export default function Generate() {
     setGeneratedImagePrompt(null);
   };
 
-  const runImageGeneration = async (postIdOverride?: number | null) => {
+  const runImageGeneration = async (postIdOverride?: number | null, genId: number = genGuardRef.current.current) => {
     if (!topic.trim()) { toast.error("Skriv inn et emne f\u00f8rst"); return; }
     setIsGeneratingImage(true);
     try {
       const mutation = imageGenerationType === "dalle" ? dalleImageMutation : nanoImageMutation;
       const res = await mutation.mutateAsync({ topic, platform, tone, keywords: [] });
+      // A newer generation started while this image was rendering -> discard it
+      // so it never attaches to or displays on the wrong post.
+      if (!genGuardRef.current.isCurrent(genId)) return;
       if (res?.url) {
         setUploadedImage(res.url);
         setGeneratedImagePrompt(res.prompt || topic);
