@@ -18,6 +18,7 @@ import Landing from "./pages/Landing";
 
 // Lazy load all other pages
 const Dashboard = lazy(() => import("./pages/Dashboard"));
+const BrandBrain = lazy(() => import("./pages/BrandBrain"));
 const Onboarding = lazy(() => import("./pages/Onboarding"));
 const Generate = lazy(() => import("./pages/Generate"));
 const Posts = lazy(() => import("./pages/Posts"));
@@ -100,6 +101,8 @@ function Router() {
         <Route path={"/"} component={Home} />
         <Route path={"/landing"} component={Landing} />
         <Route path={"/dashboard"} component={Dashboard} />
+        <Route path={"/merkehjerne"} component={BrandBrain} />
+        <Route path={"/brand-brain"} component={BrandBrain} />
         {/* First-run wizard (full-screen, no sidebar — see PageLayout) */}
         <Route path={"/kom-i-gang"} component={Onboarding} />
         <Route path={"/onboarding"} component={Onboarding} />
