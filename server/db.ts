@@ -1901,6 +1901,7 @@ export async function updateUserViewMode(
   viewMode: "simple" | "advanced",
 ): Promise<void> {
   await getUserPreference(userId);
+  const db = await getDb();
   await db
     .update(userPreferences)
     .set({ viewMode })
