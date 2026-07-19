@@ -854,7 +854,7 @@ export default function Onboarding() {
             keywords: [],
           });
           const att = await attachImage.mutateAsync({ postId: firstPostId, imageUrl: img.url });
-          if (att.success) {
+          if (att.applied) {
             setState((s) => ({
               ...s,
               queue: s.queue.map((q) =>
