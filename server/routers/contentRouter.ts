@@ -155,40 +155,70 @@ export const contentRouter = router({
     // Persist a (later-generated) image onto an existing post. Ownership-checked
     // so a user can only attach to their own posts. Best-effort from the client.
     attachImage: protectedProcedure
-      .input(z.object({ postId: z.number().int().positive(), imageUrl: z.string().max(2_000_000) }))
+      .input(z.object({
+        postId: z.number().int().positive(),
+        imageUrl: z.string().max(2_000_000),
+        // The generation that owns this image. The image is applied only if it
+        // still owns the post's image slot; a late/superseded one is rejected.
+        generationId: z.string().min(1).max(64),
+      }))
       .mutation(async ({ ctx, input }) => {
         const { getDb } = await import("../db");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
         const { posts } = await import("../../drizzle/schema");
         const { eq, and } = await import("drizzle-orm");
-        const db = await getDb();
-        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-        // Persist only a HOSTED URL — never embed a multi-MB data: URL in the row
-        // (content.list would balloon and the page would freeze). If the client
-        // sends a data: URI (object storage was down at generation time), upload
-        // it to object storage now and persist the resulting hosted URL.
-        let hostedUrl = input.imageUrl;
-        if (!/^https?:\/\//.test(input.imageUrl)) {
-          const m = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(input.imageUrl);
-          if (!m) return { success: false, reason: "not_hosted" as const };
-          try {
-            const { storagePut } = await import("../storage");
-            const ext = (m[1].split("/")[1] || "png").replace(/[^a-z0-9]/gi, "") || "png";
-            const buf = Buffer.from(m[2], "base64");
-            const { url } = await storagePut(`generated/${ctx.user.id}/${Date.now()}.${ext}`, buf, m[1]);
-            if (!/^https?:\/\//.test(url)) return { success: false, reason: "storage_unavailable" as const };
-            hostedUrl = url;
-          } catch (e) {
-            console.warn("[attachImage] hosting data URI failed:", (e as Error)?.message);
-            return { success: false, reason: "storage_error" as const };
-          }
+        const { nextImageStatus, shouldApplyImage, verifyImageUrl } = await import("../imageLifecycle");
+
+        const [post] = await db
+          .select()
+          .from(posts)
+          .where(and(eq(posts.id, input.postId), eq(posts.userId, ctx.user.id)))
+          .limit(1);
+        if (!post) throw new TRPCError({ code: "NOT_FOUND", message: "Fant ikke innlegget" });
+
+        // Reject a late/superseded image: a newer generation now owns the slot.
+        if (!shouldApplyImage({ imageGenerationId: post.imageGenerationId }, input.generationId)) {
+          return { applied: false as const, reason: "superseded" as const, imageStatus: post.imageStatus };
         }
-        await db.update(posts).set({ imageUrl: hostedUrl, updatedAt: new Date() }).where(and(eq(posts.id, input.postId), eq(posts.userId, ctx.user.id)));
-        return { success: true as const };
+
+        // verifying -> completed (valid url) or failed (invalid). Only a verified
+        // url is ever stored, so a broken/AI-refused image never sticks to a post.
+        const verifying = nextImageStatus(post.imageStatus, "uploaded");
+        if (verifyImageUrl(input.imageUrl)) {
+          const status = nextImageStatus(verifying, "verified");
+          await db
+            .update(posts)
+            .set({ imageUrl: input.imageUrl, imageStatus: status })
+            .where(and(eq(posts.id, input.postId), eq(posts.userId, ctx.user.id)));
+          return { applied: true as const, imageStatus: status };
+        }
+        const failed = nextImageStatus(verifying, "verifyFailed");
+        await db
+          .update(posts)
+          .set({ imageStatus: failed })
+          .where(and(eq(posts.id, input.postId), eq(posts.userId, ctx.user.id)));
+        return { applied: true as const, reason: "invalid_url" as const, imageStatus: failed };
       }),
 
-    // Prompt-engineering layer: rewrite a plain idea into a sharper, professional
-    // content brief BEFORE generation. Returns the enhanced text for preview/edit;
-    // does not consume post quota.
+    // Claim the image slot for a NEW image generation and move it to "generating"
+    // so the UI shows a skeleton. Overwrites the owning generationId, so any older
+    // in-flight attempt's response is rejected by attachImage afterwards.
+    setImageGenerating: protectedProcedure
+      .input(z.object({ postId: z.number().int().positive(), generationId: z.string().min(1).max(64) }))
+      .mutation(async ({ ctx, input }) => {
+        const { getDb } = await import("../db");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+        const { posts } = await import("../../drizzle/schema");
+        const { eq, and } = await import("drizzle-orm");
+        await db
+          .update(posts)
+          .set({ imageGenerationId: input.generationId, imageStatus: "generating" })
+          .where(and(eq(posts.id, input.postId), eq(posts.userId, ctx.user.id)));
+        return { imageStatus: "generating" as const };
+      }),
+
     enhanceIdea: aiProcedure
       .input(z.object(contentOptionsShape))
       .mutation(async ({ input }) => {
