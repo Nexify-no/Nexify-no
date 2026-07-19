@@ -1,0 +1,33 @@
+CREATE TABLE `brand_profiles` (
+  `id` int AUTO_INCREMENT NOT NULL,
+  `user_id` int NOT NULL,
+  `status` enum('analyzing','ready','failed') NOT NULL DEFAULT 'analyzing',
+  `website_url` varchar(1000) NOT NULL,
+  `company_name` varchar(255),
+  `industry` varchar(255),
+  `summary` text,
+  `offers` json,
+  `audiences` json,
+  `customer_problems` json,
+  `differentiators` json,
+  `tone_personality` json,
+  `writing_style` text,
+  `preferred_words` json,
+  `avoid_words` json,
+  `calls_to_action` json,
+  `content_pillars` json,
+  `content_ideas` json,
+  `facts` json,
+  `brand_colors` json,
+  `brand_fonts` json,
+  `logo_url` varchar(1000),
+  `source_urls` json,
+  `last_error` text,
+  `analyzed_at` timestamp NULL,
+  `created_at` timestamp NOT NULL DEFAULT (now()),
+  `updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT `brand_profiles_id` PRIMARY KEY(`id`),
+  CONSTRAINT `brand_profiles_user_id_unique` UNIQUE(`user_id`)
+);
+--> statement-breakpoint
+CREATE INDEX `idx_brand_profiles_user_id` ON `brand_profiles` (`user_id`);
