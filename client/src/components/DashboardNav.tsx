@@ -91,6 +91,41 @@ export default function DashboardNav() {
     },
   ];
 
+  // --- View mode (simple = essentials only; advanced = full nav) — per-account, saved server-side ---
+  const utils = trpc.useUtils();
+  const viewModeQuery = trpc.user.getViewMode.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
+  const [viewMode, setViewMode] = useState<"simple" | "advanced">(() =>
+    localStorage.getItem("penna-view-mode") === "simple" ? "simple" : "advanced",
+  );
+  useEffect(() => {
+    if (viewModeQuery.data) {
+      setViewMode(viewModeQuery.data);
+      localStorage.setItem("penna-view-mode", viewModeQuery.data);
+    }
+  }, [viewModeQuery.data]);
+  const setViewModeMutation = trpc.user.setViewMode.useMutation({
+    onSuccess: (d) => {
+      setViewMode(d.viewMode);
+      localStorage.setItem("penna-view-mode", d.viewMode);
+      utils.user.getViewMode.invalidate();
+    },
+  });
+  const toggleViewMode = () => {
+    const next = viewMode === "simple" ? "advanced" : "simple";
+    setViewMode(next);
+    localStorage.setItem("penna-view-mode", next);
+    setViewModeMutation.mutate({ viewMode: next });
+  };
+  const SIMPLE_HREFS = new Set(["/dashboard", "/generer", "/innlegg", "/kalender", "/innstillinger"]);
+  const visiblePrimary =
+    viewMode === "simple" ? primaryNavItems.filter((i) => SIMPLE_HREFS.has(i.href)) : primaryNavItems;
+  const visibleSections =
+    viewMode === "simple"
+      ? sidebarSections
+          .map((s) => ({ ...s, items: s.items.filter((i) => SIMPLE_HREFS.has(i.href)) }))
+          .filter((s) => s.items.length > 0)
+      : sidebarSections;
+
   const isActive = (href: string) => {
     if (href === "/dashboard") return location === "/dashboard";
     return location.startsWith(href);
@@ -201,14 +236,14 @@ export default function DashboardNav() {
 
         {/* Primary Navigation */}
         <div className={cn("p-2 space-y-0.5", sidebarCollapsed && "flex flex-col items-center")}>
-          {primaryNavItems.map((item) => (
+          {visiblePrimary.map((item) => (
             <NavItem key={item.href} item={item} collapsed={sidebarCollapsed} />
           ))}
         </div>
 
         {/* Scrollable Sidebar Content */}
         <div className="flex-1 overflow-y-auto px-2 pb-4 scrollbar-thin">
-          {sidebarSections.map((section, idx) => (
+          {visibleSections.map((section, idx) => (
             <div key={section.title} className={cn("mt-3", sidebarCollapsed && "flex flex-col items-center")}>
               {!sidebarCollapsed && (
                 <div className="px-3 py-1.5">
@@ -231,6 +266,34 @@ export default function DashboardNav() {
 
         {/* Bottom Section */}
         <div className={cn("border-t border-border/50 p-2 space-y-0.5", sidebarCollapsed && "flex flex-col items-center")}>
+          {sidebarCollapsed ? (
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="w-10 h-10 text-muted-foreground hover:text-primary transition-colors"
+                  onClick={toggleViewMode}
+                  disabled={setViewModeMutation.isPending}
+                >
+                  <Zap className="h-[18px] w-[18px]" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="text-xs">
+                {viewMode === "simple" ? "Bytt til avansert" : "Bytt til enkel"}
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-3 h-9 text-[13px] text-muted-foreground hover:text-primary transition-colors"
+              onClick={toggleViewMode}
+              disabled={setViewModeMutation.isPending}
+            >
+              <Zap className="h-4 w-4" />
+              {viewMode === "simple" ? "Bytt til avansert" : "Bytt til enkel"}
+            </Button>
+          )}
           <NavItem 
             item={{ label: "Innstillinger", href: "/innstillinger", icon: SettingsIcon }} 
             collapsed={sidebarCollapsed} 
@@ -334,7 +397,7 @@ export default function DashboardNav() {
           {mobileMenuOpen && (
             <div className="md:hidden border-t border-border/50 bg-background/98 backdrop-blur-xl max-h-[calc(100vh-3.5rem)] overflow-y-auto">
               <div className="container py-3 space-y-1">
-                {primaryNavItems.map((item) => {
+                {visiblePrimary.map((item) => {
                   const Icon = item.icon;
                   return (
                     <Link key={item.href} href={item.href}>
@@ -353,7 +416,7 @@ export default function DashboardNav() {
                   );
                 })}
                 
-                {sidebarSections.map((section) => (
+                {visibleSections.map((section) => (
                   <div key={section.title} className="pt-2">
                     <div className="text-[10px] font-semibold text-muted-foreground/70 px-3 py-1.5 uppercase tracking-widest">
                       {section.title}
@@ -380,6 +443,15 @@ export default function DashboardNav() {
                 ))}
 
                 <div className="pt-2 border-t border-border/50">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start gap-2.5 h-9 text-[13px] text-muted-foreground hover:text-primary"
+                    onClick={() => { setMobileMenuOpen(false); toggleViewMode(); }}
+                    disabled={setViewModeMutation.isPending}
+                  >
+                    <Zap className="h-4 w-4" />
+                    {viewMode === "simple" ? "Bytt til avansert" : "Bytt til enkel"}
+                  </Button>
                   <Link href="/settings">
                     <Button
                       variant={isActive("/settings") ? "secondary" : "ghost"}
