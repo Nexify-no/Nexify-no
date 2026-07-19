@@ -8,6 +8,7 @@
 import { protectedProcedure, aiProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { randomUUID } from "node:crypto";
 
 // Shared shape for the expanded content-generation "properties". Reused by the
 // generate + enhanceIdea procedures here and (mirrored) by presetsRouter.
@@ -81,6 +82,11 @@ export const contentRouter = router({
 
         // When the user opts in, load their trained voice profile (server-trusted,
         // never client-supplied) and fold it into the prompt.
+        // Unique id for THIS generation; stamped on the saved post for provenance
+        // and returned to the client. profileVersion records which voice-profile
+        // version (if any) shaped the output — 0 means no profile was used.
+        const generationId = randomUUID();
+        let profileVersion = 0;
         let voiceProfile;
         if (input.useVoiceProfile) {
           const { getDb } = await import("../db");
@@ -90,6 +96,7 @@ export const contentRouter = router({
             const { eq } = await import("drizzle-orm");
             const [vp] = await db.select().from(voiceProfiles).where(eq(voiceProfiles.userId, ctx.user.id)).limit(1);
             if (vp && vp.trainingStatus === "trained") {
+              profileVersion = (vp as any).version ?? 1;
               voiceProfile = {
                 profileSummary: vp.profileSummary,
                 vocabularyLevel: vp.vocabularyLevel,
@@ -105,6 +112,16 @@ export const contentRouter = router({
         const { useVoiceProfile: _omit, imageUrl: _img, ...genInput } = input;
         const content = await generateContent({ ...genInput, voiceProfile });
 
+        // Provenance trail: one line per generation, strictly scoped to this user.
+        console.info("[content.generate]", JSON.stringify({
+          generationId,
+          userId: ctx.user.id,
+          profileVersion,
+          usedVoiceProfile: !!voiceProfile,
+          platform: input.platform,
+          topicChars: input.topic.length,
+        }));
+
         // Persist the generated content as a draft so it shows up under "Mine innlegg".
         // (Generation previously only counted quota and never saved the post, so the
         // list stayed empty and work was lost on navigation.)
@@ -117,6 +134,8 @@ export const contentRouter = router({
           imageUrl: (input.imageUrl && /^https?:\/\//.test(input.imageUrl)) ? input.imageUrl : null, // only persist hosted URLs, never giant data: URLs
           tags: input.keywords ?? null,
           status: "draft",
+          generationId,
+          profileVersion,
         });
 
         // Get updated subscription
@@ -124,6 +143,7 @@ export const contentRouter = router({
 
         return {
           content,
+          generationId,
           postId: savedPost.id,
           postsGenerated: updatedSubscription?.postsGenerated || 0,
           postsRemaining: updatedSubscription?.status === "trial"
