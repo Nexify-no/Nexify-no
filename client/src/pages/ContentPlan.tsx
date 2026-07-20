@@ -182,8 +182,8 @@ export default function ContentPlan() {
         <Card>
           <CardContent className="py-10 text-center">
             <p className="text-sm text-muted-foreground mb-4">Du har ingen innholdsplan ennå.</p>
-            <Link href="/generer">
-              <Button className="min-h-11">Lag innhold</Button>
+            <Link href="/lag-plan">
+              <Button className="min-h-11">Lag plan</Button>
             </Link>
           </CardContent>
         </Card>
