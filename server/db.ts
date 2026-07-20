@@ -355,6 +355,34 @@ export async function enforcePostQuota(userId: number): Promise<void> {
  * Free/trial users get 2 AI images per calendar month; active plans use
  * plan.imagesPerMonth (null = unlimited). Reserves a slot atomically.
  */
+/** Read-only check: does the user still have image quota this period? No reservation (mirrors enforceImageQuota limits). */
+export async function hasImageQuota(userId: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const { subscriptions, subscriptionPlans, userUsageTracking } = await import("../drizzle/schema");
+  const { eq, and, gte, lte } = await import("drizzle-orm");
+  const FREE_IMAGE_LIMIT = 2;
+  const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).limit(1);
+  if (!sub) return false;
+  let limit: number | null;
+  if (sub.status === "trial") { limit = FREE_IMAGE_LIMIT; }
+  else if (sub.status === "active") {
+    if (!sub.planId) return true;
+    const [plan] = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.id, sub.planId)).limit(1);
+    limit = plan?.imagesPerMonth ?? null;
+    if (limit == null) return true;
+  } else { return false; }
+  const now = new Date();
+  const [usage] = await db.select().from(userUsageTracking).where(and(
+    eq(userUsageTracking.userId, userId),
+    eq(userUsageTracking.subscriptionId, sub.id),
+    gte(userUsageTracking.periodEndDate, now),
+    lte(userUsageTracking.periodStartDate, now),
+  )).limit(1);
+  const used = usage?.imagesUsed ?? 0;
+  return used < limit;
+}
+
 export async function enforceImageQuota(userId: number): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

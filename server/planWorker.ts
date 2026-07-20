@@ -5,19 +5,25 @@
  */
 
 /**
- * Background worker for Enkel 4-week content plans — TEXT ONLY in Fase 1b
- * (image processing arrives in Fase 2). Driven by a scheduler tick; all
- * coordination is DB-lease based (see planLease.ts):
+ * Background worker for Enkel 4-week content plans. Fase 2 adds ONE image per
+ * post, generated inline with the text under the SAME post lease (so the
+ * heartbeat that protects the text call also protects the image call, and the
+ * single lease-conditioned success write persists text + image atomically).
  *
+ * Coordination is DB-lease based (see planLease.ts):
  *  - claim plan/post with a NEW lease_token; only one worker wins (atomic UPDATE)
- *  - heartbeat extends both leases during long AI calls
+ *  - heartbeat extends both leases during long AI calls (text AND image)
  *  - EVERY result write is conditioned on the lease token → a worker that lost
- *    its lease can never persist a late response
- *  - transient failure → pending + next_attempt_at (exponential backoff);
+ *    its lease can never persist a late text OR image response
+ *  - transient TEXT failure → pending + next_attempt_at (exponential backoff);
  *    attempt_count >= MAX_ATTEMPTS → failed
+ *  - an IMAGE failure NEVER fails the post: the text is valuable on its own, so
+ *    the post still reaches `done` with image_status=failed/skipped
  *  - a plan is finalized (ready/partial/failed) only when no post is
  *    pending/generating; one failed post never fails the whole plan
- *  - quota is charged idempotently per post (content_quota_charged flag)
+ *  - text quota is charged idempotently per post (content_quota_charged flag);
+ *    image quota idempotently per post (image_quota_charged flag), only when an
+ *    image was actually attached
  *
  * Deps are injected so the full behavior is testable without MySQL.
  */
@@ -48,6 +54,16 @@ export interface ClaimedPlan {
   cancelRequested: boolean;
 }
 
+/**
+ * Outcome of the (best-effort) image step for a post. It never throws — an
+ * image problem must not fail the post, so the generator maps every error into
+ * `failed`, and a missing image quota into `skipped`.
+ */
+export type PostImageOutcome =
+  | { status: "completed"; url: string; generationId: string }
+  | { status: "failed" }
+  | { status: "skipped" };
+
 export interface PlanWorkerDeps {
   now(): Date;
   /** Atomically claim one runnable plan (new lease token) or null. */
@@ -56,10 +72,15 @@ export interface PlanWorkerDeps {
   claimNextPost(planId: number, workerId: string): Promise<ClaimedPost | null>;
   /** Extend BOTH plan + post leases (same tokens). False = ownership lost. */
   heartbeat(plan: ClaimedPlan, post: ClaimedPost | null): Promise<boolean>;
-  /** Generate the post text from the frozen snapshot. Pure — persists nothing. */
+  /** Generate the post text from the frozen snapshot. Pure — persists nothing. May throw → retry. */
   generateText(plan: ClaimedPlan, post: ClaimedPost): Promise<string>;
-  /** Lease-conditioned success write (+ idempotent quota charge). False = stale, discarded. */
-  savePostSuccess(post: ClaimedPost, content: string): Promise<boolean>;
+  /**
+   * Generate ONE image for the post from the frozen snapshot (Fase 2). Optional
+   * so Fase 1 callers/tests stay valid. MUST NOT throw — returns an outcome.
+   */
+  generateImage?(plan: ClaimedPlan, post: ClaimedPost, content: string): Promise<PostImageOutcome>;
+  /** Lease-conditioned success write (+ idempotent text/image quota charge). False = stale, discarded. */
+  savePostSuccess(post: ClaimedPost, content: string, image?: PostImageOutcome): Promise<boolean>;
   /** Lease-conditioned failure write applying the retry decision. */
   savePostFailure(post: ClaimedPost, safeError: string, decision: RetryDecision): Promise<boolean>;
   /** Finalize the plan iff no pending/generating posts remain (derivePlanStatus). */
@@ -74,23 +95,24 @@ export async function runPlanTick(
   deps: PlanWorkerDeps,
   workerId: string,
   maxPosts = 3,
-): Promise<{ claimed: boolean; processed: number; failed: number }> {
+): Promise<{ claimed: boolean; processed: number; failed: number; images: number }> {
   const plan = await deps.claimPlan(workerId);
-  if (!plan) return { claimed: false, processed: 0, failed: 0 };
+  if (!plan) return { claimed: false, processed: 0, failed: 0, images: 0 };
 
   if (plan.cancelRequested && deps.markPlanCancelled) {
     await deps.markPlanCancelled(plan.id, plan.leaseToken);
-    return { claimed: true, processed: 0, failed: 0 };
+    return { claimed: true, processed: 0, failed: 0, images: 0 };
   }
 
   let processed = 0;
   let failed = 0;
+  let images = 0;
 
   for (let i = 0; i < maxPosts; i++) {
     const post = await deps.claimNextPost(plan.id, workerId);
     if (!post) break;
 
-    // Heartbeat loop while the (potentially long) AI call runs.
+    // Heartbeat loop while the (potentially long) AI calls run — text AND image.
     let hbAlive = true;
     const hb = setInterval(() => {
       void deps.heartbeat(plan, post).then((ok) => { if (!ok) hbAlive = false; });
@@ -98,8 +120,16 @@ export async function runPlanTick(
 
     try {
       const content = await deps.generateText(plan, post);
-      const applied = await deps.savePostSuccess(post, content);
-      if (applied) processed++;
+      // Image is best-effort and never throws; a failure keeps the text.
+      let image: PostImageOutcome | undefined;
+      if (deps.generateImage) {
+        image = await deps.generateImage(plan, post, content);
+      }
+      const applied = await deps.savePostSuccess(post, content, image);
+      if (applied) {
+        processed++;
+        if (image?.status === "completed") images++;
+      }
       // !applied → lease lost; the row was (or will be) re-claimed. Discard silently.
     } catch (err) {
       const decision = retryDecision(post.attemptCount, deps.now());
@@ -113,5 +143,5 @@ export async function runPlanTick(
 
   await deps.finalizePlanIfDone(plan.id, plan.leaseToken);
   await deps.releasePlan(plan.id, plan.leaseToken);
-  return { claimed: true, processed, failed };
+  return { claimed: true, processed, failed, images };
 }

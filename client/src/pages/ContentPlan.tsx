@@ -18,7 +18,7 @@ import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { CalendarDays, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronUp, ImageOff, Loader2, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -54,6 +54,55 @@ function StatusBadge({ status }: { status: string }) {
 function formatDate(value: string | Date): string {
   const d = value instanceof Date ? value : new Date(value);
   return d.toLocaleDateString("nb-NO", { weekday: "long", day: "numeric", month: "long" });
+}
+
+/** One post's image slot: skeleton while loading, image when ready, action on failed/skipped. */
+function PostImage({
+  planId,
+  post,
+}: {
+  planId: number;
+  post: { id: number; imageUrl: string | null; imageStatus: string; generationStatus: string };
+}) {
+  const utils = trpc.useUtils();
+  const regenerate = trpc.plan.regenerateImage.useMutation({
+    onSettled: () => { void utils.plan.get.invalidate({ planId }); },
+  });
+  const busy = regenerate.isPending;
+  const status = busy ? "generating" : post.imageStatus;
+  const onRegenerate = () => regenerate.mutate({ planId, plannedPostId: post.id });
+
+  if (status === "pending" || status === "generating" || status === "verifying") {
+    return (
+      <div className="mt-3 aspect-[16/10] w-full rounded-md bg-muted animate-pulse flex items-center justify-center" aria-label="Bildet lages">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" aria-hidden="true" />
+      </div>
+    );
+  }
+
+  if (status === "completed" && post.imageUrl) {
+    return (
+      <div className="mt-3">
+        <img src={post.imageUrl} alt="Illustrasjon til innlegget" loading="lazy" className="aspect-[16/10] w-full rounded-md object-cover bg-muted" />
+        <Button variant="ghost" size="sm" className="mt-1 h-11 px-2 text-xs text-muted-foreground" onClick={onRegenerate} disabled={busy} aria-label="Lag et nytt bilde til dette innlegget">
+          <RefreshCw className="h-3.5 w-3.5 mr-1" aria-hidden="true" />Bytt bilde
+        </Button>
+      </div>
+    );
+  }
+
+  if (post.generationStatus !== "done") return null;
+  const reason = status === "skipped" ? "Bilde ikke inkludert." : status === "failed" ? "Bildet kunne ikke lages." : "Ingen bilde ennå.";
+  return (
+    <div className="mt-3 rounded-md border border-dashed border-muted-foreground/25 p-3 flex items-center justify-between gap-2">
+      <span className="text-xs text-muted-foreground inline-flex items-center gap-1.5">
+        <ImageOff className="h-3.5 w-3.5" aria-hidden="true" />{reason}
+      </span>
+      <Button variant="outline" size="sm" className="h-11 text-xs shrink-0" onClick={onRegenerate} disabled={busy} aria-label="Lag et bilde til dette innlegget">
+        <RefreshCw className="h-3.5 w-3.5 mr-1" aria-hidden="true" />Lag bilde
+      </Button>
+    </div>
+  );
 }
 
 export default function ContentPlan() {
@@ -199,6 +248,7 @@ export default function ContentPlan() {
                     {post.generationStatus === "failed" && (
                       <p className="text-xs text-destructive">Dette innlegget kunne ikke lages.</p>
                     )}
+                    {planId && <PostImage planId={planId} post={post} />}
                   </CardContent>
                 </Card>
               );
