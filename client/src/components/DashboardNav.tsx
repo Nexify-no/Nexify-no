@@ -61,6 +61,7 @@ export default function DashboardNav() {
     {
       title: "Planlegging",
       items: [
+        ...(enkelPlanEnabled ? [{ label: "Lag plan", href: "/lag-plan", icon: Sparkles }] : []),
         ...(enkelPlanEnabled ? [{ label: "Innholdsplan", href: "/innholdsplan", icon: List }] : []),
         { label: "Kalender", href: "/kalender", icon: Calendar },
         { label: "Beste Tid", href: "/beste-tid", icon: Clock },
@@ -122,7 +123,7 @@ export default function DashboardNav() {
     localStorage.setItem("penna-view-mode", next);
     setViewModeMutation.mutate({ viewMode: next });
   };
-  const SIMPLE_HREFS = new Set(["/dashboard", "/generer", "/innholdsplan", "/innlegg", "/kalender", "/innstillinger"]);
+  const SIMPLE_HREFS = new Set(["/dashboard", "/generer", "/lag-plan", "/innholdsplan", "/innlegg", "/kalender", "/innstillinger"]);
   const visiblePrimary =
     viewMode === "simple" ? primaryNavItems.filter((i) => SIMPLE_HREFS.has(i.href)) : primaryNavItems;
   const visibleSections =
