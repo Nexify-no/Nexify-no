@@ -1865,6 +1865,7 @@ export const plannedPosts = mysqlTable("planned_posts", {
   generationStatus: mysqlEnum("generation_status", ["pending", "generating", "done", "failed"]).default("pending").notNull(),
   contentQuotaCharged: boolean("content_quota_charged").default(false).notNull(),
   imageQuotaCharged: boolean("image_quota_charged").default(false).notNull(),
+  savedPostId: int("saved_post_id"),
   leaseToken: varchar("post_lease_token", { length: 36 }),
   lockedBy: varchar("post_locked_by", { length: 64 }),
   lockExpiresAt: timestamp("post_lock_expires_at"),
