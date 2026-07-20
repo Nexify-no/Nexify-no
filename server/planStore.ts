@@ -24,6 +24,7 @@ import { contentPlans, plannedPosts, type ContentPlan, type PlannedPost } from "
 import { getDb } from "./db";
 import { LEASE_MS, derivePlanStatus, type RetryDecision } from "./planLease";
 import { verifyImageUrl } from "./imageLifecycle";
+import { canApprove, plannedPostToDraft } from "./planApprove";
 import type { ClaimedPlan, ClaimedPost, PostImageOutcome } from "./planWorker";
 import type { PlannedItem } from "./planContent";
 
@@ -443,6 +444,93 @@ export async function regeneratePostImage(input: {
     return { status: "completed", imageUrl: url };
   }
   return { status: "completed", imageUrl: url };
+}
+
+// ── Fase 3b: godkjenning + lagring som utkast (eierskap-scoped, ingen auto-publisering) ──
+
+/** Approve one done, non-high-risk post (owner-scoped). False if not allowed/foreign. */
+export async function approvePost(planId: number, postId: number, userId: number): Promise<boolean> {
+  const db = await requireDb();
+  const post = await getPostForUser(planId, postId, userId);
+  if (!post || !canApprove({ generationStatus: post.generationStatus, verificationStatus: post.verificationStatus })) return false;
+  await db.update(plannedPosts).set({ approvalStatus: "approved" })
+    .where(and(eq(plannedPosts.id, postId), eq(plannedPosts.userId, userId)));
+  return true;
+}
+
+/** Set a post's approval back to draft/needs_edit (owner-scoped). */
+export async function setPostApproval(planId: number, postId: number, userId: number, status: "draft" | "needs_edit"): Promise<boolean> {
+  const db = await requireDb();
+  const post = await getPostForUser(planId, postId, userId);
+  if (!post) return false;
+  await db.update(plannedPosts).set({ approvalStatus: status })
+    .where(and(eq(plannedPosts.id, postId), eq(plannedPosts.userId, userId)));
+  return true;
+}
+
+/** Edit a post's text (owner-scoped); editing resets approval to draft. */
+export async function editPostContent(planId: number, postId: number, userId: number, content: string): Promise<boolean> {
+  const db = await requireDb();
+  const post = await getPostForUser(planId, postId, userId);
+  if (!post) return false;
+  await db.update(plannedPosts).set({ content, approvalStatus: "draft" })
+    .where(and(eq(plannedPosts.id, postId), eq(plannedPosts.userId, userId)));
+  return true;
+}
+
+/** Remove one post from the plan (owner-scoped hard delete of the planned row). */
+export async function removePlannedPost(planId: number, postId: number, userId: number): Promise<boolean> {
+  const db = await requireDb();
+  const post = await getPostForUser(planId, postId, userId);
+  if (!post) return false;
+  await db.delete(plannedPosts).where(and(eq(plannedPosts.id, postId), eq(plannedPosts.userId, userId)));
+  return true;
+}
+
+/** Approve every done, non-high-risk post in the plan. Returns count approved. */
+export async function approveAllDone(planId: number, userId: number): Promise<number> {
+  const db = await requireDb();
+  const result = await getPlanForUser(planId, userId, userId);
+  if (!result) return 0;
+  let n = 0;
+  for (const post of result.posts) {
+    if (post.approvalStatus === "approved") continue;
+    if (!canApprove({ generationStatus: post.generationStatus, verificationStatus: post.verificationStatus })) continue;
+    await db.update(plannedPosts).set({ approvalStatus: "approved" })
+      .where(and(eq(plannedPosts.id, post.id), eq(plannedPosts.userId, userId)));
+    n++;
+  }
+  return n;
+}
+
+/**
+ * Copy every approved-and-not-yet-saved post into `posts` as a DRAFT (Mine
+ * innlegg). Idempotent via saved_post_id: an already-saved post is skipped, and
+ * a lost claim deletes the just-inserted draft so a double click never
+ * duplicates. Nothing is scheduled or published (scheduledFor stays null).
+ */
+export async function saveApprovedAsDrafts(planId: number, userId: number): Promise<number> {
+  const db = await requireDb();
+  const result = await getPlanForUser(planId, userId, userId);
+  if (!result) return 0;
+  const { posts: postsTable } = await import("../drizzle/schema");
+  let saved = 0;
+  for (const post of result.posts) {
+    if (post.approvalStatus !== "approved" || post.savedPostId != null || post.generationStatus !== "done") continue;
+    const draft = plannedPostToDraft({
+      userId: post.userId, platform: post.platform, content: post.content, reason: post.reason,
+      imageUrl: post.imageUrl, imageStatus: post.imageStatus, imageGenerationId: post.imageGenerationId,
+      postGenerationId: post.postGenerationId,
+    });
+    const res = await db.insert(postsTable).values(draft);
+    const newId = (res as unknown as { insertId?: number })?.insertId ??
+      (res as unknown as Array<{ insertId?: number }>)?.[0]?.insertId ?? 0;
+    const upd = await db.update(plannedPosts).set({ savedPostId: newId })
+      .where(and(eq(plannedPosts.id, post.id), eq(plannedPosts.userId, userId), isNull(plannedPosts.savedPostId)));
+    if (affected(upd) > 0) saved++;
+    else if (newId) await db.delete(postsTable).where(eq(postsTable.id, newId)); // lost claim → drop duplicate
+  }
+  return saved;
 }
 
 /** Real worker deps wired to planStore + generateContent (pure; persists nothing itself). */
