@@ -18,7 +18,7 @@ import { ENV } from "../_core/env";
 import { aiProcedure, protectedProcedure, router } from "../_core/trpc";
 import { buildPlanSkeleton, totalPosts, type PlanGoal } from "../planContent";
 import { getDb } from "../db";
-import { createPlanWithPosts, getPlanForUser, listPlansForUser } from "../planStore";
+import { createPlanWithPosts, getPlanForUser, listPlansForUser, regeneratePostImage } from "../planStore";
 
 const goalSchema = z.enum(["customers", "trust", "showcase", "engagement", "offer", "mixed"]);
 const platformSchema = z.enum(["linkedin", "facebook", "instagram"]);
@@ -46,7 +46,7 @@ export const plannedContentRouter = router({
     .input(z.object({ goal: goalSchema, platform: platformSchema, postsPerWeek: perWeekSchema }))
     .query(({ input }) => {
       const posts = totalPosts(input.postsPerWeek);
-      return { weeks: 4, posts, images: 0, contentQuotaNeeded: posts, imageQuotaNeeded: 0 };
+      return { weeks: 4, posts, images: posts, contentQuotaNeeded: posts, imageQuotaNeeded: posts };
     }),
 
   create: aiProcedure.input(createInput).mutation(async ({ ctx, input }) => {
@@ -97,4 +97,19 @@ export const plannedContentRouter = router({
   }),
 
   list: protectedProcedure.query(async ({ ctx }) => listPlansForUser(ctx.user.id, ctx.user.id)),
+
+  /** "Bytt bilde": regenerate ONE post's image. Synchronous; charges image quota. */
+  regenerateImage: aiProcedure
+    .input(z.object({ planId: z.number().int().positive(), plannedPostId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      requireFlag();
+      try {
+        return await regeneratePostImage({ planId: input.planId, postId: input.plannedPostId, userId: ctx.user.id });
+      } catch (err) {
+        const msg = (err as Error)?.message ?? "";
+        if (msg === "NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Innlegget finnes ikke." });
+        if (msg === "POST_NOT_READY") throw new TRPCError({ code: "BAD_REQUEST", message: "Innlegget er ikke klart ennå." });
+        throw new TRPCError({ code: "FORBIDDEN", message: msg || "Kunne ikke lage nytt bilde." });
+      }
+    }),
 });
