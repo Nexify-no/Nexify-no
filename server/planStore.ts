@@ -10,13 +10,21 @@
  * conditioned on the current lease token, quota is charged idempotently per
  * post, and create() is idempotent on (workspace_id, idempotency_key) with
  * explicit duplicate-key handling. All timestamps are UTC.
+ *
+ * Fase 2: one image per post. The worker generates the image inline with the
+ * text (same lease) and savePostSuccess persists both; a lost lease can never
+ * write a stale image. Image quota is charged idempotently per post
+ * (image_quota_charged) and only when an image is actually attached. The
+ * user-triggered regeneratePostImage runs synchronously with reserve-first
+ * quota and slot-ownership (image_generation_id) isolation.
  */
 import { randomUUID } from "crypto";
 import { and, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { contentPlans, plannedPosts, type ContentPlan, type PlannedPost } from "../drizzle/schema";
 import { getDb } from "./db";
 import { LEASE_MS, derivePlanStatus, type RetryDecision } from "./planLease";
-import type { ClaimedPlan, ClaimedPost } from "./planWorker";
+import { verifyImageUrl } from "./imageLifecycle";
+import type { ClaimedPlan, ClaimedPost, PostImageOutcome } from "./planWorker";
 import type { PlannedItem } from "./planContent";
 
 async function requireDb() {
@@ -64,7 +72,9 @@ export async function createPlanWithPosts(input: {
         companyProfileVersion: input.companyProfileVersion,
         visualIdentityVersion: input.visualIdentityVersion,
         totalContentQuota: input.items.length,
-        totalImageQuota: 0,
+        // Fase 2: one image per post (best-effort). Informational only — the
+        // worker charges image quota per actually-attached image.
+        totalImageQuota: input.items.length,
         status: "queued",
       });
       const planId = (res as unknown as { insertId?: number })?.insertId ??
@@ -106,6 +116,15 @@ export async function getPlanForUser(planId: number, userId: number, workspaceId
     .where(and(eq(plannedPosts.contentPlanId, planId), eq(plannedPosts.userId, userId)))
     .orderBy(plannedPosts.weekNumber, plannedPosts.suggestedDate);
   return { plan, posts };
+}
+
+/** Load a single post scoped to its owner + plan (foreign → null, no enumeration). */
+export async function getPostForUser(planId: number, postId: number, userId: number): Promise<PlannedPost | null> {
+  const db = await requireDb();
+  const [post] = await db.select().from(plannedPosts)
+    .where(and(eq(plannedPosts.id, postId), eq(plannedPosts.contentPlanId, planId), eq(plannedPosts.userId, userId)))
+    .limit(1);
+  return post ?? null;
 }
 
 export async function listPlansForUser(userId: number, workspaceId: number) {
@@ -200,10 +219,29 @@ export async function heartbeat(plan: ClaimedPlan, post: ClaimedPost | null): Pr
   return true;
 }
 
-/** Lease-conditioned success write + idempotent quota charge (content_quota_charged). */
-export async function savePostSuccess(post: ClaimedPost, content: string): Promise<boolean> {
+/**
+ * Lease-conditioned success write + idempotent text/image quota charge.
+ * Persists text and (Fase 2) the best-effort image outcome together, so a
+ * refresh/restart never shows text without its already-decided image state.
+ */
+export async function savePostSuccess(post: ClaimedPost, content: string, image?: PostImageOutcome): Promise<boolean> {
   const db = await requireDb();
   const now = new Date();
+
+  // Map the best-effort image outcome onto the row's image columns.
+  const imageFields: Partial<typeof plannedPosts.$inferInsert> = {};
+  if (image) {
+    if (image.status === "completed") {
+      imageFields.imageUrl = image.url;
+      imageFields.imageStatus = "completed";
+      imageFields.imageGenerationId = image.generationId;
+    } else if (image.status === "failed") {
+      imageFields.imageStatus = "failed";
+    } else {
+      imageFields.imageStatus = "skipped";
+    }
+  }
+
   const res = await db.update(plannedPosts).set({
     content,
     generationStatus: "done",
@@ -212,20 +250,33 @@ export async function savePostSuccess(post: ClaimedPost, content: string): Promi
     leaseToken: null,
     lockedBy: null,
     lockExpiresAt: null,
+    ...imageFields,
   }).where(and(
     eq(plannedPosts.id, post.id),
     eq(plannedPosts.leaseToken, post.leaseToken),
     sql`${plannedPosts.lockExpiresAt} > ${now}`,
   ));
-  if (affected(res) === 0) return false; // stale worker — discard
+  if (affected(res) === 0) return false; // stale worker — discard (image included)
 
-  // Idempotent quota charge: only the transition that flips the flag charges.
+  // Idempotent text quota charge: only the transition that flips the flag charges.
   const chargeRes = await db.update(plannedPosts).set({ contentQuotaCharged: true })
     .where(and(eq(plannedPosts.id, post.id), eq(plannedPosts.contentQuotaCharged, false)));
   if (affected(chargeRes) > 0) {
     const { enforcePostQuota } = await import("./db");
     try { await enforcePostQuota(post.userId); } catch {
       // Quota exhausted mid-plan: keep the text (already generated), flag stays set.
+    }
+  }
+
+  // Idempotent image quota charge: only when an image was actually attached.
+  if (image?.status === "completed") {
+    const imgChargeRes = await db.update(plannedPosts).set({ imageQuotaCharged: true })
+      .where(and(eq(plannedPosts.id, post.id), eq(plannedPosts.imageQuotaCharged, false)));
+    if (affected(imgChargeRes) > 0) {
+      const { enforceImageQuota } = await import("./db");
+      try { await enforceImageQuota(post.userId); } catch {
+        // Image quota exhausted at charge time: keep the image (already generated).
+      }
     }
   }
   return true;
@@ -293,6 +344,107 @@ function topicFor(contentType: string, snapshot: Record<string, unknown>): strin
   }
 }
 
+/** Generic, text-free visual scene per content type (image models render no text). */
+const IMAGE_SCENES: Record<string, string> = {
+  intro: "a welcoming professional scene representing a local business and its people",
+  problem: "a relatable everyday situation a customer faces, hopeful and reassuring mood",
+  tips: "a clean, tidy workspace or flat-lay conveying a helpful practical idea",
+  question: "an open, inviting conversational scene, warm and approachable",
+  case: "a successfully completed project scene with a satisfied, accomplished mood",
+  behind_scenes: "an authentic behind-the-scenes moment at a small workplace",
+  faq: "a calm, clear and reassuring informational scene",
+  cta: "a friendly, inviting scene that encourages getting in touch",
+  seasonal: "a tasteful seasonal scene appropriate to the current time of year",
+  offer: "an appealing presentation of a product or service, bright and attractive",
+};
+
+const IMAGE_PLATFORM: Record<string, "linkedin" | "instagram" | "facebook"> = {
+  linkedin: "linkedin", instagram: "instagram", facebook: "facebook",
+};
+
+/** Build a text-free image prompt for a post from its content type + platform. */
+function imagePromptForPost(post: { contentType: string; platform: string }): string {
+  const scene = IMAGE_SCENES[post.contentType] ?? "a clean, professional brand scene";
+  const platform = IMAGE_PLATFORM[post.platform] ?? "linkedin";
+  const style = platform === "linkedin"
+    ? "professional business, polished and modern"
+    : platform === "instagram"
+      ? "aesthetic, vibrant, high quality"
+      : "friendly, warm, approachable";
+  return `${scene}. Visual style: ${style}. High quality, realistic, natural lighting, clear focal point. A clean scene with no signs, screens, logos, labels or writing of any kind.`;
+}
+
+/**
+ * Worker image step: best-effort, never throws. Skips when image quota is
+ * exhausted (text stays), otherwise generates + structurally verifies one image.
+ * The slot is owned by the post's own generation id.
+ */
+async function generateImageForPost(_plan: ClaimedPlan, post: ClaimedPost): Promise<PostImageOutcome> {
+  try {
+    const { hasImageQuota } = await import("./db");
+    const ok = await hasImageQuota(post.userId);
+    if (!ok) return { status: "skipped" };
+    const { generateImage } = await import("./_core/imageGeneration");
+    const { url } = await generateImage({ prompt: imagePromptForPost(post) });
+    if (!verifyImageUrl(url)) return { status: "failed" };
+    return { status: "completed", url: url as string, generationId: post.postGenerationId };
+  } catch {
+    return { status: "failed" };
+  }
+}
+
+/**
+ * User-triggered "Bytt bilde" for one post. Synchronous, reserve-first quota,
+ * slot-ownership isolation (image_generation_id): a concurrent regenerate that
+ * claims the slot later makes this one's late response a no-op.
+ */
+export async function regeneratePostImage(input: {
+  planId: number;
+  postId: number;
+  userId: number;
+}): Promise<{ status: "completed" | "failed"; imageUrl?: string }> {
+  const db = await requireDb();
+  const post = await getPostForUser(input.planId, input.postId, input.userId);
+  if (!post) throw new Error("NOT_FOUND");
+  if (post.generationStatus !== "done") throw new Error("POST_NOT_READY");
+
+  // Reserve image quota FIRST (atomic). Throws a friendly message when empty.
+  const { enforceImageQuota } = await import("./db");
+  await enforceImageQuota(input.userId);
+
+  // Claim the image slot with a fresh generation id.
+  const generationId = randomUUID();
+  await db.update(plannedPosts).set({
+    imageGenerationId: generationId,
+    imageStatus: "generating",
+    imageIdempotencyKey: randomUUID(),
+  }).where(and(eq(plannedPosts.id, post.id), eq(plannedPosts.userId, input.userId)));
+
+  let url: string | undefined;
+  try {
+    const { generateImage } = await import("./_core/imageGeneration");
+    const out = await generateImage({ prompt: imagePromptForPost(post) });
+    url = out.url;
+  } catch {
+    url = undefined;
+  }
+
+  if (!verifyImageUrl(url)) {
+    // Only mark failed if we still own the slot (a newer regenerate may have taken it).
+    await db.update(plannedPosts).set({ imageStatus: "failed" })
+      .where(and(eq(plannedPosts.id, post.id), eq(plannedPosts.imageGenerationId, generationId)));
+    return { status: "failed" };
+  }
+
+  const applied = await db.update(plannedPosts).set({ imageUrl: url, imageStatus: "completed" })
+    .where(and(eq(plannedPosts.id, post.id), eq(plannedPosts.imageGenerationId, generationId)));
+  if (affected(applied) === 0) {
+    // A newer generation claimed the slot; discard this late result (already charged).
+    return { status: "completed", imageUrl: url };
+  }
+  return { status: "completed", imageUrl: url };
+}
+
 /** Real worker deps wired to planStore + generateContent (pure; persists nothing itself). */
 export async function buildPlanWorkerDeps(): Promise<import("./planWorker").PlanWorkerDeps> {
   const { generateContent } = await import("./openaiService");
@@ -313,6 +465,7 @@ export async function buildPlanWorkerDeps(): Promise<import("./planWorker").Plan
       } as unknown as Parameters<typeof generateContent>[0];
       return generateContent(params);
     },
+    generateImage: generateImageForPost,
     savePostSuccess,
     savePostFailure,
     finalizePlanIfDone,
