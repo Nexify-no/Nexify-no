@@ -74,6 +74,7 @@ function PostImage({
   const busy = regenerate.isPending;
   const status = busy ? "generating" : post.imageStatus;
   const onRegenerate = () => regenerate.mutate({ planId, plannedPostId: post.id });
+  const errorMsg = regenerate.isError ? regenerate.error.message : null;
 
   if (status === "pending" || status === "generating" || status === "verifying") {
     return (
@@ -89,19 +90,23 @@ function PostImage({
         <Button variant="ghost" size="sm" className="mt-1 h-11 px-2 text-xs text-muted-foreground" onClick={onRegenerate} disabled={busy} aria-label="Lag et nytt bilde til dette innlegget">
           <RefreshCw className="h-3.5 w-3.5 mr-1" aria-hidden="true" />Bytt bilde
         </Button>
+        {errorMsg && <p className="mt-1 text-xs text-destructive" role="alert">{errorMsg}</p>}
       </div>
     );
   }
   if (post.generationStatus !== "done") return null;
-  const reason = status === "skipped" ? "Bilde ikke inkludert." : status === "failed" ? "Bildet kunne ikke lages." : "Ingen bilde ennå.";
+  const reason = status === "skipped" ? "Bildet ble hoppet over." : status === "failed" ? "Bildet kunne ikke lages." : "Ingen bilde ennå.";
   return (
-    <div className="mt-3 rounded-md border border-dashed border-muted-foreground/25 p-3 flex items-center justify-between gap-2">
-      <span className="text-xs text-muted-foreground inline-flex items-center gap-1.5">
-        <ImageOff className="h-3.5 w-3.5" aria-hidden="true" />{reason}
-      </span>
-      <Button variant="outline" size="sm" className="h-11 text-xs shrink-0" onClick={onRegenerate} disabled={busy} aria-label="Lag et bilde til dette innlegget">
-        <RefreshCw className="h-3.5 w-3.5 mr-1" aria-hidden="true" />Lag bilde
-      </Button>
+    <div className="mt-3 rounded-md border border-dashed border-muted-foreground/25 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-muted-foreground inline-flex items-center gap-1.5">
+          <ImageOff className="h-3.5 w-3.5" aria-hidden="true" />{reason}
+        </span>
+        <Button variant="outline" size="sm" className="h-11 text-xs shrink-0" onClick={onRegenerate} disabled={busy} aria-label="Lag et bilde til dette innlegget">
+          <RefreshCw className="h-3.5 w-3.5 mr-1" aria-hidden="true" />Lag bilde
+        </Button>
+      </div>
+      {errorMsg && <p className="mt-2 text-xs text-destructive" role="alert">{errorMsg}</p>}
     </div>
   );
 }
@@ -353,6 +358,11 @@ export default function ContentPlan() {
           {saveApproved.isSuccess && saveApproved.data && (
             <span className="text-xs text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
               <Check className="h-3.5 w-3.5" aria-hidden="true" />{saveApproved.data.count} lagret som utkast
+            </span>
+          )}
+          {(saveApproved.isError || approveAll.isError) && (
+            <span className="text-xs text-destructive" role="alert">
+              {saveApproved.error?.message ?? approveAll.error?.message}
             </span>
           )}
         </div>
