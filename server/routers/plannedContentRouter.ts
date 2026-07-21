@@ -18,7 +18,7 @@ import { ENV } from "../_core/env";
 import { aiProcedure, protectedProcedure, router } from "../_core/trpc";
 import { buildPlanSkeleton, totalPosts, type PlanGoal } from "../planContent";
 import { getDb } from "../db";
-import { createPlanWithPosts, getPlanForUser, listPlansForUser, regeneratePostImage } from "../planStore";
+import { createPlanWithPosts, getPlanForUser, listPlansForUser, regeneratePostImage, approvePost, setPostApproval, editPostContent, removePlannedPost, approveAllDone, saveApprovedAsDrafts } from "../planStore";
 
 const goalSchema = z.enum(["customers", "trust", "showcase", "engagement", "offer", "mixed"]);
 const platformSchema = z.enum(["linkedin", "facebook", "instagram"]);
@@ -97,6 +97,40 @@ export const plannedContentRouter = router({
   }),
 
   list: protectedProcedure.query(async ({ ctx }) => listPlansForUser(ctx.user.id, ctx.user.id)),
+  /** Fase 3b — godkjenn/rediger/fjern + lagre godkjente som utkast (ingen auto-publisering). */
+  approve: protectedProcedure.input(z.object({ planId: z.number().int().positive(), plannedPostId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    requireFlag();
+    const ok = await approvePost(input.planId, input.plannedPostId, ctx.user.id);
+    if (!ok) throw new TRPCError({ code: "BAD_REQUEST", message: "Innlegget kan ikke godkjennes ennå." });
+    return { ok: true };
+  }),
+  unapprove: protectedProcedure.input(z.object({ planId: z.number().int().positive(), plannedPostId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    requireFlag();
+    const ok = await setPostApproval(input.planId, input.plannedPostId, ctx.user.id, "draft");
+    if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "Innlegget finnes ikke." });
+    return { ok: true };
+  }),
+  editPost: protectedProcedure.input(z.object({ planId: z.number().int().positive(), plannedPostId: z.number().int().positive(), content: z.string().trim().min(1).max(6000) })).mutation(async ({ ctx, input }) => {
+    requireFlag();
+    const ok = await editPostContent(input.planId, input.plannedPostId, ctx.user.id, input.content);
+    if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "Innlegget finnes ikke." });
+    return { ok: true };
+  }),
+  removePost: protectedProcedure.input(z.object({ planId: z.number().int().positive(), plannedPostId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    requireFlag();
+    const ok = await removePlannedPost(input.planId, input.plannedPostId, ctx.user.id);
+    if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "Innlegget finnes ikke." });
+    return { ok: true };
+  }),
+  approveAll: protectedProcedure.input(z.object({ planId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    requireFlag();
+    return { count: await approveAllDone(input.planId, ctx.user.id) };
+  }),
+  saveApproved: protectedProcedure.input(z.object({ planId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    requireFlag();
+    return { count: await saveApprovedAsDrafts(input.planId, ctx.user.id) };
+  }),
+
 
   /** "Bytt bilde": regenerate ONE post's image. Synchronous; charges image quota. */
   regenerateImage: aiProcedure
