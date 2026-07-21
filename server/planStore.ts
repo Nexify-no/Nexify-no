@@ -25,6 +25,7 @@ import { getDb } from "./db";
 import { LEASE_MS, derivePlanStatus, type RetryDecision } from "./planLease";
 import { verifyImageUrl } from "./imageLifecycle";
 import { canApprove, plannedPostToDraft } from "./planApprove";
+import { buildEnkelImagePrompt } from "./planImagePrompt";
 import type { ClaimedPlan, ClaimedPost, PostImageOutcome } from "./planWorker";
 import type { PlannedItem } from "./planContent";
 
@@ -345,48 +346,19 @@ function topicFor(contentType: string, snapshot: Record<string, unknown>): strin
   }
 }
 
-/** Generic, text-free visual scene per content type (image models render no text). */
-const IMAGE_SCENES: Record<string, string> = {
-  intro: "a welcoming professional scene representing a local business and its people",
-  problem: "a relatable everyday situation a customer faces, hopeful and reassuring mood",
-  tips: "a clean, tidy workspace or flat-lay conveying a helpful practical idea",
-  question: "an open, inviting conversational scene, warm and approachable",
-  case: "a successfully completed project scene with a satisfied, accomplished mood",
-  behind_scenes: "an authentic behind-the-scenes moment at a small workplace",
-  faq: "a calm, clear and reassuring informational scene",
-  cta: "a friendly, inviting scene that encourages getting in touch",
-  seasonal: "a tasteful seasonal scene appropriate to the current time of year",
-  offer: "an appealing presentation of a product or service, bright and attractive",
-};
-
-const IMAGE_PLATFORM: Record<string, "linkedin" | "instagram" | "facebook"> = {
-  linkedin: "linkedin", instagram: "instagram", facebook: "facebook",
-};
-
-/** Build a text-free image prompt for a post from its content type + platform. */
-function imagePromptForPost(post: { contentType: string; platform: string }): string {
-  const scene = IMAGE_SCENES[post.contentType] ?? "a clean, professional brand scene";
-  const platform = IMAGE_PLATFORM[post.platform] ?? "linkedin";
-  const style = platform === "linkedin"
-    ? "professional business, polished and modern"
-    : platform === "instagram"
-      ? "aesthetic, vibrant, high quality"
-      : "friendly, warm, approachable";
-  return `${scene}. Visual style: ${style}. High quality, realistic, natural lighting, clear focal point. A clean scene with no signs, screens, logos, labels or writing of any kind.`;
-}
 
 /**
  * Worker image step: best-effort, never throws. Skips when image quota is
  * exhausted (text stays), otherwise generates + structurally verifies one image.
  * The slot is owned by the post's own generation id.
  */
-async function generateImageForPost(_plan: ClaimedPlan, post: ClaimedPost): Promise<PostImageOutcome> {
+async function generateImageForPost(_plan: ClaimedPlan, post: ClaimedPost, content?: string): Promise<PostImageOutcome> {
   try {
     const { hasImageQuota } = await import("./db");
     const ok = await hasImageQuota(post.userId);
     if (!ok) return { status: "skipped" };
     const { generateImage } = await import("./_core/imageGeneration");
-    const { url } = await generateImage({ prompt: imagePromptForPost(post) });
+    const { url } = await generateImage({ prompt: buildEnkelImagePrompt({ contentType: post.contentType, platform: post.platform, content }) });
     if (!verifyImageUrl(url)) return { status: "failed" };
     return { status: "completed", url: url as string, generationId: post.postGenerationId };
   } catch {
@@ -424,7 +396,7 @@ export async function regeneratePostImage(input: {
   let url: string | undefined;
   try {
     const { generateImage } = await import("./_core/imageGeneration");
-    const out = await generateImage({ prompt: imagePromptForPost(post) });
+    const out = await generateImage({ prompt: buildEnkelImagePrompt({ contentType: post.contentType, platform: post.platform, content: post.content }) });
     url = out.url;
   } catch {
     url = undefined;
@@ -483,7 +455,24 @@ export async function removePlannedPost(planId: number, postId: number, userId: 
   const db = await requireDb();
   const post = await getPostForUser(planId, postId, userId);
   if (!post) return false;
-  await db.delete(plannedPosts).where(and(eq(plannedPosts.id, postId), eq(plannedPosts.userId, userId)));
+  const suggested = post.suggestedDate instanceof Date ? post.suggestedDate : new Date(String(post.suggestedDate));
+  await db.transaction(async (tx) => {
+    await tx.delete(plannedPosts).where(and(eq(plannedPosts.id, postId), eq(plannedPosts.userId, userId)));
+    await tx.insert(plannedPosts).values({
+      contentPlanId: planId,
+      userId: post.userId,
+      workspaceId: post.workspaceId,
+      postGenerationId: randomUUID(),
+      weekNumber: post.weekNumber,
+      suggestedDate: suggested,
+      platform: post.platform,
+      contentType: post.contentType,
+      reason: post.reason,
+      generationStatus: "pending",
+    });
+    await tx.update(contentPlans).set({ status: "queued" })
+      .where(and(eq(contentPlans.id, planId), eq(contentPlans.userId, userId)));
+  });
   return true;
 }
 

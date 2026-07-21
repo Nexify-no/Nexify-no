@@ -214,7 +214,7 @@ function PostCard({ planId, post }: { planId: number; post: PostRow }) {
               <Pencil className="h-3.5 w-3.5 mr-1" aria-hidden="true" />Rediger
             </Button>
             {!saved && (
-              <Button size="sm" variant="ghost" className="h-11 text-xs text-destructive hover:text-destructive" disabled={busy} onClick={() => { if (confirm("Fjerne dette innlegget fra planen?")) removePost.mutate({ planId, plannedPostId: post.id }); }}>
+              <Button size="sm" variant="ghost" className="h-11 text-xs text-destructive hover:text-destructive" disabled={busy} onClick={() => { if (confirm("Fjerne dette innlegget og lage et nytt i stedet?")) removePost.mutate({ planId, plannedPostId: post.id }); }}>
                 <Trash2 className="h-3.5 w-3.5 mr-1" aria-hidden="true" />Fjern
               </Button>
             )}
