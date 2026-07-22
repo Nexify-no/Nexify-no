@@ -1,0 +1,17 @@
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "penna-ingestion-worker"
+version = "1.0.0"
+description = "Private, SSRF-hardened website ingestion for Penna Merkehjerne"
+requires-python = ">=3.11"
+dependencies = [
+  "lxml==6.1.1",
+  "lxml-html-clean==0.4.5",
+  "trafilatura==2.0.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["penna_ingestion"]

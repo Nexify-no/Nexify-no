@@ -57,7 +57,7 @@ export interface BrandProfileHints {
   avoidWords?: string[] | null;
   callsToAction?: string[] | null;
   contentPillars?: string[] | null;
-  facts?: Array<{ statement: string; sourceUrl: string }> | null;
+  facts?: Array<{ statement: string; sourceUrl: string; evidenceQuote?: string }> | null;
 }
 
 /** Every "property" a user can set. The optional ones are the new expanded set. */

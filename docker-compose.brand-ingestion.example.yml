@@ -1,0 +1,33 @@
+services:
+  brand-ingestion:
+    build:
+      context: ./worker
+    environment:
+      PENNA_INGESTION_SECRET: ${BRAND_INGESTION_SECRET:?required}
+      MAX_CONCURRENT_JOBS: "2"
+      LOG_LEVEL: INFO
+    expose:
+      - "8080"
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 100
+    mem_limit: 512m
+    cpus: 1.0
+    networks:
+      - penna-private
+
+  # Add these variables to the existing Penna web service:
+  # BRAND_INGESTION_URL=http://brand-ingestion:8080
+  # BRAND_INGESTION_SECRET=${BRAND_INGESTION_SECRET}
+  # BRAND_INGESTION_ALLOW_HTTP=true
+
+networks:
+  penna-private:
+    driver: bridge
+
