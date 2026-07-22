@@ -175,7 +175,13 @@ export type InsertPaymentOrder = typeof paymentOrders.$inferInsert;
 /**
  * User preferences table - stores language and other settings
  */
-export type BrandFact = { statement: string; sourceUrl: string };
+export type BrandFact = { statement: string; sourceUrl: string; evidenceQuote?: string };
+export type BrandSourceManifestEntry = {
+  url: string;
+  title: string;
+  chars: number;
+  suspiciousPromptText: boolean;
+};
 export type BrandContentIdea = {
   title: string;
   angle: string;
@@ -189,6 +195,13 @@ export const brandProfiles = mysqlTable("brand_profiles", {
   userId: int("user_id").notNull().unique(),
   status: mysqlEnum("status", ["analyzing", "ready", "failed"]).default("analyzing").notNull(),
   websiteUrl: varchar("website_url", { length: 1000 }).notNull(),
+  /** Per-scan ownership token; prevents an older request overwriting a newer scan. */
+  analysisId: varchar("analysis_id", { length: 36 }),
+  /** Hash of sanitized source data; unchanged sites skip the paid LLM pass. */
+  contentHash: varchar("content_hash", { length: 64 }),
+  sourceManifest: json("source_manifest").$type<BrandSourceManifestEntry[]>(),
+  injectionWarnings: json("injection_warnings").$type<string[]>(),
+  scanVersion: int("scan_version").default(2).notNull(),
   companyName: varchar("company_name", { length: 255 }),
   industry: varchar("industry", { length: 255 }),
   summary: text("summary"),

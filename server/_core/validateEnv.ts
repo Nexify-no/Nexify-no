@@ -43,6 +43,15 @@ export function validateEnv(): void {
   requireKey("STRIPE_WEBHOOK_SECRET", { prodOnly: true });
   requireKey("TOKEN_ENCRYPTION_KEY", { prodOnly: true });
   requireKey("PUBLIC_SITE_URL", { prodOnly: true });
+  requireKey("BRAND_INGESTION_URL", { prodOnly: true });
+  requireKey("BRAND_INGESTION_SECRET", { minLen: 32, prodOnly: true });
+  if (
+    PROD &&
+    process.env.BRAND_INGESTION_URL?.startsWith("http://") &&
+    process.env.BRAND_INGESTION_ALLOW_HTTP !== "true"
+  ) {
+    errors.push("BRAND_INGESTION_URL must use HTTPS unless BRAND_INGESTION_ALLOW_HTTP=true on a trusted private network");
+  }
 
   // Production: REDIS_URL is REQUIRED. Without a shared store the rate limiters
   // (incl. the paid-AI cost backstop) fall back to per-instance memory, which is

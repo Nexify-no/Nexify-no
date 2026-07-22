@@ -109,3 +109,7 @@ temp/
 
 # machine-specific local preview config
 .claude/launch.json
+
+# python worker byproducts
+worker/**/__pycache__/
+worker/.venv/
