@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { BrandAnalysisDraft, CrawlResponse } from "./brandSchemas";
 
+// eslint-disable-next-line no-control-regex -- intentionally strips C0/C1 control chars from untrusted site text
 const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
 const BIDI_CONTROLS = /[\u202A-\u202E\u2066-\u2069]/g;
 const INJECTION_PATTERNS: Array<[string, RegExp]> = [
