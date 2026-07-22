@@ -415,6 +415,12 @@ export async function regeneratePostImage(input: {
     // A newer generation claimed the slot; discard this late result (already charged).
     return { status: "completed", imageUrl: url };
   }
+  // Fase 4: if this post is already saved as a draft, keep the draft's image in sync.
+  if (post.savedPostId != null) {
+    const { posts: postsTable } = await import("../drizzle/schema");
+    await db.update(postsTable).set({ imageUrl: url, imageStatus: "completed", imageGenerationId: generationId })
+      .where(and(eq(postsTable.id, post.savedPostId), eq(postsTable.userId, input.userId)));
+  }
   return { status: "completed", imageUrl: url };
 }
 
