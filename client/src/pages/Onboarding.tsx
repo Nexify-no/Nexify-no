@@ -1509,6 +1509,7 @@ export default function Onboarding() {
                   audience: p?.audience || c.s3AudienceFallback,
                   topics: p?.topics ?? [],
                   language: p?.language ?? (language as "no" | "en"),
+                  websiteUrl: p?.sourceUrl || state.analyzedUrl || state.url || undefined,
                 },
                 {
                   onSuccess: () => {

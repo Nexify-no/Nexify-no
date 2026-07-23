@@ -302,6 +302,7 @@ export const onboardingRouter = router({
         audience: z.string().min(1).max(280),
         topics: z.array(z.string().min(1).max(60)).max(10).default([]),
         language: z.enum(["no", "en"]).default("no"),
+        websiteUrl: z.string().trim().max(1000).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -337,6 +338,20 @@ export const onboardingRouter = router({
         language: input.language,
         isDefault: true,
       });
+
+      // M5: seed the permanent Merkehjerne so it's reused across all AI tools
+      // from day one. Never overwrites an existing profile.
+      if (input.websiteUrl) {
+        const { seedBrandProfileFromOnboarding } = await import("../db");
+        await seedBrandProfileFromOnboarding(ctx.user.id, {
+          websiteUrl: input.websiteUrl,
+          companyName: input.companyName,
+          industry: input.industry,
+          audience: input.audience,
+          toneLabel: input.toneLabel,
+          topics: input.topics,
+        });
+      }
 
       return { success: true };
     }),

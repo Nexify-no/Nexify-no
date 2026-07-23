@@ -518,6 +518,42 @@ export async function chargeAnalysisQuota(userId: number): Promise<void> {
   }
 }
 
+/**
+ * M5 bridge: create a starter Merkehjerne from the onboarding wizard's confirmed
+ * data. Never clobbers an existing profile (a real scan wins). Returns true when
+ * a new row was created.
+ */
+export async function seedBrandProfileFromOnboarding(userId: number, data: {
+  websiteUrl: string;
+  companyName?: string | null;
+  industry?: string | null;
+  audience?: string | null;
+  toneLabel?: string | null;
+  topics?: string[];
+}): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const websiteUrl = (data.websiteUrl ?? "").trim();
+  if (!websiteUrl) return false;
+  const { brandProfiles } = await import("../drizzle/schema");
+  const { eq } = await import("drizzle-orm");
+  const { buildOnboardingBrandSeed } = await import("./services/merkehjerne/brandContext");
+  const [existing] = await db
+    .select({ id: brandProfiles.id })
+    .from(brandProfiles)
+    .where(eq(brandProfiles.userId, userId))
+    .limit(1);
+  if (existing) return false; // keep any existing Merkehjerne intact
+  const now = new Date();
+  await db.insert(brandProfiles).values({
+    userId,
+    ...buildOnboardingBrandSeed(data),
+    analyzedAt: now,
+    confirmedAt: now,
+  } as any);
+  return true;
+}
+
 /** Persist a server-issued payment order bound to the authenticated user. */
 export async function createPaymentOrder(order: {
   orderId: string;

@@ -116,3 +116,48 @@ export function renderBrandImageCue(
   if (colors.length) parts.push(`with a colour palette inspired by ${colors.join(", ")}`);
   return parts.join(", ");
 }
+
+
+/**
+ * Map the light onboarding-wizard result into a starter Merkehjerne row (M5).
+ * Pure/testable — produces the column values (minus userId/timestamps). The
+ * profile is intentionally light (no evidence-grounded facts); a later
+ * "Analyser på nytt" in BrandBrain runs the full SSRF-hardened scan and enriches it.
+ */
+export function buildOnboardingBrandSeed(data: {
+  websiteUrl: string;
+  companyName?: string | null;
+  industry?: string | null;
+  audience?: string | null;
+  toneLabel?: string | null;
+  topics?: readonly string[] | null;
+}): {
+  websiteUrl: string;
+  status: "ready";
+  companyName: string | null;
+  industry: string | null;
+  audiences: string[];
+  tonePersonality: string[];
+  contentPillars: string[];
+  facts: BrandFact[];
+} {
+  const clean = (v: string | null | undefined, n: number): string | null => {
+    const t = typeof v === "string" ? v.trim() : "";
+    return t ? t.slice(0, n) : null;
+  };
+  const audience = clean(data.audience, 300);
+  const tone = clean(data.toneLabel, 120);
+  return {
+    websiteUrl: (data.websiteUrl ?? "").trim().slice(0, 1000),
+    status: "ready",
+    companyName: clean(data.companyName, 255),
+    industry: clean(data.industry, 255),
+    audiences: audience ? [audience] : [],
+    tonePersonality: tone ? [tone] : [],
+    contentPillars: (data.topics ?? [])
+      .filter((t): t is string => typeof t === "string" && t.trim().length > 0)
+      .map((t) => t.trim().slice(0, 200))
+      .slice(0, 12),
+    facts: [],
+  };
+}
