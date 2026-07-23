@@ -833,7 +833,7 @@ export async function ensureSubscriptionPlans(): Promise<void> {
       priceMonthly: plan.monthlyNOK > 0 ? plan.monthlyNOK * 100 : null, // øre
       priceYearly: plan.monthlyNOK > 0 ? yearlyNOK(plan.monthlyNOK) * 100 : null,
       postsPerMonth: plan.postsPerMonth,
-      imagesPerMonth: plan.monthlyNOK > 0 ? plan.postsPerMonth : 0,
+      imagesPerMonth: plan.monthlyNOK > 0 ? 50 : 0, // paid plans get 50 AI images/month (room for regenerations)
       canUseDALLE: plan.monthlyNOK > 0 ? 1 : 0,
       canUseVoiceTraining: plan.monthlyNOK > 0 ? 1 : 0,
       canUseContentCalendar: plan.monthlyNOK > 0 ? 1 : 0,

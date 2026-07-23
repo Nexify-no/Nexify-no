@@ -266,7 +266,7 @@ export default function Generate() {
 
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [generateAIImage, setGenerateAIImage] = useState(false);
+  const [generateAIImage, setGenerateAIImage] = useState(true); // always attach an image to a post by default
   const [imageGenerationType, setImageGenerationType] = useState<"dalle" | "nanoBanana">("nanoBanana"); // GPT Image disabled — FLUX only
   const [imageStyle, setImageStyle] = useState<"minimalist" | "bold" | "professional" | "creative">("professional");
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -316,7 +316,6 @@ export default function Generate() {
         if (formData.length) setLength(formData.length);
         if (formData.keywords) setKeywords(formData.keywords);
         if (formData.useVoiceProfile !== undefined) setUseVoiceProfile(formData.useVoiceProfile);
-        if (formData.generateAIImage !== undefined) setGenerateAIImage(formData.generateAIImage);
         if (formData.imageStyle) setImageStyle(formData.imageStyle);
         toast.info("Utkast gjenopprettet", { duration: 2000 });
       } catch (e) {
@@ -719,19 +718,10 @@ export default function Generate() {
                 </div>
               </div>
 
-              <label className={`flex items-center justify-between rounded-xl border p-3.5 ${busy ? "opacity-60" : "cursor-pointer"}`}>
-                <span className="flex items-center gap-2.5 text-sm">
-                  <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                  Lag et passende bilde automatisk
-                </span>
-                <input
-                  type="checkbox"
-                  checked={generateAIImage}
-                  disabled={busy}
-                  onChange={(e) => setGenerateAIImage(e.target.checked)}
-                  className="h-4 w-4 accent-primary"
-                />
-              </label>
+              <div className="flex items-center gap-2.5 rounded-xl border bg-muted/30 p-3.5 text-sm text-muted-foreground">
+                <ImageIcon className="h-4 w-4" />
+                Et passende bilde lages automatisk med innlegget
+              </div>
 
               <Button size="lg" className="w-full h-12 text-base" onClick={handleGenerate} disabled={busy || !topic.trim()}>
                 {busy ? (

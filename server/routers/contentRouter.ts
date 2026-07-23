@@ -498,8 +498,9 @@ export const contentRouter = router({
           ]
         });
         
-        const repurposedContent = response.choices[0]?.message?.content;
-        if (typeof repurposedContent !== 'string') {
+        const { stripMarkdownEmphasis } = await import("../openaiService");
+        const repurposedContent = stripMarkdownEmphasis(response.choices[0]?.message?.content ?? "");
+        if (typeof repurposedContent !== 'string' || !repurposedContent) {
           throw new Error("Kunne ikke gjenbruke innhold");
         }
 
