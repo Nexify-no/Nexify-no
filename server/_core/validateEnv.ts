@@ -43,15 +43,6 @@ export function validateEnv(): void {
   requireKey("STRIPE_WEBHOOK_SECRET", { prodOnly: true });
   requireKey("TOKEN_ENCRYPTION_KEY", { prodOnly: true });
   requireKey("PUBLIC_SITE_URL", { prodOnly: true });
-  requireKey("BRAND_INGESTION_URL", { prodOnly: true });
-  requireKey("BRAND_INGESTION_SECRET", { minLen: 32, prodOnly: true });
-  if (
-    PROD &&
-    process.env.BRAND_INGESTION_URL?.startsWith("http://") &&
-    process.env.BRAND_INGESTION_ALLOW_HTTP !== "true"
-  ) {
-    errors.push("BRAND_INGESTION_URL must use HTTPS unless BRAND_INGESTION_ALLOW_HTTP=true on a trusted private network");
-  }
 
   // Production: REDIS_URL is REQUIRED. Without a shared store the rate limiters
   // (incl. the paid-AI cost backstop) fall back to per-instance memory, which is
@@ -63,6 +54,21 @@ export function validateEnv(): void {
       warnings.push("VIPPS_SECRET_KEY not set — Vipps webhooks will be rejected (fail-closed).");
     if (!process.env.TELEGRAM_WEBHOOK_SECRET)
       warnings.push("TELEGRAM_WEBHOOK_SECRET not set — Telegram webhook will be rejected (fail-closed).");
+
+    // Merkehjerne ingestion worker. The feature fails closed at the feature level
+    // (ingestionClient throws "not configured" and NEVER falls back to an unsafe
+    // fetch), so a missing/misconfigured worker must only DISABLE website analysis
+    // — it must not take the whole site down. Warn loudly instead of refusing to boot.
+    const brandUrl = process.env.BRAND_INGESTION_URL || "";
+    const brandSecret = process.env.BRAND_INGESTION_SECRET || "";
+    if (!brandUrl)
+      warnings.push("BRAND_INGESTION_URL not set — Merkehjerne website analysis is disabled until the ingestion worker is configured.");
+    else if (brandUrl.startsWith("http://") && process.env.BRAND_INGESTION_ALLOW_HTTP !== "true")
+      warnings.push("BRAND_INGESTION_URL is http:// without BRAND_INGESTION_ALLOW_HTTP=true — Merkehjerne analysis will refuse to connect (fail-closed).");
+    if (!brandSecret)
+      warnings.push("BRAND_INGESTION_SECRET not set — Merkehjerne website analysis is disabled until configured.");
+    else if (brandSecret.length < 32)
+      warnings.push("BRAND_INGESTION_SECRET is shorter than 32 characters — Merkehjerne analysis will refuse to run (fail-closed).");
   }
 
   warnings.forEach((w) => console.warn(`[env] WARNING: ${w}`));
