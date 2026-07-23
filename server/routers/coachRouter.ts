@@ -14,10 +14,12 @@ export const coachRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { invokeLLM } = await import("../_core/llm");
         const { getUserPosts, getUserContentAnalyses } = await import("../db");
+        const { loadBrandHints, renderBrandVoiceBlock } = await import("../services/merkehjerne/brandContext");
         
         // Get user's posts and analyses for context
         const posts = await getUserPosts(ctx.user.id);
         const analyses = await getUserContentAnalyses(ctx.user.id);
+        const brandBlock = renderBrandVoiceBlock(await loadBrandHints(ctx.user.id));
         
         // Build context
         const avgScore = analyses.length > 0
@@ -42,7 +44,7 @@ User Stats:
 - Platforms used: ${Object.entries(platformCounts).map(([p, c]) => `${p} (${c})`).join(", ")}
 - Recent analyses: ${analysesText}
 
-Provide helpful, actionable advice. Be encouraging but honest. Keep responses concise (2-3 paragraphs max).`;
+Provide helpful, actionable advice. Be encouraging but honest. Keep responses concise (2-3 paragraphs max).${brandBlock ? `\n\n${brandBlock}` : ""}`;
         
         const response = await invokeLLM({
           messages: [
