@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderBrandVoiceBlock, renderBrandImageCue, type BrandHints } from "./brandContext";
+import { renderBrandVoiceBlock, renderBrandImageCue, buildOnboardingBrandSeed, type BrandHints } from "./brandContext";
 
 const base: BrandHints = {
   companyName: "Ballong for Fest",
@@ -47,3 +47,38 @@ describe("renderBrandImageCue", () => {
     expect(renderBrandImageCue(null)).toBe("");
   });
 });
+
+describe("buildOnboardingBrandSeed", () => {
+  it("maps onboarding fields into a ready starter profile", () => {
+    const seed = buildOnboardingBrandSeed({
+      websiteUrl: "https://ballongforfest.no",
+      companyName: "Ballong for Fest",
+      industry: "party supplies",
+      audience: "barnefamilier og eventbyråer",
+      toneLabel: "leken og varm",
+      topics: ["ballonger", "bursdager", "firmafest"],
+    });
+    expect(seed.status).toBe("ready");
+    expect(seed.companyName).toBe("Ballong for Fest");
+    expect(seed.audiences).toEqual(["barnefamilier og eventbyråer"]);
+    expect(seed.tonePersonality).toEqual(["leken og varm"]);
+    expect(seed.contentPillars).toEqual(["ballonger", "bursdager", "firmafest"]);
+    expect(seed.facts).toEqual([]);
+  });
+  it("handles missing/empty fields (nulls + empty arrays, capped pillars)", () => {
+    const seed = buildOnboardingBrandSeed({
+      websiteUrl: "https://x.no",
+      companyName: "  ",
+      industry: null,
+      audience: "",
+      toneLabel: undefined,
+      topics: Array.from({ length: 20 }, (_, i) => `t${i}`),
+    });
+    expect(seed.companyName).toBeNull();
+    expect(seed.industry).toBeNull();
+    expect(seed.audiences).toEqual([]);
+    expect(seed.tonePersonality).toEqual([]);
+    expect(seed.contentPillars.length).toBe(12);
+  });
+});
+
