@@ -8,7 +8,8 @@ import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { brandProfiles } from "../../drizzle/schema";
-import { getDb } from "../db";
+import { getDb, hasAnalysisQuota, chargeAnalysisQuota } from "../db";
+import { logMerkehjerneEvent } from "../services/merkehjerne/analytics";
 import { aiProcedure, protectedProcedure, router } from "../_core/trpc";
 
 const ACTIVE_SCAN_WINDOW_MS = 90_000;
@@ -90,6 +91,15 @@ export const brandRouter = router({
         return existing;
       }
 
+      if (!(await hasAnalysisQuota(ctx.user.id))) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Du har nådd grensen for antall analyser denne måneden. Oppgrader for flere.",
+        });
+      }
+      const startedAt = Date.now();
+      logMerkehjerneEvent("brand_analysis_started", { userId: ctx.user.id, hadExisting: !!existing });
+
       const analysisId = randomUUID();
       await db.insert(brandProfiles).values({
         userId: ctx.user.id,
@@ -123,6 +133,18 @@ export const brandRouter = router({
 
         const [saved] = await db.select().from(brandProfiles).where(eq(brandProfiles.userId, ctx.user.id)).limit(1);
         if (!saved) throw new Error("brand_profile_missing_after_analysis");
+        if (result.unchanged) {
+          logMerkehjerneEvent("brand_analysis_skipped_unchanged", { userId: ctx.user.id, durationMs: Date.now() - startedAt });
+        } else {
+          // Charge only real analyses (unchanged/cached re-scans are free).
+          await chargeAnalysisQuota(ctx.user.id);
+          logMerkehjerneEvent("brand_analysis_completed", {
+            userId: ctx.user.id,
+            durationMs: Date.now() - startedAt,
+            factsCount: saved.facts?.length ?? 0,
+            warningsCount: saved.injectionWarnings?.length ?? 0,
+          });
+        }
         return saved;
       } catch (error) {
         const failure = publicFailure(error);
@@ -138,6 +160,12 @@ export const brandRouter = router({
           .update(brandProfiles)
           .set({ status: "failed", lastError: failure.message })
           .where(and(eq(brandProfiles.userId, ctx.user.id), eq(brandProfiles.analysisId, analysisId)));
+        logMerkehjerneEvent("brand_analysis_failed", {
+          userId: ctx.user.id,
+          errorCode: error && typeof error === "object" && "code" in error
+            ? String((error as { code: unknown }).code).slice(0, 60)
+            : "unclassified",
+        });
         throw new TRPCError(failure);
       }
     }),
@@ -151,6 +179,7 @@ export const brandRouter = router({
       .where(and(eq(brandProfiles.userId, ctx.user.id), eq(brandProfiles.status, "ready")));
     const [saved] = await db.select().from(brandProfiles).where(eq(brandProfiles.userId, ctx.user.id)).limit(1);
     if (!saved) throw new TRPCError({ code: "NOT_FOUND", message: "Opprett Merkehjernen først." });
+    logMerkehjerneEvent("brand_profile_edited", { userId: ctx.user.id, trigger: "fields" });
     return saved;
   }),
 
@@ -163,6 +192,7 @@ export const brandRouter = router({
       .where(and(eq(brandProfiles.userId, ctx.user.id), eq(brandProfiles.status, "ready")));
     const [saved] = await db.select().from(brandProfiles).where(eq(brandProfiles.userId, ctx.user.id)).limit(1);
     if (!saved) throw new TRPCError({ code: "NOT_FOUND", message: "Opprett Merkehjernen først." });
+    logMerkehjerneEvent("brand_profile_edited", { userId: ctx.user.id, trigger: "facts" });
     return saved;
   }),
 
@@ -175,6 +205,7 @@ export const brandRouter = router({
       .where(and(eq(brandProfiles.userId, ctx.user.id), eq(brandProfiles.status, "ready")));
     const [saved] = await db.select().from(brandProfiles).where(eq(brandProfiles.userId, ctx.user.id)).limit(1);
     if (!saved) throw new TRPCError({ code: "NOT_FOUND", message: "Opprett Merkehjernen først." });
+    logMerkehjerneEvent("brand_profile_confirmed", { userId: ctx.user.id });
     return saved;
   }),
 });

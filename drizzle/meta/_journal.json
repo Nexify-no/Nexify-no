@@ -617,6 +617,13 @@
       "when": 1784764800000,
       "tag": "0087_brand_confirmed",
       "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "5",
+      "when": 1784851200000,
+      "tag": "0088_brand_analysis_quota",
+      "breakpoints": true
     }
   ]
 }

@@ -865,6 +865,7 @@ export const subscriptionPlans = mysqlTable("subscription_plans", {
   // Feature limits
   postsPerMonth: int("posts_per_month"), // null = unlimited
   imagesPerMonth: int("images_per_month"), // null = unlimited
+  analysesPerMonth: int("analyses_per_month"), // Merkehjerne-analyser; null = unlimited
   canUseDALLE: int("can_use_dalle").default(0).notNull(), // boolean as int
   canUseVoiceTraining: int("can_use_voice_training").default(0).notNull(),
   canUseContentCalendar: int("can_use_content_calendar").default(0).notNull(),
@@ -1613,6 +1614,7 @@ export const userUsageTracking = mysqlTable("user_usage_tracking", {
   // Usage counters
   postsUsed: int("posts_used").default(0).notNull(),
   imagesUsed: int("images_used").default(0).notNull(),
+  analysesUsed: int("analyses_used").default(0).notNull(),
   
   // Tracking period
   periodStartDate: timestamp("period_start_date").notNull(),
