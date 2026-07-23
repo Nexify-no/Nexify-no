@@ -48,10 +48,26 @@ export function buildEnkelImagePrompt(input: {
   contentType: string;
   platform: string;
   content?: string | null;
+  /** Optional Merkehjerne cue: industry mood + colour palette only (never text/logos). */
+  brand?: { industry?: string | null; brandColors?: readonly string[] | null } | null;
 }): string {
   const clean = (input.content ?? "").replace(/\s+/g, " ").trim();
   const subject = clean
     ? `a realistic photo that visually represents the topic and mood of this social media post: ${clean.slice(0, 240)}`
     : (IMAGE_SCENES[input.contentType] ?? "a clean, professional brand scene");
-  return `${subject}. Visual style: ${styleFor(input.platform)}. High quality, realistic, natural lighting, clear focal point. A clean scene with no signs, screens, logos, labels or writing of any kind.`;
+  const brandCue = buildBrandImageCue(input.brand);
+  return `${subject}.${brandCue ? ` ${brandCue}.` : ""} Visual style: ${styleFor(input.platform)}. High quality, realistic, natural lighting, clear focal point. A clean scene with no signs, screens, logos, labels or writing of any kind.`;
+}
+
+/** Pure, text-free brand cue for the scene: industry mood + up to 3 valid hex colours. */
+function buildBrandImageCue(brand?: { industry?: string | null; brandColors?: readonly string[] | null } | null): string {
+  if (!brand) return "";
+  const parts: string[] = [];
+  const industry = typeof brand.industry === "string" ? brand.industry.trim() : "";
+  if (industry) parts.push(`in the context of a ${industry.slice(0, 60)} business`);
+  const colors = (brand.brandColors ?? [])
+    .filter((c): c is string => typeof c === "string" && /^#[0-9A-Fa-f]{6}$/.test(c))
+    .slice(0, 3);
+  if (colors.length) parts.push(`with a colour palette inspired by ${colors.join(", ")}`);
+  return parts.join(", ");
 }

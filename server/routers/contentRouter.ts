@@ -472,7 +472,11 @@ export const contentRouter = router({
         if (!post || post.userId !== ctx.user.id) {
           throw new Error("Post not found or unauthorized");
         }
-        
+
+        // Reuse Merkehjerne so repurposed content keeps the brand voice (M4).
+        const { loadBrandHints, renderBrandVoiceBlock } = await import("../services/merkehjerne/brandContext");
+        const brandBlock = renderBrandVoiceBlock(await loadBrandHints(ctx.user.id));
+
         // Generate repurposed content
         const repurposeInstructions = {
           platform_adapt: `Tilpass dette innholdet for ${input.targetPlatform}. Juster lengde, tone og format til plattformen.`,
@@ -485,7 +489,7 @@ export const contentRouter = router({
           messages: [
             {
               role: "system",
-              content: `Du er en ekspert på å gjenbruke og tilpasse innhold for sosiale medier. ${repurposeInstructions[input.repurposeType]} Behold kjernebudskapet, men tilpass presentasjonen.`
+              content: `Du er en ekspert på å gjenbruke og tilpasse innhold for sosiale medier. ${repurposeInstructions[input.repurposeType]} Behold kjernebudskapet, men tilpass presentasjonen.${brandBlock ? `\n\n${brandBlock}` : ""}`
             },
             {
               role: "user",

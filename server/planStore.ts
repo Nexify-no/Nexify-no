@@ -352,13 +352,15 @@ function topicFor(contentType: string, snapshot: Record<string, unknown>): strin
  * exhausted (text stays), otherwise generates + structurally verifies one image.
  * The slot is owned by the post's own generation id.
  */
-async function generateImageForPost(_plan: ClaimedPlan, post: ClaimedPost, content?: string): Promise<PostImageOutcome> {
+async function generateImageForPost(plan: ClaimedPlan, post: ClaimedPost, content?: string): Promise<PostImageOutcome> {
   try {
     const { hasImageQuota } = await import("./db");
     const ok = await hasImageQuota(post.userId);
     if (!ok) return { status: "skipped" };
     const { generateImage } = await import("./_core/imageGeneration");
-    const { url } = await generateImage({ prompt: buildEnkelImagePrompt({ contentType: post.contentType, platform: post.platform, content }) });
+    // Reuse Merkehjerne visual identity (industry mood + palette) — never text/logos (M4).
+    const snap = (plan.brandSnapshot ?? {}) as { industry?: string | null; brandColors?: string[] | null };
+    const { url } = await generateImage({ prompt: buildEnkelImagePrompt({ contentType: post.contentType, platform: post.platform, content, brand: { industry: snap.industry, brandColors: snap.brandColors } }) });
     if (!verifyImageUrl(url)) return { status: "failed" };
     return { status: "completed", url: url as string, generationId: post.postGenerationId };
   } catch {
