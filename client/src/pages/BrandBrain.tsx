@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
-import { BrainCircuit, Check, ExternalLink, Globe2, Loader2, Palette, RefreshCw, Save, Sparkles } from "lucide-react";
+import {
+  AlertTriangle, Ban, BrainCircuit, Check, ExternalLink, FileSearch, Globe2,
+  Loader2, Palette, Quote, RefreshCw, Save, ShieldAlert, Sparkles,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { Button } from "@/components/ui/button";
@@ -27,14 +30,38 @@ const EMPTY: Editable = {
 const list = (value: string) => value.split(/\n|,/).map((item) => item.trim()).filter(Boolean);
 const lines = (value: unknown) => Array.isArray(value) ? value.join("\n") : "";
 
+/** Classify a failed analysis from its stored public message (worker never leaks codes). */
+function failureKind(message?: string | null): "blocked" | "empty" | "unsafe" | "busy" | "failed" {
+  const m = (message ?? "").toLowerCase();
+  if (m.includes("tillater ikke")) return "blocked";
+  if (m.includes("lesbart innhold") || m.includes("nok innhold")) return "empty";
+  if (m.includes("sikkerhetsgrunner") || m.includes("nettadressen kan ikke")) return "unsafe";
+  if (m.includes("opptatt")) return "busy";
+  return "failed";
+}
+
 function ListField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
   return <div className="space-y-2"><Label>{label}</Label><Textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={4} /><p className="text-xs text-muted-foreground">Én per linje eller skill med komma.</p></div>;
+}
+
+function Shell({ children }: { children: ReactNode }) {
+  return (
+    <main className="container max-w-4xl py-8 px-4">
+      <Breadcrumb items={[{ label: "Dashboard", href: "/dashboard" }, { label: "Merkehjerne", current: true }]} className="mb-6" />
+      {children}
+    </main>
+  );
 }
 
 export default function BrandBrain() {
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
-  const profileQuery = trpc.brand.get.useQuery();
+  // Server is source of truth: poll while a scan is running so the view updates
+  // even after a reload (the analyze mutation may no longer be pending).
+  const profileQuery = trpc.brand.get.useQuery(undefined, {
+    refetchInterval: (query) => (query.state.data?.status === "analyzing" ? 3_000 : false),
+    refetchIntervalInBackground: false,
+  });
   const profile = profileQuery.data;
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [tab, setTab] = useState<Tab>("company");
@@ -63,6 +90,7 @@ export default function BrandBrain() {
 
   const steps = useMemo(() => ["Leser nettstedet", "Finner tjenester og målgrupper", "Lærer tone og skrivestil", "Bygger 30 innholdsideer"], []);
   const set = (key: keyof Editable, value: string) => setForm((current) => ({ ...current, [key]: value }));
+  const runAnalyze = (url: string) => analyze.mutate({ websiteUrl: url });
   const saveProfile = () => save.mutate({
     companyName: form.companyName, industry: form.industry, summary: form.summary,
     offers: list(form.offers), audiences: list(form.audiences), customerProblems: list(form.customerProblems),
@@ -70,42 +98,101 @@ export default function BrandBrain() {
     preferredWords: list(form.preferredWords), avoidWords: list(form.avoidWords), callsToAction: list(form.callsToAction), contentPillars: list(form.contentPillars),
   });
 
-  if (profileQuery.isLoading) return <div className="min-h-[60vh] grid place-items-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  const manifest = (profile?.sourceManifest ?? []) as Array<{ url: string; title: string; chars: number; suspiciousPromptText: boolean }>;
+  const warnings = (profile?.injectionWarnings ?? []) as string[];
+  const facts = (profile?.facts ?? []) as Array<{ statement: string; sourceUrl: string; evidenceQuote?: string }>;
 
-  if (!profile || profile.status !== "ready") {
-    const busy = analyze.isPending;
+  if (profileQuery.isLoading) {
+    return <div className="min-h-[60vh] grid place-items-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  }
+
+  const analyzing = profile?.status === "analyzing" || analyze.isPending;
+
+  // ── STATE: analyzing ──────────────────────────────────────────────────────
+  if (analyzing) {
     return (
-      <main className="container max-w-4xl py-8 px-4">
-        <Breadcrumb items={[{ label: "Dashboard", href: "/dashboard" }, { label: "Merkehjerne", current: true }]} className="mb-6" />
+      <Shell>
+        <Card className="overflow-hidden border-primary/20">
+          <div className="h-2 bg-gradient-to-r from-violet-600 via-fuchsia-500 to-orange-400" />
+          <CardContent className="p-8 md:p-12 text-center">
+            <div className="mx-auto h-16 w-16 rounded-2xl bg-primary/10 grid place-items-center mb-6"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
+            <h1 className="text-2xl md:text-3xl font-bold">Vi bygger bedriftens Merkehjerne …</h1>
+            <p className="mt-3 text-muted-foreground">Dette tar vanligvis under et minutt. Du kan trygt vente her.</p>
+            <div className="mt-8 max-w-md mx-auto text-left space-y-3">
+              {steps.map((step, index) => <div key={step} className="flex items-center gap-3 rounded-lg border p-3 bg-muted/30"><Loader2 className={`h-4 w-4 text-primary ${index === 0 ? "animate-spin" : "animate-pulse"}`} /><span>{step}</span></div>)}
+            </div>
+          </CardContent>
+        </Card>
+      </Shell>
+    );
+  }
+
+  // ── STATE: failed / site-blocked / not-enough-content / unsafe ────────────
+  if (profile?.status === "failed") {
+    const kind = failureKind(profile.lastError);
+    const meta: Record<string, { icon: ReactNode; title: string; hint: string }> = {
+      blocked: { icon: <Ban className="h-8 w-8 text-amber-600" />, title: "Nettstedet tillater ikke automatisk lesing", hint: "Siden blokkerer roboter i robots.txt. Prøv en annen offentlig side, eller legg inn informasjonen manuelt." },
+      empty: { icon: <FileSearch className="h-8 w-8 text-amber-600" />, title: "Vi fant ikke nok innhold", hint: "Nettstedet ga for lite lesbar tekst (kan være tungt JavaScript-basert). Prøv en annen side eller fyll inn manuelt." },
+      unsafe: { icon: <ShieldAlert className="h-8 w-8 text-destructive" />, title: "Nettadressen kan ikke analyseres", hint: "Adressen ble avvist av sikkerhetsgrunner. Bruk en vanlig offentlig https-adresse til bedriftens nettsted." },
+      busy: { icon: <AlertTriangle className="h-8 w-8 text-amber-600" />, title: "Analysetjenesten er opptatt", hint: "Prøv igjen om et lite øyeblikk." },
+      failed: { icon: <AlertTriangle className="h-8 w-8 text-destructive" />, title: "Analysen mislyktes", hint: "Noe gikk galt under analysen. Prøv igjen, eller fyll inn informasjonen manuelt." },
+    };
+    const m = meta[kind];
+    return (
+      <Shell>
+        <Card className="overflow-hidden">
+          <CardContent className="p-8 md:p-12 text-center">
+            <div className="mx-auto h-16 w-16 rounded-2xl bg-muted grid place-items-center mb-6">{m.icon}</div>
+            <h1 className="text-2xl font-bold">{m.title}</h1>
+            <p className="mt-3 text-muted-foreground max-w-xl mx-auto">{m.hint}</p>
+            <div className="mt-8 max-w-xl mx-auto flex flex-col sm:flex-row gap-3">
+              <Input value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} placeholder="https://bedriften.no" className="h-12" />
+              <Button className="h-12 px-6" disabled={!websiteUrl.trim() || analyze.isPending} onClick={() => runAnalyze(websiteUrl)}><RefreshCw className="h-4 w-4 mr-2" />Prøv igjen</Button>
+            </div>
+          </CardContent>
+        </Card>
+      </Shell>
+    );
+  }
+
+  // ── STATE: not started ────────────────────────────────────────────────────
+  if (!profile || profile.status !== "ready") {
+    return (
+      <Shell>
         <Card className="overflow-hidden border-primary/20">
           <div className="h-2 bg-gradient-to-r from-violet-600 via-fuchsia-500 to-orange-400" />
           <CardContent className="p-8 md:p-12 text-center">
             <div className="mx-auto h-16 w-16 rounded-2xl bg-primary/10 grid place-items-center mb-6"><BrainCircuit className="h-8 w-8 text-primary" /></div>
             <h1 className="text-3xl font-bold">Bygg bedriftens Merkehjerne</h1>
-            <p className="mt-3 text-muted-foreground max-w-2xl mx-auto">Lim inn bedriftens nettsted. Penna leser de viktigste sidene og lager en redigerbar merkeprofil med stemme, målgrupper og innholdsideer.</p>
-            {!busy ? (
-              <div className="mt-8 max-w-xl mx-auto flex flex-col sm:flex-row gap-3">
-                <Input value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} placeholder="https://bedriften.no" className="h-12" />
-                <Button className="h-12 px-6" disabled={!websiteUrl.trim()} onClick={() => analyze.mutate({ websiteUrl })}><Sparkles className="h-4 w-4 mr-2" />Analyser nettsted</Button>
-              </div>
-            ) : (
-              <div className="mt-8 max-w-md mx-auto text-left space-y-3">{steps.map((step, index) => <div key={step} className="flex items-center gap-3 rounded-lg border p-3 bg-muted/30"><Loader2 className={`h-4 w-4 text-primary ${index === 0 ? "animate-spin" : "animate-pulse"}`} /><span>{step}</span></div>)}</div>
-            )}
-            {(profile?.lastError || analyze.error) && <p className="mt-5 text-sm text-destructive">{profile?.lastError || analyze.error?.message}</p>}
+            <p className="mt-3 text-muted-foreground max-w-2xl mx-auto">Lim inn bedriftens nettsted. Penna leser de viktigste sidene og lager en redigerbar merkeprofil med stemme, målgrupper og innholdsideer — så slipper du å skrive alt selv.</p>
+            <div className="mt-8 max-w-xl mx-auto flex flex-col sm:flex-row gap-3">
+              <Input value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} placeholder="https://bedriften.no" className="h-12" />
+              <Button className="h-12 px-6" disabled={!websiteUrl.trim()} onClick={() => runAnalyze(websiteUrl)}><Sparkles className="h-4 w-4 mr-2" />Analyser nettsted</Button>
+            </div>
           </CardContent>
         </Card>
-      </main>
+      </Shell>
     );
   }
 
-  const tabs: Array<[Tab, string]> = [["company", "Bedriften"], ["voice", "Stemme og strategi"], ["ideas", "Innholdsideer"], ["sources", "Kilder"]];
+  // ── STATE: ready (+ needs-review banner) ──────────────────────────────────
+  const needsReview = warnings.length > 0 || facts.length === 0;
+  const tabs: Array<[Tab, string]> = [["company", "Bedriften"], ["voice", "Stemme og strategi"], ["ideas", "Innholdsideer"], ["sources", "Fakta og kilder"]];
   return (
     <main className="container max-w-6xl py-8 px-4">
       <Breadcrumb items={[{ label: "Dashboard", href: "/dashboard" }, { label: "Merkehjerne", current: true }]} className="mb-5" />
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div><div className="flex items-center gap-3"><BrainCircuit className="h-8 w-8 text-primary" /><h1 className="text-3xl font-bold">Merkehjerne</h1></div><p className="text-muted-foreground mt-1">{profile.companyName} · Sist analysert {profile.analyzedAt ? new Date(profile.analyzedAt).toLocaleDateString("nb-NO") : "nå"}</p></div>
-        <div className="flex gap-2"><Button variant="outline" onClick={() => analyze.mutate({ websiteUrl: profile.websiteUrl })} disabled={analyze.isPending}><RefreshCw className={`h-4 w-4 mr-2 ${analyze.isPending ? "animate-spin" : ""}`} />Analyser på nytt</Button><Button onClick={saveProfile} disabled={save.isPending}><Save className="h-4 w-4 mr-2" />Lagre</Button></div>
+        <div className="flex gap-2"><Button variant="outline" onClick={() => runAnalyze(profile.websiteUrl)} disabled={analyze.isPending}><RefreshCw className={`h-4 w-4 mr-2 ${analyze.isPending ? "animate-spin" : ""}`} />Analyser på nytt</Button><Button onClick={saveProfile} disabled={save.isPending}><Save className="h-4 w-4 mr-2" />Lagre</Button></div>
       </div>
+
+      {needsReview && (
+        <div className="mb-5 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+          <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <p className="text-sm">Se gjennom profilen før du bruker den. {warnings.length > 0 ? `Vi filtrerte bort mistenkelig instruksjonstekst fra ${warnings.length} kilde(r). ` : ""}{facts.length === 0 ? "Vi fant ingen dokumenterte fakta med kildesitat — vurder å legge inn nøkkelinfo manuelt." : ""}</p>
+        </div>
+      )}
+
       <div className="flex gap-2 overflow-x-auto pb-2 mb-5">{tabs.map(([value, label]) => <Button key={value} variant={tab === value ? "default" : "outline"} onClick={() => setTab(value)}>{label}</Button>)}</div>
 
       {tab === "company" && <div className="grid lg:grid-cols-2 gap-5">
@@ -117,7 +204,24 @@ export default function BrandBrain() {
 
       {tab === "ideas" && <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">{(profile.contentIdeas ?? []).map((idea, index) => <Card key={`${idea.title}-${index}`} className="flex flex-col"><CardContent className="p-5 flex flex-col flex-1"><span className="text-xs font-medium text-primary">{idea.pillar}</span><h3 className="font-semibold text-lg mt-2">{idea.title}</h3><p className="text-sm text-muted-foreground mt-2 flex-1">{idea.angle}</p><Button className="mt-5" variant="outline" onClick={() => { setEditorHandoff({ topic: `${idea.title}\n\nVinkel: ${idea.angle}`, platform: idea.platform ?? "linkedin", source: "brand-brain" }); navigate("/generer"); }}><Sparkles className="h-4 w-4 mr-2" />Lag innlegg</Button></CardContent></Card>)}</div>}
 
-      {tab === "sources" && <div className="grid lg:grid-cols-2 gap-5"><Card><CardHeader><CardTitle>Kildesider</CardTitle></CardHeader><CardContent className="space-y-3">{(profile.sourceUrls ?? []).map((url) => <a key={url} href={url} target="_blank" rel="noreferrer" className="flex items-center justify-between gap-3 rounded-lg border p-3 hover:bg-muted/50"><span className="truncate text-sm">{url}</span><ExternalLink className="h-4 w-4 shrink-0" /></a>)}</CardContent></Card><Card><CardHeader><CardTitle>Dokumenterte fakta</CardTitle></CardHeader><CardContent className="space-y-3">{(profile.facts ?? []).map((fact, index) => <div key={index} className="rounded-lg border p-3"><p className="text-sm flex gap-2"><Check className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />{fact.statement}</p><a href={fact.sourceUrl} target="_blank" rel="noreferrer" className="text-xs text-primary mt-2 block truncate"><Globe2 className="h-3 w-3 inline mr-1" />{fact.sourceUrl}</a></div>)}</CardContent></Card></div>}
+      {tab === "sources" && <div className="grid lg:grid-cols-2 gap-5">
+        <Card><CardHeader><CardTitle>Analyserte sider</CardTitle></CardHeader><CardContent className="space-y-3">
+          {manifest.length === 0 && <p className="text-sm text-muted-foreground">Ingen kildesider registrert.</p>}
+          {manifest.map((src, index) => <div key={`${src.url}-${index}`} className="rounded-lg border p-3">
+            <div className="flex items-center justify-between gap-3"><span className="text-sm font-medium truncate">{src.title || src.url}</span><a href={src.url} target="_blank" rel="noreferrer" className="shrink-0 text-muted-foreground hover:text-primary"><ExternalLink className="h-4 w-4" /></a></div>
+            <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground"><Globe2 className="h-3 w-3" /><span className="truncate">{src.url}</span></div>
+            <div className="mt-1 flex items-center gap-2 text-xs">{src.chars.toLocaleString("nb-NO")} tegn lest{src.suspiciousPromptText && <span className="inline-flex items-center gap-1 text-amber-600"><ShieldAlert className="h-3 w-3" />filtrert tekst</span>}</div>
+          </div>)}
+        </CardContent></Card>
+        <Card><CardHeader><CardTitle>Dokumenterte fakta</CardTitle></CardHeader><CardContent className="space-y-3">
+          {facts.length === 0 && <p className="text-sm text-muted-foreground">Ingen fakta med kildesitat ennå. Legg gjerne inn nøkkelinfo manuelt i «Bedriften».</p>}
+          {facts.map((fact, index) => <div key={index} className="rounded-lg border p-3">
+            <p className="text-sm flex gap-2"><Check className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />{fact.statement}</p>
+            {fact.evidenceQuote && <p className="mt-2 flex gap-2 text-xs text-muted-foreground italic"><Quote className="h-3 w-3 shrink-0 mt-0.5" />«{fact.evidenceQuote}»</p>}
+            <a href={fact.sourceUrl} target="_blank" rel="noreferrer" className="text-xs text-primary mt-2 block truncate"><Globe2 className="h-3 w-3 inline mr-1" />{fact.sourceUrl}</a>
+          </div>)}
+        </CardContent></Card>
+      </div>}
     </main>
   );
 }
