@@ -19,7 +19,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
 import { toast } from "sonner";
-import { Linkedin, CheckCircle2, AlertCircle, ExternalLink, RotateCcw, RotateCw, Calendar } from "lucide-react";
+import { Linkedin, Facebook, Instagram, CheckCircle2, AlertCircle, ExternalLink, RotateCcw, RotateCw, Calendar } from "lucide-react";
 import { Link } from "wouter";
 import { useUndoRedo } from "@/hooks/useUndoRedo";
 import { Breadcrumb } from "@/components/Breadcrumb";
@@ -273,6 +273,14 @@ export default function Generate() {
   const [generatedImagePrompt, setGeneratedImagePrompt] = useState<string | null>(null);
 
   const { data: subscription } = trpc.user.getSubscription.useQuery();
+  // View mode (simple = one guided screen; advanced = full studio). Saved per account.
+  const viewModeQuery = trpc.user.getViewMode.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
+  const setViewModeMutation = trpc.user.setViewMode.useMutation({
+    onSuccess: (d) => {
+      try { window.localStorage.setItem("penna-view-mode", d.viewMode); } catch { /* ignore */ }
+      void viewModeQuery.refetch();
+    },
+  });
 
   // State for idea tracking
   const [currentIdeaId, setCurrentIdeaId] = useState<number | null>(null);
@@ -618,6 +626,180 @@ export default function Generate() {
   };
 
   // Active step indicator
+  // ── Enkel (simple) mode: one calm, guided screen. Few choices — the Merkehjerne
+  //    (brand DNA) and smart defaults do the rest. Reuses the same generate/image
+  //    handlers as the full studio, so nothing behaves differently under the hood. ──
+  const simpleMode =
+    (viewModeQuery.data ??
+      ((typeof window !== "undefined" && window.localStorage.getItem("penna-view-mode") === "simple")
+        ? "simple"
+        : "advanced")) === "simple";
+  if (simpleMode) {
+    const busy = generateMutation.isPending;
+    const brandName = brandProfileQuery.data?.companyName ?? "";
+    const platformPicks = [
+      { id: "linkedin" as const, label: "LinkedIn", Icon: Linkedin },
+      { id: "facebook" as const, label: "Facebook", Icon: Facebook },
+      { id: "instagram" as const, label: "Instagram", Icon: Instagram },
+    ];
+    const examples = [
+      "Vi har lansert en ny ballongpakke for bursdager",
+      "Tips til å dekorere et firmaarrangement",
+      "En fornøyd kunde delte bildene fra bryllupet",
+    ];
+    const startOver = () => {
+      genGuardRef.current.start();
+      setGeneratedContent("");
+      setTopic("");
+      setUploadedImage(null);
+      setGeneratedImagePrompt(null);
+      setSavedPostId(null);
+    };
+    return (
+      <main className="container max-w-2xl py-6 sm:py-10 px-4">
+        <div className="flex items-start gap-3 mb-6">
+          <div className="h-11 w-11 rounded-2xl bg-primary/10 grid place-items-center shrink-0">
+            <Sparkles className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold leading-tight">Lag et innlegg</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {brandName
+                ? `Fortell hva du vil dele — Penna bruker Merkehjernen til ${brandName} og skriver et ferdig innlegg.`
+                : "Fortell hva du vil dele, så skriver Penna et ferdig innlegg for deg."}
+            </p>
+          </div>
+        </div>
+
+        {!generatedContent ? (
+          <Card>
+            <CardContent className="p-5 sm:p-6 space-y-6">
+              <div className="space-y-2">
+                <Label className="text-base font-semibold">Hva vil du dele?</Label>
+                <Textarea
+                  rows={5}
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  disabled={busy}
+                  placeholder="F.eks. «Vi har lansert en ny ballongpakke for bursdager» – skriv kort hva som er spesielt."
+                  className="text-base resize-none"
+                />
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {examples.map((ex) => (
+                    <button
+                      key={ex}
+                      type="button"
+                      onClick={() => setTopic(ex)}
+                      disabled={busy}
+                      className="text-xs rounded-full border px-3 py-1.5 text-muted-foreground transition hover:border-primary hover:text-primary disabled:opacity-50"
+                    >
+                      {ex}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm text-muted-foreground">Hvor skal det deles?</Label>
+                <div className="flex flex-wrap gap-2">
+                  {platformPicks.map(({ id, label, Icon }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setPlatform(id)}
+                      disabled={busy}
+                      className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition ${
+                        platform === id ? "border-primary bg-primary/5 text-primary" : "text-muted-foreground hover:border-primary/50"
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <label className={`flex items-center justify-between rounded-xl border p-3.5 ${busy ? "opacity-60" : "cursor-pointer"}`}>
+                <span className="flex items-center gap-2.5 text-sm">
+                  <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                  Lag et passende bilde automatisk
+                </span>
+                <input
+                  type="checkbox"
+                  checked={generateAIImage}
+                  disabled={busy}
+                  onChange={(e) => setGenerateAIImage(e.target.checked)}
+                  className="h-4 w-4 accent-primary"
+                />
+              </label>
+
+              <Button size="lg" className="w-full h-12 text-base" onClick={handleGenerate} disabled={busy || !topic.trim()}>
+                {busy ? (
+                  <>
+                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    Lager innlegget …
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-5 w-5 mr-2" />
+                    Lag innlegg
+                  </>
+                )}
+              </Button>
+
+              <button
+                type="button"
+                onClick={() => setViewModeMutation.mutate({ viewMode: "advanced" })}
+                disabled={setViewModeMutation.isPending}
+                className="mx-auto block text-xs text-muted-foreground hover:text-primary"
+              >
+                Vis flere valg
+              </button>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="p-5 sm:p-6 space-y-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-green-700">
+                <CheckCircle2 className="h-4 w-4" />
+                Ferdig! Lagret i «Mine innlegg».
+              </div>
+              {uploadedImage && <img src={uploadedImage} alt="" className="w-full rounded-xl border" />}
+              {isGeneratingImage && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Lager bilde …
+                </div>
+              )}
+              <Textarea
+                rows={10}
+                value={generatedContent}
+                onChange={(e) => setGeneratedContent(e.target.value)}
+                className="text-base leading-relaxed resize-none"
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <Button className="h-11" onClick={handleCopy}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Kopier tekst
+                </Button>
+                <Button variant="outline" className="h-11" onClick={handleGenerate} disabled={busy}>
+                  <RotateCw className={`h-4 w-4 mr-2 ${busy ? "animate-spin" : ""}`} />
+                  Lag på nytt
+                </Button>
+                <Button variant="outline" className="h-11" onClick={() => setLocation("/posts")}>
+                  Se mine innlegg
+                </Button>
+                <Button variant="ghost" className="h-11" onClick={startOver}>
+                  Skriv nytt
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </main>
+    );
+  }
+
   const activeStep = !topic.trim() ? 1 : !generatedContent ? 2 : 3;
 
   return (
