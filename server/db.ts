@@ -447,6 +447,77 @@ export async function enforceImageQuota(userId: number): Promise<void> {
   }
 }
 
+const FREE_ANALYSIS_LIMIT = 3;
+
+/** Read-only: does the user still have Merkehjerne analysis quota this period? Mirrors hasImageQuota. */
+export async function hasAnalysisQuota(userId: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const { subscriptions, subscriptionPlans, userUsageTracking } = await import("../drizzle/schema");
+  const { eq, and, gte, lte } = await import("drizzle-orm");
+  const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).limit(1);
+  if (!sub) return false;
+  let limit: number | null;
+  if (sub.status === "trial") {
+    limit = FREE_ANALYSIS_LIMIT;
+  } else if (sub.status === "active") {
+    if (!sub.planId) return true;
+    const [plan] = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.id, sub.planId)).limit(1);
+    limit = plan?.analysesPerMonth ?? null;
+    if (limit == null) return true;
+  } else {
+    return false;
+  }
+  const now = new Date();
+  const [usage] = await db.select().from(userUsageTracking).where(and(
+    eq(userUsageTracking.userId, userId),
+    eq(userUsageTracking.subscriptionId, sub.id),
+    gte(userUsageTracking.periodEndDate, now),
+    lte(userUsageTracking.periodStartDate, now),
+  )).limit(1);
+  const used = usage?.analysesUsed ?? 0;
+  return used < limit;
+}
+
+/**
+ * Increment the analysis meter for the current period. Called only after a real
+ * analysis (not for unchanged/cached re-scans). Per-user analyses are serialized
+ * by the active-scan lock, so a read-check + increment is race-safe.
+ */
+export async function chargeAnalysisQuota(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  const { subscriptions, userUsageTracking } = await import("../drizzle/schema");
+  const { eq, and, gte, lte, sql } = await import("drizzle-orm");
+  const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).limit(1);
+  if (!sub) return;
+  const now = new Date();
+  const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const [usage] = await db.select().from(userUsageTracking).where(and(
+    eq(userUsageTracking.userId, userId),
+    eq(userUsageTracking.subscriptionId, sub.id),
+    gte(userUsageTracking.periodEndDate, now),
+    lte(userUsageTracking.periodStartDate, now),
+  )).limit(1);
+  if (usage) {
+    await db
+      .update(userUsageTracking)
+      .set({ analysesUsed: sql`${userUsageTracking.analysesUsed} + 1` })
+      .where(eq(userUsageTracking.id, usage.id));
+  } else {
+    await db.insert(userUsageTracking).values({
+      userId,
+      subscriptionId: sub.id,
+      postsUsed: 0,
+      imagesUsed: 0,
+      analysesUsed: 1,
+      periodStartDate: periodStart,
+      periodEndDate: periodEnd,
+    } as any);
+  }
+}
+
 /** Persist a server-issued payment order bound to the authenticated user. */
 export async function createPaymentOrder(order: {
   orderId: string;
