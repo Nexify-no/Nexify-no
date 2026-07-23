@@ -569,11 +569,54 @@
       "tag": "0080_lifecycle_emails",
       "breakpoints": true
     },
-    {"idx":81,"version":"5","when":1784000000000,"tag":"0081_view_mode","breakpoints":true},
-    {"idx":82,"version":"5","when":1784100000000,"tag":"0082_brand_profiles","breakpoints":true},
-    {"idx":83,"version":"5","when":1784200000000,"tag":"0083_content_plans","breakpoints":true},
-    {"idx":84,"version":"5","when":1784300000000,"tag":"0084_planned_post_images","breakpoints":true},
-    {"idx":85,"version":"5","when":1784400000000,"tag":"0085_planned_post_saved","breakpoints":true},
-    {"idx":86,"version":"5","when":1784678400000,"tag":"0086_brand_ingestion_security","breakpoints":true}
+    {
+      "idx": 81,
+      "version": "5",
+      "when": 1784000000000,
+      "tag": "0081_view_mode",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "5",
+      "when": 1784100000000,
+      "tag": "0082_brand_profiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "5",
+      "when": 1784200000000,
+      "tag": "0083_content_plans",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "5",
+      "when": 1784300000000,
+      "tag": "0084_planned_post_images",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "5",
+      "when": 1784400000000,
+      "tag": "0085_planned_post_saved",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "5",
+      "when": 1784678400000,
+      "tag": "0086_brand_ingestion_security",
+      "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "5",
+      "when": 1784764800000,
+      "tag": "0087_brand_confirmed",
+      "breakpoints": true
+    }
   ]
 }
