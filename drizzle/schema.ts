@@ -223,6 +223,8 @@ export const brandProfiles = mysqlTable("brand_profiles", {
   sourceUrls: json("source_urls").$type<string[]>(),
   lastError: text("last_error"),
   analyzedAt: timestamp("analyzed_at"),
+  /** When the user reviewed and confirmed this profile (M2). */
+  confirmedAt: timestamp("confirmed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 }, (table) => ({

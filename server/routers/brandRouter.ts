@@ -30,6 +30,13 @@ const editableProfile = z.object({
   contentPillars: stringList.optional(),
 }).strict();
 
+const factSchema = z.object({
+  statement: z.string().trim().min(1).max(500),
+  sourceUrl: z.string().trim().max(1_000).default(""),
+  evidenceQuote: z.string().trim().min(1).max(500).optional(),
+}).strict();
+const factsInput = z.object({ facts: z.array(factSchema).max(60) }).strict();
+
 async function requireDb() {
   const db = await getDb();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Databasen er ikke tilgjengelig." });
@@ -137,9 +144,34 @@ export const brandRouter = router({
 
   update: protectedProcedure.input(editableProfile).mutation(async ({ ctx, input }) => {
     const db = await requireDb();
+    // Editing invalidates a prior confirmation — user must re-confirm the reviewed profile.
     await db
       .update(brandProfiles)
-      .set(input)
+      .set({ ...input, confirmedAt: null })
+      .where(and(eq(brandProfiles.userId, ctx.user.id), eq(brandProfiles.status, "ready")));
+    const [saved] = await db.select().from(brandProfiles).where(eq(brandProfiles.userId, ctx.user.id)).limit(1);
+    if (!saved) throw new TRPCError({ code: "NOT_FOUND", message: "Opprett Merkehjernen først." });
+    return saved;
+  }),
+
+  // Replace the whole facts list (manual add/delete). Clears confirmation.
+  setFacts: protectedProcedure.input(factsInput).mutation(async ({ ctx, input }) => {
+    const db = await requireDb();
+    await db
+      .update(brandProfiles)
+      .set({ facts: input.facts, confirmedAt: null })
+      .where(and(eq(brandProfiles.userId, ctx.user.id), eq(brandProfiles.status, "ready")));
+    const [saved] = await db.select().from(brandProfiles).where(eq(brandProfiles.userId, ctx.user.id)).limit(1);
+    if (!saved) throw new TRPCError({ code: "NOT_FOUND", message: "Opprett Merkehjernen først." });
+    return saved;
+  }),
+
+  // User reviewed the profile and confirms it for reuse across the AI tools.
+  confirm: protectedProcedure.mutation(async ({ ctx }) => {
+    const db = await requireDb();
+    await db
+      .update(brandProfiles)
+      .set({ confirmedAt: new Date() })
       .where(and(eq(brandProfiles.userId, ctx.user.id), eq(brandProfiles.status, "ready")));
     const [saved] = await db.select().from(brandProfiles).where(eq(brandProfiles.userId, ctx.user.id)).limit(1);
     if (!saved) throw new TRPCError({ code: "NOT_FOUND", message: "Opprett Merkehjernen først." });

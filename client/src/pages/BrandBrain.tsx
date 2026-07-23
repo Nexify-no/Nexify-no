@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import {
-  AlertTriangle, Ban, BrainCircuit, Check, ExternalLink, FileSearch, Globe2,
-  Loader2, Palette, Quote, RefreshCw, Save, ShieldAlert, Sparkles,
+  AlertTriangle, BadgeCheck, Ban, BrainCircuit, Check, ExternalLink, FileSearch, Globe2,
+  Loader2, Palette, Plus, Quote, RefreshCw, Save, ShieldAlert, Sparkles, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Breadcrumb } from "@/components/Breadcrumb";
@@ -15,6 +15,7 @@ import { setEditorHandoff } from "@/lib/editorHandoff";
 import { trpc } from "@/lib/trpc";
 
 type Tab = "company" | "voice" | "ideas" | "sources";
+type FactUi = { statement: string; sourceUrl: string; evidenceQuote?: string };
 type Editable = {
   companyName: string; industry: string; summary: string; offers: string;
   audiences: string; customerProblems: string; differentiators: string;
@@ -66,6 +67,7 @@ export default function BrandBrain() {
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [tab, setTab] = useState<Tab>("company");
   const [form, setForm] = useState<Editable>(EMPTY);
+  const [newFact, setNewFact] = useState("");
 
   useEffect(() => {
     if (!profile) return;
@@ -87,6 +89,14 @@ export default function BrandBrain() {
     onSuccess: async () => { await utils.brand.get.invalidate(); toast.success("Endringene er lagret"); },
     onError: (error) => toast.error(error.message),
   });
+  const confirmBrain = trpc.brand.confirm.useMutation({
+    onSuccess: async () => { await utils.brand.get.invalidate(); toast.success("Merkehjernen er bekreftet"); },
+    onError: (error) => toast.error(error.message),
+  });
+  const saveFacts = trpc.brand.setFacts.useMutation({
+    onSuccess: async () => { await utils.brand.get.invalidate(); },
+    onError: (error) => toast.error(error.message),
+  });
 
   const steps = useMemo(() => ["Leser nettstedet", "Finner tjenester og målgrupper", "Lærer tone og skrivestil", "Bygger 30 innholdsideer"], []);
   const set = (key: keyof Editable, value: string) => setForm((current) => ({ ...current, [key]: value }));
@@ -100,7 +110,13 @@ export default function BrandBrain() {
 
   const manifest = (profile?.sourceManifest ?? []) as Array<{ url: string; title: string; chars: number; suspiciousPromptText: boolean }>;
   const warnings = (profile?.injectionWarnings ?? []) as string[];
-  const facts = (profile?.facts ?? []) as Array<{ statement: string; sourceUrl: string; evidenceQuote?: string }>;
+  const facts = (profile?.facts ?? []) as FactUi[];
+  const removeFact = (index: number) => saveFacts.mutate({ facts: facts.filter((_, i) => i !== index) });
+  const addFact = () => {
+    const statement = newFact.trim();
+    if (!statement) return;
+    saveFacts.mutate({ facts: [...facts, { statement, sourceUrl: "" }] }, { onSuccess: () => setNewFact("") });
+  };
 
   if (profileQuery.isLoading) {
     return <div className="min-h-[60vh] grid place-items-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
@@ -183,7 +199,13 @@ export default function BrandBrain() {
       <Breadcrumb items={[{ label: "Dashboard", href: "/dashboard" }, { label: "Merkehjerne", current: true }]} className="mb-5" />
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div><div className="flex items-center gap-3"><BrainCircuit className="h-8 w-8 text-primary" /><h1 className="text-3xl font-bold">Merkehjerne</h1></div><p className="text-muted-foreground mt-1">{profile.companyName} · Sist analysert {profile.analyzedAt ? new Date(profile.analyzedAt).toLocaleDateString("nb-NO") : "nå"}</p></div>
-        <div className="flex gap-2"><Button variant="outline" onClick={() => runAnalyze(profile.websiteUrl)} disabled={analyze.isPending}><RefreshCw className={`h-4 w-4 mr-2 ${analyze.isPending ? "animate-spin" : ""}`} />Analyser på nytt</Button><Button onClick={saveProfile} disabled={save.isPending}><Save className="h-4 w-4 mr-2" />Lagre</Button></div>
+        <div className="flex flex-wrap items-center gap-2">
+          {profile.confirmedAt
+            ? <span className="inline-flex items-center gap-2 text-sm text-green-700 bg-green-500/10 border border-green-500/30 rounded-full px-3 py-1.5"><BadgeCheck className="h-4 w-4" />Bekreftet {new Date(profile.confirmedAt).toLocaleDateString("nb-NO")}</span>
+            : <Button onClick={() => confirmBrain.mutate()} disabled={confirmBrain.isPending}><BadgeCheck className="h-4 w-4 mr-2" />Bekreft Merkehjerne</Button>}
+          <Button variant="outline" onClick={() => runAnalyze(profile.websiteUrl)} disabled={analyze.isPending}><RefreshCw className={`h-4 w-4 mr-2 ${analyze.isPending ? "animate-spin" : ""}`} />Analyser på nytt</Button>
+          <Button variant="outline" onClick={saveProfile} disabled={save.isPending}><Save className="h-4 w-4 mr-2" />Lagre</Button>
+        </div>
       </div>
 
       {needsReview && (
@@ -214,12 +236,21 @@ export default function BrandBrain() {
           </div>)}
         </CardContent></Card>
         <Card><CardHeader><CardTitle>Dokumenterte fakta</CardTitle></CardHeader><CardContent className="space-y-3">
-          {facts.length === 0 && <p className="text-sm text-muted-foreground">Ingen fakta med kildesitat ennå. Legg gjerne inn nøkkelinfo manuelt i «Bedriften».</p>}
+          {facts.length === 0 && <p className="text-sm text-muted-foreground">Ingen fakta med kildesitat ennå. Legg gjerne inn nøkkelinfo manuelt nedenfor.</p>}
           {facts.map((fact, index) => <div key={index} className="rounded-lg border p-3">
-            <p className="text-sm flex gap-2"><Check className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />{fact.statement}</p>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm flex gap-2"><Check className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />{fact.statement}</p>
+              <button type="button" onClick={() => removeFact(index)} disabled={saveFacts.isPending} className="shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-50" aria-label="Slett faktum"><Trash2 className="h-4 w-4" /></button>
+            </div>
             {fact.evidenceQuote && <p className="mt-2 flex gap-2 text-xs text-muted-foreground italic"><Quote className="h-3 w-3 shrink-0 mt-0.5" />«{fact.evidenceQuote}»</p>}
-            <a href={fact.sourceUrl} target="_blank" rel="noreferrer" className="text-xs text-primary mt-2 block truncate"><Globe2 className="h-3 w-3 inline mr-1" />{fact.sourceUrl}</a>
+            {fact.sourceUrl
+              ? <a href={fact.sourceUrl} target="_blank" rel="noreferrer" className="text-xs text-primary mt-2 block truncate"><Globe2 className="h-3 w-3 inline mr-1" />{fact.sourceUrl}</a>
+              : <span className="text-xs text-muted-foreground mt-2 block">Lagt til manuelt</span>}
           </div>)}
+          <div className="flex gap-2 pt-1">
+            <Input value={newFact} onChange={(e) => setNewFact(e.target.value)} placeholder="Legg til et faktum om bedriften …" onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addFact(); } }} />
+            <Button variant="outline" onClick={addFact} disabled={saveFacts.isPending || !newFact.trim()}><Plus className="h-4 w-4" /></Button>
+          </div>
         </CardContent></Card>
       </div>}
     </main>
