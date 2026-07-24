@@ -3,7 +3,7 @@
  * Org.nr: 936300278 — Proprietary and confidential.
  */
 
-import { brandAnalysisDraftSchema } from "./services/merkehjerne/brandSchemas";
+import { brandAnalysisDraftSchema, type CrawlResponse } from "./services/merkehjerne/brandSchemas";
 import { crawlBrandSiteSecure } from "./services/merkehjerne/ingestionClient";
 import {
   buildGroundedCorpus,
@@ -67,12 +67,55 @@ function completionText(content: unknown): string {
   return "";
 }
 
+/**
+ * Fetch the site for analysis. Prefers the SSRF-hardened ingestion worker. If (and
+ * ONLY if) the worker is not configured on this deployment, it falls back to the
+ * in-process crawler (server/brandCrawler.ts), which has its own SSRF guards
+ * (normalizeWebsiteUrl + DNS-based isUnsafeAddress). The fallback never triggers
+ * for real safety blocks from the worker (robots_disallowed, unsafe_url,
+ * private_or_mixed_dns, …) — those are re-thrown so the user still sees them.
+ */
+async function crawlSite(websiteUrl: string, analysisId: string): Promise<CrawlResponse> {
+  try {
+    return await crawlBrandSiteSecure(websiteUrl, analysisId);
+  } catch (error) {
+    const code = (error && typeof error === "object" && "code" in error)
+      ? String((error as { code: unknown }).code)
+      : "";
+    if (code !== "not_configured" && code !== "invalid_config") throw error;
+    if (process.env.BRAND_INGESTION_ALLOW_FALLBACK === "false") throw error;
+
+    const { crawlBrandSite } = await import("./brandCrawler");
+    const site = await crawlBrandSite(websiteUrl);
+    return {
+      rootUrl: site.rootUrl,
+      pages: site.pages.slice(0, 8).map((page) => ({
+        url: page.url,
+        title: (page.title ?? "").slice(0, 500),
+        description: (page.description ?? "").slice(0, 1_000),
+        text: page.text.slice(0, 30_000),
+        contentType: "text/html",
+        status: 200,
+        suspiciousPromptText: false,
+      })),
+      colors: (site.colors ?? [])
+        .map((c) => c.toUpperCase())
+        .filter((c) => /^#[0-9A-F]{6}$/.test(c))
+        .slice(0, 8),
+      fonts: (site.fonts ?? []).slice(0, 6),
+      logoUrl: site.logoUrl ?? null,
+      warnings: [],
+      fetchedAt: new Date().toISOString(),
+    };
+  }
+}
+
 export async function analyzeBrandWebsite(
   websiteUrl: string,
   analysisId: string,
   previousContentHash?: string | null,
 ): Promise<BrandAnalysisResult> {
-  const site = await crawlBrandSiteSecure(websiteUrl, analysisId);
+  const site = await crawlSite(websiteUrl, analysisId);
   const grounded = buildGroundedCorpus(site);
   const crawl: CrawlMetadata = {
     websiteUrl: site.rootUrl,
