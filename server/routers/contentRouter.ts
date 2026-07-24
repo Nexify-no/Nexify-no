@@ -498,10 +498,12 @@ export const contentRouter = router({
           ]
         });
         
-        const repurposedContent = response.choices[0]?.message?.content;
-        if (typeof repurposedContent !== 'string') {
+        const { stripMarkdownEmphasis } = await import("../openaiService");
+        const rawRepurposed = response.choices[0]?.message?.content;
+        if (typeof rawRepurposed !== 'string' || !rawRepurposed) {
           throw new Error("Kunne ikke gjenbruke innhold");
         }
+        const repurposedContent = stripMarkdownEmphasis(rawRepurposed);
 
         // Persist the repurposed content as a draft so it isn't lost and shows up
         // under "Mine innlegg". Fall back to the source platform if targetPlatform

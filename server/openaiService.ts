@@ -72,6 +72,22 @@ export interface GenerateContentDeps {
   }) => Promise<string>;
 }
 
+/**
+ * Strip markdown emphasis (**bold**, ***x***, __bold__) from social copy. Models
+ * often emit these, but they render as literal asterisks in a LinkedIn/Facebook
+ * post. Hashtags (#tag), bullet dashes and single * are left untouched.
+ */
+export function stripMarkdownEmphasis(text: string): string {
+  return text
+    .replace(/\*\*\*(.+?)\*\*\*/g, "$1")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/___(.+?)___/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/\*\*/g, "")
+    .replace(/___/g, "")
+    .replace(/__/g, "");
+}
+
 export async function generateContent(
   params: GenerateContentParams,
   deps: GenerateContentDeps = {},
@@ -97,13 +113,13 @@ export async function generateContent(
     });
 
   try {
-    const content = await runCompletion({
+    const content = stripMarkdownEmphasis(await runCompletion({
       system,
       user,
       model: ENV.contentModel,
       temperature: 0.8,
       maxTokens: platform === "twitter" ? 100 : 1000,
-    });
+    }));
 
     // Ensure content doesn't exceed platform limits
     if (content.length > maxLength) {
@@ -156,7 +172,7 @@ Return ONLY the improved content, no explanations or meta-commentary.`,
       max_tokens: 1000,
     });
 
-    return completion.choices[0]?.message?.content?.trim() || originalContent;
+    return stripMarkdownEmphasis(completion.choices[0]?.message?.content?.trim() || originalContent);
   } catch (error) {
     console.error("Error improving content with OpenAI:", error);
     throw new Error("Failed to improve content. Please try again.");
