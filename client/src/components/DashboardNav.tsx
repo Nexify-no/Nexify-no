@@ -10,6 +10,7 @@ import { Menu, X, Zap, LayoutDashboard, Sparkles, FileText, MessageSquare, Setti
 import { useState, useEffect } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
+import { BrandSelector } from "@/components/BrandSelector";
 import { toast } from "sonner";
 import FloatingIdeaButton from "./FloatingIdeaButton";
 import { cn } from "@/lib/utils";
@@ -240,6 +241,9 @@ export default function DashboardNav() {
             </Button>
           </div>
         )}
+
+        {/* Active brand (FEATURE_MULTI_BRAND; renders nothing when off) */}
+        {!sidebarCollapsed && <BrandSelector />}
 
         {/* Primary Navigation */}
         <div className={cn("p-2 space-y-0.5", sidebarCollapsed && "flex flex-col items-center")}>

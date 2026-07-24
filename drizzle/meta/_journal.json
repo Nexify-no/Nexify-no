@@ -624,6 +624,13 @@
       "when": 1784851200000,
       "tag": "0088_brand_analysis_quota",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "5",
+      "when": 1785024000000,
+      "tag": "0089_multi_brand",
+      "breakpoints": true
     }
   ]
 }
