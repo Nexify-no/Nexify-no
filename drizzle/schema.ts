@@ -23,6 +23,8 @@ export const users = mysqlTable("users", {
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  /** Multi-brand: the brand the user is currently working in (FEATURE_MULTI_BRAND). */
+  activeBrandId: int("active_brand_id"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -69,6 +71,7 @@ export type InsertUser = typeof users.$inferInsert;
 export const posts = mysqlTable("posts", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("user_id").notNull(),
+  brandId: int("brand_id"),
   platform: mysqlEnum("platform", ["linkedin", "twitter", "instagram", "facebook"]).notNull(),
   tone: varchar("tone", { length: 50 }).notNull(), // professional, friendly, motivational, educational
   rawInput: text("raw_input").notNull(),
@@ -189,10 +192,38 @@ export type BrandContentIdea = {
   platform?: "linkedin" | "instagram" | "facebook" | "twitter";
 };
 
+/**
+ * Multi-brand: one customer account owns several brands; every content row hangs
+ * off a brand. account_id === users.id (no separate account table yet).
+ */
+export const brands = mysqlTable("brands", {
+  id: int("id").autoincrement().primaryKey(),
+  accountId: int("account_id").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  websiteUrl: varchar("website_url", { length: 1000 }),
+  industry: varchar("industry", { length: 255 }),
+  description: text("description"),
+  brandStatus: mysqlEnum("brand_status", ["active", "archived"]).default("active").notNull(),
+  brandProfileVersion: int("brand_profile_version").default(0).notNull(),
+  visualIdentityVersion: int("visual_identity_version").default(0).notNull(),
+  timeZone: varchar("time_zone", { length: 64 }).default("Europe/Oslo").notNull(),
+  language: varchar("language", { length: 8 }).default("no").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  archivedAt: timestamp("archived_at"),
+}, (table) => ({
+  accountIdx: index("idx_brands_account").on(table.accountId),
+}));
+
+export type Brand = typeof brands.$inferSelect;
+export type InsertBrand = typeof brands.$inferInsert;
+
 /** One server-grounded business profile ("Merkehjerne") per user. */
 export const brandProfiles = mysqlTable("brand_profiles", {
   id: int("id").autoincrement().primaryKey(),
-  userId: int("user_id").notNull().unique(),
+  userId: int("user_id").notNull(),
+  /** Multi-brand owner; null only on pre-migration legacy rows (backfilled lazily). */
+  brandId: int("brand_id"),
   status: mysqlEnum("status", ["analyzing", "ready", "failed"]).default("analyzing").notNull(),
   websiteUrl: varchar("website_url", { length: 1000 }).notNull(),
   /** Per-scan ownership token; prevents an older request overwriting a newer scan. */
@@ -229,6 +260,7 @@ export const brandProfiles = mysqlTable("brand_profiles", {
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 }, (table) => ({
   userIdIdx: index("idx_brand_profiles_user_id").on(table.userId),
+  userBrandUniq: unique("uq_brand_profiles_user_brand").on(table.userId, table.brandId),
 }));
 
 export type BrandProfile = typeof brandProfiles.$inferSelect;
@@ -271,6 +303,8 @@ export type InsertLinkedInAppCredential = typeof linkedinAppCredentials.$inferIn
 export const linkedinConnections = mysqlTable("linkedin_connections", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("user_id").notNull().unique(),
+  /** Multi-brand: which brand this connection publishes for (null = unassigned/legacy). */
+  brandId: int("brand_id"),
   accessToken: text("access_token").notNull(),
   personUrn: varchar("person_urn", { length: 255 }).notNull(), // urn:li:person:xxx
   profileName: varchar("profile_name", { length: 255 }),
@@ -546,6 +580,7 @@ export type InsertCalendarEvent = typeof calendarEvents.$inferInsert;
 export const contentSchedule = mysqlTable("content_schedule", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("user_id").notNull(),
+  brandId: int("brand_id"),
   postId: int("post_id"), // nullable - can be planned without post yet
   scheduledDate: timestamp("scheduled_date").notNull(),
   platform: mysqlEnum("platform", ["linkedin", "twitter", "instagram", "facebook"]).notNull(),
@@ -998,6 +1033,7 @@ export const scheduledPosts = mysqlTable("scheduled_posts", {
   id: int("id").autoincrement().primaryKey(),
   postId: int("post_id").notNull(),
   userId: int("user_id").notNull(),
+  brandId: int("brand_id"),
   platform: mysqlEnum("platform", ["linkedin", "twitter", "instagram", "facebook"]).notNull(),
   
   // Scheduling details
@@ -1828,6 +1864,7 @@ export const contentPlans = mysqlTable("content_plans", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("user_id").notNull(),
   workspaceId: int("workspace_id").notNull(),
+  brandId: int("brand_id"),
   idempotencyKey: varchar("idempotency_key", { length: 120 }).notNull(),
   goal: mysqlEnum("goal", ["customers", "trust", "showcase", "engagement", "offer", "mixed"]).notNull(),
   platform: mysqlEnum("plan_platform", ["linkedin", "facebook", "instagram"]).notNull(),
@@ -1865,6 +1902,7 @@ export const plannedPosts = mysqlTable("planned_posts", {
   contentPlanId: int("content_plan_id").notNull(),
   userId: int("user_id").notNull(),
   workspaceId: int("workspace_id").notNull(),
+  brandId: int("brand_id"),
   postGenerationId: varchar("post_generation_id", { length: 36 }).notNull().unique(),
   weekNumber: int("week_number").notNull(),
   suggestedDate: date("suggested_date").notNull(),

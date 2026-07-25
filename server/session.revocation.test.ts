@@ -9,7 +9,7 @@ const SECRET = "test_jwt_secret_at_least_32_chars_long__";
 const OPEN_ID = "email_test123";
 
 // Mutable user record the mocked db returns; tokenVersion starts at 0, then bumps.
-const userRow: any = { id: 1, openId: OPEN_ID, name: "T", email: "t@e.no", role: "user", tokenVersion: 0 };
+const userRow: any = { id: 1, openId: OPEN_ID, name: "T", email: "t@e.no", role: "user", activeBrandId: null, tokenVersion: 0 };
 
 vi.mock("../db", () => ({
   getUserByOpenId: vi.fn(async () => userRow),
