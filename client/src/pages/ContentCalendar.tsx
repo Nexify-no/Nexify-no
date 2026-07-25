@@ -14,6 +14,7 @@ import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/PageHeader";
 import { PAGE_DESCRIPTIONS } from "@/lib/pageDescriptions";
+import { setEditorHandoff } from "@/lib/editorHandoff";
 
 export default function ContentCalendar() {
   const [, setLocation] = useLocation();
@@ -47,13 +48,49 @@ export default function ContentCalendar() {
     setLocation(`/generate?topic=${encodeURIComponent(event.title + ": " + event.description)}`);
   };
 
-  const handleSchedulePost = () => {
-    toast.info("Planlegg innlegg-funksjon kommer snart!");
+  // MB4: picking a date now actually starts a scheduled post. The chosen date is
+  // carried through generation (editor handoff) so it survives to the Planlegg
+  // step instead of being lost — the old stub only showed a "coming soon" toast.
+  const [pickDate, setPickDate] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
+  const [pickOpen, setPickOpen] = useState(false);
+
+  const startNewPostForDate = (isoDate: string) => {
+    setEditorHandoff({ scheduledAt: new Date(`${isoDate}T09:00:00`).toISOString(), source: "calendar" });
+    toast.success("Velg hva du vil dele — datoen er tatt vare på");
+    setLocation("/generer");
   };
+
+  const handleSchedulePost = () => setPickOpen(true);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
       <main className="container py-8 max-w-7xl">
+        {pickOpen && (
+          <div className="mb-6 rounded-xl border bg-card p-4">
+            <p className="text-sm font-medium mb-3">Planlegg et innlegg</p>
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="space-y-1.5">
+                <span className="block text-xs text-muted-foreground">Dato</span>
+                <input
+                  type="date"
+                  value={pickDate}
+                  onChange={(e) => setPickDate(e.target.value)}
+                  className="rounded-lg border px-3 py-2 text-sm bg-background"
+                />
+              </label>
+              <Button onClick={() => startNewPostForDate(pickDate)}>Lag nytt innlegg</Button>
+              <Button variant="outline" onClick={() => setLocation("/posts")}>Velg et eksisterende utkast</Button>
+              <Button variant="ghost" onClick={() => setPickOpen(false)}>Avbryt</Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Datoen følger med gjennom hele genereringen — du bekrefter tidspunktet til slutt.
+            </p>
+          </div>
+        )}
+
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">

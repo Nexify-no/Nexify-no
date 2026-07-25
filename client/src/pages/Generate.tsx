@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
 import { buildBrandExamples } from "@/lib/brandExamples";
+import { ScheduleDialog } from "@/components/ScheduleDialog";
 import { takeEditorHandoff, setAbTestHandoff } from "@/lib/editorHandoff";
 import { createGenerationGuard } from "@/lib/generationGuard";
 import { Copy, Loader2, Sparkles, Wand2, Upload, X, Image as ImageIcon, Mic, Flame, Save, Cloud } from "lucide-react";
@@ -141,6 +142,9 @@ export default function Generate() {
 
   const [topic, setTopic] = useState("");
   const [mobileTab, setMobileTab] = useState<"skriv" | "resultat">("skriv"); // mobile-only: Skriv vs Resultat
+  // MB4: a date picked in the calendar survives generation and is used by Planlegg.
+  const [carriedScheduledAt, setCarriedScheduledAt] = useState<string | null>(null);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [platform, setPlatform] = useState<"linkedin" | "twitter" | "instagram" | "facebook">("linkedin");
   const [tone, setTone] = useState<"professional" | "casual" | "friendly" | "formal" | "humorous">("professional");
   const [savedPostId, setSavedPostId] = useState<number | null>(null);
@@ -378,6 +382,7 @@ export default function Generate() {
         const p = String(handoff.platform).toLowerCase();
         if (validPlatforms.includes(p)) setPlatform(p as any);
       }
+      if (handoff.scheduledAt) setCarriedScheduledAt(handoff.scheduledAt);
       if (handoff.topic) setTopic(handoff.topic);
       if (handoff.content) {
         setGeneratedContent(handoff.content);
@@ -736,6 +741,12 @@ export default function Generate() {
                 )}
               </div>
 
+              {carriedScheduledAt && (
+                <div className="flex items-center gap-2.5 rounded-xl border border-primary/30 bg-primary/5 p-3.5 text-sm">
+                  <Calendar className="h-4 w-4 text-primary" />
+                  Planlegges til {new Date(carriedScheduledAt).toLocaleDateString("nb-NO")} — du bekrefter tidspunktet etterpå
+                </div>
+              )}
               <div className="flex items-center gap-2.5 rounded-xl border bg-muted/30 p-3.5 text-sm text-muted-foreground">
                 <ImageIcon className="h-4 w-4" />
                 Et passende bilde lages automatisk med innlegget
@@ -797,6 +808,10 @@ export default function Generate() {
                 <Button variant="outline" className="h-11" onClick={() => setLocation("/posts")}>
                   Se mine innlegg
                 </Button>
+                <Button variant="outline" className="h-11" onClick={() => setScheduleOpen(true)} disabled={!savedPostId}>
+                  <Calendar className="h-4 w-4 mr-2" />
+                  Planlegg
+                </Button>
                 <Button variant="ghost" className="h-11" onClick={startOver}>
                   Skriv nytt
                 </Button>
@@ -804,6 +819,15 @@ export default function Generate() {
             </CardContent>
           </Card>
         )}
+        <ScheduleDialog
+          open={scheduleOpen}
+          onClose={() => setScheduleOpen(false)}
+          postId={savedPostId}
+          platform={platform}
+          content={generatedContent}
+          imageUrl={uploadedImage}
+          defaultDate={carriedScheduledAt}
+        />
       </main>
     );
   }
