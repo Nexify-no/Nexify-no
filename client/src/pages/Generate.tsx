@@ -276,6 +276,9 @@ export default function Generate() {
   const [imageStyle, setImageStyle] = useState<"minimalist" | "bold" | "professional" | "creative">("professional");
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [generatedImagePrompt, setGeneratedImagePrompt] = useState<string | null>(null);
+  // MB4: the post text the current AI image was generated for. When the user edits
+  // the text afterwards the image may no longer match — we say so and offer a refresh.
+  const [imageForContent, setImageForContent] = useState<string | null>(null);
 
   const { data: subscription } = trpc.user.getSubscription.useQuery();
   // View mode (simple = one guided screen; advanced = full studio). Saved per account.
@@ -519,7 +522,7 @@ export default function Generate() {
     // An AI-generated image (marked by its prompt) belongs to the previous post
     // -> drop it. A fresh user upload (no prompt) is kept and forwarded.
     const carryImage = generatedImagePrompt ? undefined : (uploadedImage || undefined);
-    if (generatedImagePrompt) { setUploadedImage(null); setGeneratedImagePrompt(null); }
+    if (generatedImagePrompt) { setUploadedImage(null); setGeneratedImagePrompt(null); setImageForContent(null); }
     generateMutation.mutate({ ...buildOptions(), imageUrl: carryImage });
   };
 
@@ -581,6 +584,7 @@ export default function Generate() {
       if (res?.url) {
         setUploadedImage(res.url);
         setGeneratedImagePrompt(res.prompt || topic);
+        setImageForContent(generatedContent || topic);
         // Attach with THIS attempt's id; the server rejects it if a newer attempt
         // has since claimed the slot, so the wrong image never sticks to a post.
         if (pid) {
@@ -661,6 +665,13 @@ export default function Generate() {
       destinationsQuery.data?.platforms?.find((p) => p.platform === platform && p.connected)?.destinationName ?? null;
     // MB3: examples come from the ACTIVE brand's Merkehjerne, never hard-coded.
     const examples = buildBrandExamples(brandProfileQuery.data ?? null);
+    // Alt text for the generated image (a11y) + "text changed since the image" check.
+    const imageAlt = generatedContent
+      ? `Illustrasjon til innlegget: ${generatedContent.replace(/\s+/g, " ").trim().slice(0, 120)}`
+      : "Illustrasjonsbilde til innlegget";
+    const imageMayMismatch =
+      !!uploadedImage && !!generatedImagePrompt && !!imageForContent && imageForContent !== generatedContent;
+
     const startOver = () => {
       genGuardRef.current.start();
       setGeneratedContent("");
@@ -783,7 +794,24 @@ export default function Generate() {
                 <CheckCircle2 className="h-4 w-4" />
                 Ferdig! Lagret i «Mine innlegg».
               </div>
-              {uploadedImage && <img src={uploadedImage} alt="" className="w-full rounded-xl border" />}
+              {uploadedImage && (
+                <>
+                  <img src={uploadedImage} alt={imageAlt} className="w-full rounded-xl border" />
+                  {imageMayMismatch && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
+                      <span className="flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                        Du har endret teksten — bildet passer kanskje ikke lenger.
+                      </span>
+                      <Button size="sm" variant="outline" onClick={handleGenerateAIImage} disabled={isGeneratingImage}>
+                        {isGeneratingImage
+                          ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Oppdaterer …</>
+                          : <>Oppdater bilde</>}
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
               {isGeneratingImage && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Loader2 className="h-3 w-3 animate-spin" />
