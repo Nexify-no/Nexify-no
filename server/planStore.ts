@@ -25,7 +25,7 @@ import { getDb } from "./db";
 import { LEASE_MS, derivePlanStatus, type RetryDecision } from "./planLease";
 import { verifyImageUrl } from "./imageLifecycle";
 import { canApprove, canBulkApprove, plannedPostToDraft } from "./planApprove";
-import { buildEnkelImagePrompt } from "./planImagePrompt";
+import { buildEnkelImagePrompt, buildImageAltText } from "./planImagePrompt";
 import type { ClaimedPlan, ClaimedPost, PostImageOutcome } from "./planWorker";
 import type { PlannedItem } from "./planContent";
 
@@ -226,19 +226,6 @@ export async function heartbeat(plan: ClaimedPlan, post: ClaimedPost | null): Pr
  * Persists text and (Fase 2) the best-effort image outcome together, so a
  * refresh/restart never shows text without its already-decided image state.
  */
-/**
- * Alt text for a generated image (MB4, a11y). Derived from the post's own text so
- * it describes what the picture illustrates; never invents details.
- */
-export function buildImageAltText(contentType: string, content: string): string {
-  const clean = (content ?? "").replace(/\s+/g, " ").trim();
-  const firstSentence = clean.split(/(?<=[.!?])\s/)[0] ?? "";
-  const base = (firstSentence || clean).slice(0, 180).trim();
-  return base
-    ? `Illustrasjon til innlegget: ${base}`
-    : `Illustrasjonsbilde for innhold av typen ${contentType}`;
-}
-
 export async function savePostSuccess(post: ClaimedPost, content: string, image?: PostImageOutcome): Promise<boolean> {
   const db = await requireDb();
   const now = new Date();
