@@ -543,14 +543,19 @@ export const contentRouter = router({
       const db = await getDb();
       if (!db) throw new Error("Database not available");
       const { posts } = await import("../../drizzle/schema");
-      const { eq } = await import("drizzle-orm");
-      
-      // Get all posts for the user (including scheduled, draft, and published)
+      const { and, eq, isNull, or } = await import("drizzle-orm");
+      const { getActiveBrandIdIfEnabled } = await import("../services/brands");
+
+      // Calendar shows the ACTIVE brand's posts (MB1). Legacy rows without a
+      // brand stay visible so nothing disappears after the migration.
+      const brandId = await getActiveBrandIdIfEnabled(ctx.user.id);
       const userPosts = await db
         .select()
         .from(posts)
-        .where(eq(posts.userId, ctx.user.id));
-      
+        .where(brandId == null
+          ? eq(posts.userId, ctx.user.id)
+          : and(eq(posts.userId, ctx.user.id), or(eq(posts.brandId, brandId), isNull(posts.brandId))));
+
       return userPosts;
     }),
     
