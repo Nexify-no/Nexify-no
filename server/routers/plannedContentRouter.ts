@@ -44,9 +44,50 @@ export const plannedContentRouter = router({
 
   preview: protectedProcedure
     .input(z.object({ goal: goalSchema, platform: platformSchema, postsPerWeek: perWeekSchema }))
-    .query(({ input }) => {
+    .query(async ({ ctx, input }) => {
       const posts = totalPosts(input.postsPerWeek);
-      return { weeks: 4, posts, images: posts, contentQuotaNeeded: posts, imageQuotaNeeded: posts };
+      // MB3: show the user WHICH brand this plan is for and what it costs of the
+      // remaining monthly quota before anything is generated.
+      let brandName = "";
+      let postsRemaining: number | null = null;
+      let imagesRemaining: number | null = null;
+      try {
+        const { getDb, getUserSubscription } = await import("../db");
+        const db = await getDb();
+        if (db) {
+          const { brandProfiles, subscriptions, subscriptionPlans, userUsageTracking } = await import("../../drizzle/schema");
+          const { and, eq, gte, lte } = await import("drizzle-orm");
+          const [bp] = await db.select().from(brandProfiles).where(eq(brandProfiles.userId, ctx.user.id)).limit(1);
+          brandName = bp?.companyName ?? "";
+
+          const sub = await getUserSubscription(ctx.user.id);
+          if (sub?.planId) {
+            const [plan] = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.id, sub.planId)).limit(1);
+            const now = new Date();
+            const [usage] = await db.select().from(userUsageTracking).where(and(
+              eq(userUsageTracking.userId, ctx.user.id),
+              eq(userUsageTracking.subscriptionId, sub.id),
+              gte(userUsageTracking.periodEndDate, now),
+              lte(userUsageTracking.periodStartDate, now),
+            )).limit(1);
+            if (plan?.postsPerMonth != null) postsRemaining = Math.max(0, plan.postsPerMonth - (usage?.postsUsed ?? 0));
+            if (plan?.imagesPerMonth != null) imagesRemaining = Math.max(0, plan.imagesPerMonth - (usage?.imagesUsed ?? 0));
+          }
+          void subscriptions;
+        }
+      } catch {
+        /* preview must never block the wizard */
+      }
+      return {
+        weeks: 4,
+        posts,
+        images: posts,
+        contentQuotaNeeded: posts,
+        imageQuotaNeeded: posts,
+        brandName,
+        postsRemaining,
+        imagesRemaining,
+      };
     }),
 
   create: aiProcedure.input(createInput).mutation(async ({ ctx, input }) => {
