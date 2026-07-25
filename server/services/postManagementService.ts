@@ -18,7 +18,7 @@ import {
   postAuditLog,
   backupSchedule,
 } from "../../drizzle/schema";
-import { eq, and, lte, desc } from "drizzle-orm";
+import { eq, and, or, isNull, lte, desc } from "drizzle-orm";
 
 /**
  * Create a new post
@@ -86,7 +86,9 @@ export async function getUserPosts(
   userId: number,
   limit: number = 20,
   offset: number = 0,
-  status?: string
+  status?: string,
+  /** Multi-brand (MB1): restrict to one brand; legacy NULL-brand rows stay visible. */
+  brandId?: number | null
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -94,6 +96,9 @@ export async function getUserPosts(
   const conditions = [eq(posts.userId, userId)];
   if (status) {
     conditions.push(eq(posts.status, status as any));
+  }
+  if (brandId != null) {
+    conditions.push(or(eq(posts.brandId, brandId), isNull(posts.brandId))!);
   }
 
   const result = await db

@@ -110,3 +110,18 @@ export async function ensureDefaultBrand(accountId: number): Promise<number> {
 export async function getActiveBrandId(accountId: number): Promise<number> {
   return ensureDefaultBrand(accountId);
 }
+
+/**
+ * The active brand id, or null when multi-brand is OFF (so callers fall back to
+ * the previous account-wide behaviour). Never throws — scoping must not break a
+ * read path.
+ */
+export async function getActiveBrandIdIfEnabled(accountId: number): Promise<number | null> {
+  try {
+    const { ENV } = await import("../_core/env");
+    if (!ENV.featureMultiBrand) return null;
+    return await getActiveBrandId(accountId);
+  } catch {
+    return null;
+  }
+}
