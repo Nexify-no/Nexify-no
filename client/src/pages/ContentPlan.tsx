@@ -158,8 +158,24 @@ function PostCard({ planId, post }: { planId: number; post: PostRow }) {
               <Check className="h-3 w-3" aria-hidden="true" />{saved ? "Lagret" : "Godkjent"}
             </span>
           )}
-          {post.verificationStatus === "high_risk" && (
-            <span className="text-xs rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 px-2 py-0.5">Sjekk manuelt</span>
+          {post.generationStatus === "done" && post.verificationStatus !== "verified" && (
+            <span
+              className={`text-xs rounded-full px-2 py-0.5 ${
+                post.verificationStatus === "high_risk"
+                  ? "bg-red-500/10 text-red-600 dark:text-red-400"
+                  : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+              }`}
+              title="Innhold som ikke er dokumentert i Merkehjernen må sjekkes før det brukes"
+            >
+              {post.verificationStatus === "high_risk"
+                ? "Høy risiko — sjekk manuelt"
+                : post.verificationStatus === "unsupported"
+                  ? "Udokumentert påstand"
+                  : "Sjekk før bruk"}
+            </span>
+          )}
+          {post.generationStatus === "done" && post.verificationStatus === "verified" && (
+            <span className="text-xs rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5">Kontrollert</span>
           )}
         </div>
 
@@ -272,7 +288,9 @@ export default function ContentPlan() {
     const posts = (planQuery.data?.posts ?? []) as PostRow[];
     const approved = posts.filter((p) => p.approvalStatus === "approved").length;
     const approvedUnsaved = posts.filter((p) => p.approvalStatus === "approved" && p.savedPostId == null).length;
-    const approvable = posts.filter((p) => p.approvalStatus !== "approved" && p.generationStatus === "done" && p.verificationStatus !== "high_risk").length;
+    // Mirrors the server rule (canBulkApprove): bulk approval only sweeps up
+    // fully verified posts — anything flagged must be opened deliberately.
+    const approvable = posts.filter((p) => p.approvalStatus !== "approved" && p.generationStatus === "done" && p.verificationStatus === "verified").length;
     return { approved, approvedUnsaved, approvable };
   }, [planQuery.data?.posts]);
 
@@ -345,7 +363,7 @@ export default function ContentPlan() {
             disabled={approveAll.isPending || counts.approvable === 0}
             onClick={() => approveAll.mutate({ planId })}
           >
-            <CheckCheck className="h-4 w-4 mr-1.5" aria-hidden="true" />Godkjenn alle{counts.approvable > 0 ? ` (${counts.approvable})` : ""}
+            <CheckCheck className="h-4 w-4 mr-1.5" aria-hidden="true" />Godkjenn alle sikre{counts.approvable > 0 ? ` (${counts.approvable})` : ""}
           </Button>
           <Button
             className="min-h-11"

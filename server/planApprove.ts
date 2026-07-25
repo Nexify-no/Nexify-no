@@ -26,6 +26,15 @@ export function canApprove(post: ApprovablePost): boolean {
   return post.generationStatus === "done" && post.verificationStatus !== "high_risk";
 }
 
+/**
+ * Bulk approval is stricter than single approval (MB4): "Godkjenn alle sikre"
+ * may ONLY sweep up fully verified posts. Anything flagged needs_review /
+ * unsupported / high_risk must be opened and approved deliberately.
+ */
+export function canBulkApprove(post: ApprovablePost): boolean {
+  return post.generationStatus === "done" && post.verificationStatus === "verified";
+}
+
 export interface PlannedPostForDraft {
   userId: number;
   platform: "linkedin" | "facebook" | "instagram";
