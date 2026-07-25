@@ -71,3 +71,16 @@ function buildBrandImageCue(brand?: { industry?: string | null; brandColors?: re
   if (colors.length) parts.push(`with a colour palette inspired by ${colors.join(", ")}`);
   return parts.join(", ");
 }
+
+/**
+ * Alt text for a generated image (MB4, a11y). Derived from the post's own text so
+ * it describes what the picture illustrates; never invents details.
+ */
+export function buildImageAltText(contentType: string, content: string): string {
+  const clean = (content ?? "").replace(/\s+/g, " ").trim();
+  const firstSentence = clean.split(/(?<=[.!?])\s/)[0] ?? "";
+  const base = (firstSentence || clean).slice(0, 180).trim();
+  return base
+    ? `Illustrasjon til innlegget: ${base}`
+    : `Illustrasjonsbilde for innhold av typen ${contentType}`;
+}
