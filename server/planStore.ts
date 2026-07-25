@@ -19,12 +19,12 @@
  * quota and slot-ownership (image_generation_id) isolation.
  */
 import { randomUUID } from "crypto";
-import { and, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import { contentPlans, plannedPosts, type ContentPlan, type PlannedPost } from "../drizzle/schema";
 import { getDb } from "./db";
 import { LEASE_MS, derivePlanStatus, type RetryDecision } from "./planLease";
 import { verifyImageUrl } from "./imageLifecycle";
-import { canApprove, plannedPostToDraft } from "./planApprove";
+import { canApprove, canBulkApprove, plannedPostToDraft } from "./planApprove";
 import { buildEnkelImagePrompt } from "./planImagePrompt";
 import type { ClaimedPlan, ClaimedPost, PostImageOutcome } from "./planWorker";
 import type { PlannedItem } from "./planContent";
@@ -226,9 +226,53 @@ export async function heartbeat(plan: ClaimedPlan, post: ClaimedPost | null): Pr
  * Persists text and (Fase 2) the best-effort image outcome together, so a
  * refresh/restart never shows text without its already-decided image state.
  */
+/**
+ * Alt text for a generated image (MB4, a11y). Derived from the post's own text so
+ * it describes what the picture illustrates; never invents details.
+ */
+export function buildImageAltText(contentType: string, content: string): string {
+  const clean = (content ?? "").replace(/\s+/g, " ").trim();
+  const firstSentence = clean.split(/(?<=[.!?])\s/)[0] ?? "";
+  const base = (firstSentence || clean).slice(0, 180).trim();
+  return base
+    ? `Illustrasjon til innlegget: ${base}`
+    : `Illustrasjonsbilde for innhold av typen ${contentType}`;
+}
+
 export async function savePostSuccess(post: ClaimedPost, content: string, image?: PostImageOutcome): Promise<boolean> {
   const db = await requireDb();
   const now = new Date();
+
+  // The plan row carries the FROZEN brand snapshot + versions (MB1/MB4).
+  const [planRow] = await db.select().from(contentPlans).where(eq(contentPlans.id, post.planId)).limit(1);
+
+  // MB4: grade the generated text against the plan's FROZEN brand snapshot and
+  // its own suggested publish date (seasonal check), plus the plan's other posts
+  // (repetition check). Never trust the model's own claims.
+  let verificationStatus: "verified" | "needs_review" | "unsupported" | "high_risk" = "needs_review";
+  try {
+    const { verifyPostContent } = await import("./services/verification/contentVerification");
+    const snapshot = (planRow?.brandSnapshot ?? {}) as {
+      facts?: Array<{ statement?: string | null; evidenceQuote?: string | null }> | null;
+      summary?: string | null;
+      offers?: string[] | null;
+      differentiators?: string[] | null;
+      websiteUrl?: string | null;
+    };
+    const siblings = await db
+      .select({ content: plannedPosts.content })
+      .from(plannedPosts)
+      .where(and(eq(plannedPosts.contentPlanId, post.planId), ne(plannedPosts.id, post.id)));
+    verificationStatus = verifyPostContent({
+      content,
+      brand: snapshot,
+      publishAt: post.suggestedDate ? new Date(post.suggestedDate) : null,
+      siblingContents: siblings.map((r) => r.content ?? "").filter(Boolean),
+    }).status;
+  } catch {
+    // Verification must never block the worker — fall back to manual review.
+    verificationStatus = "needs_review";
+  }
 
   // Map the best-effort image outcome onto the row's image columns.
   const imageFields: Partial<typeof plannedPosts.$inferInsert> = {};
@@ -237,6 +281,11 @@ export async function savePostSuccess(post: ClaimedPost, content: string, image?
       imageFields.imageUrl = image.url;
       imageFields.imageStatus = "completed";
       imageFields.imageGenerationId = image.generationId;
+      // MB4: bind the image to the brand + visual-identity version it was made
+      // for, and give it alt text so it is accessible when published.
+      imageFields.imageAltText = buildImageAltText(post.contentType, content).slice(0, 300);
+      imageFields.imageBrandId = planRow?.brandId ?? null;
+      imageFields.imageVisualIdentityVersion = planRow?.visualIdentityVersion ?? null;
     } else if (image.status === "failed") {
       imageFields.imageStatus = "failed";
     } else {
@@ -247,7 +296,7 @@ export async function savePostSuccess(post: ClaimedPost, content: string, image?
   const res = await db.update(plannedPosts).set({
     content,
     generationStatus: "done",
-    verificationStatus: "needs_review",
+    verificationStatus,
     lastError: null,
     leaseToken: null,
     lockedBy: null,
@@ -492,7 +541,7 @@ export async function approveAllDone(planId: number, userId: number): Promise<nu
   let n = 0;
   for (const post of result.posts) {
     if (post.approvalStatus === "approved") continue;
-    if (!canApprove({ generationStatus: post.generationStatus, verificationStatus: post.verificationStatus })) continue;
+    if (!canBulkApprove({ generationStatus: post.generationStatus, verificationStatus: post.verificationStatus })) continue;
     await db.update(plannedPosts).set({ approvalStatus: "approved" })
       .where(and(eq(plannedPosts.id, post.id), eq(plannedPosts.userId, userId)));
     n++;

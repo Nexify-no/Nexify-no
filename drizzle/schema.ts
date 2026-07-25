@@ -89,6 +89,10 @@ export const posts = mysqlTable("posts", {
   // generation no longer owns the slot is rejected server-side.
   imageStatus: mysqlEnum("image_status", ["none", "pending", "generating", "verifying", "completed", "failed"]).default("none").notNull(),
   imageGenerationId: varchar("image_generation_id", { length: 64 }),
+  /** MB4: an image belongs to ONE brand + visual-identity version; alt text for a11y. */
+  imageAltText: varchar("image_alt_text", { length: 300 }),
+  imageBrandId: int("image_brand_id"),
+  imageVisualIdentityVersion: int("image_visual_identity_version"),
   scheduledFor: timestamp("scheduled_for"),
   publishedAt: timestamp("published_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -1967,6 +1971,9 @@ export const plannedPosts = mysqlTable("planned_posts", {
   imageStatus: mysqlEnum("planned_image_status", ["none", "pending", "generating", "verifying", "completed", "failed", "skipped"]).default("none").notNull(),
   imageGenerationId: varchar("image_generation_id", { length: 64 }),
   imageIdempotencyKey: varchar("image_idempotency_key", { length: 80 }),
+  imageAltText: varchar("image_alt_text", { length: 300 }),
+  imageBrandId: int("image_brand_id"),
+  imageVisualIdentityVersion: int("image_visual_identity_version"),
   verificationStatus: mysqlEnum("verification_status", ["verified", "needs_review", "unsupported", "high_risk"]).default("needs_review").notNull(),
   approvalStatus: mysqlEnum("approval_status", ["draft", "approved", "needs_edit"]).default("draft").notNull(),
   generationStatus: mysqlEnum("generation_status", ["pending", "generating", "done", "failed"]).default("pending").notNull(),
