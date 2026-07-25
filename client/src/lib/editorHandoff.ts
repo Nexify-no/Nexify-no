@@ -22,6 +22,11 @@ export interface EditorHandoff {
   platform?: string;
   /** Origin of the handoff, used to pick the right confirmation toast. */
   source?: "repurpose" | "abtest" | string;
+  /**
+   * A date picked in the calendar, carried ALL the way through generation so the
+   * post can be scheduled for it afterwards (MB4). ISO-8601 string.
+   */
+  scheduledAt?: string;
 }
 
 let pending: EditorHandoff | null = null;
