@@ -214,6 +214,10 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
         content: z.string().min(1).max(3000),
         postId: z.number().optional(),
         imageUrl: z.string().optional(),
+        /** Multi-brand: publish only through this brand's destination (MB2). */
+        brandId: z.number().int().positive().optional(),
+        /** Client-supplied key so a double click can never publish twice (MB2). */
+        idempotencyKey: z.string().trim().min(8).max(64).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { getDb } = await import("../db");
@@ -238,6 +242,64 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
           throw new Error("LinkedIn token expired. Please reconnect.");
         }
         
+        // ── Multi-brand safety (MB2) ─────────────────────────────────────
+        // A post may only go out through a connection owned by the SAME brand.
+        // Also reserve an idempotency row so a repeated click cannot double-post.
+        const { ENV: _ENV } = await import("../_core/env");
+        let publicationId: number | null = null;
+        let publishBrandId: number | null = null;
+        if (_ENV.featureMultiBrand) {
+          const { getActiveBrandId } = await import("../services/brands");
+          const { getDestination, assertBrandOwnsConnection } = await import("../services/socialDestinations");
+          const { publications } = await import("../../drizzle/schema");
+
+          publishBrandId = input.brandId ?? (await getActiveBrandId(ctx.user.id));
+          // The post's own brand wins when it is known (never publish A as B).
+          if (input.postId) {
+            const [owned] = await db.select().from(posts)
+              .where(and(eq(posts.id, input.postId), eq(posts.userId, ctx.user.id))).limit(1);
+            if (!owned) throw new Error("Innlegget finnes ikke.");
+            if (owned.brandId != null) publishBrandId = owned.brandId;
+          }
+
+          const destination = await getDestination(ctx.user.id, publishBrandId, "linkedin");
+          if (!destination) {
+            throw new Error("Denne merkevaren har ingen tilkoblet LinkedIn-side. Koble til før du publiserer.");
+          }
+          assertBrandOwnsConnection({
+            accountId: ctx.user.id,
+            postBrandId: publishBrandId,
+            connectionBrandId: destination.brandId,
+            platform: "linkedin",
+            postId: input.postId,
+          });
+
+          if (input.idempotencyKey) {
+            try {
+              await db.insert(publications).values({
+                accountId: ctx.user.id,
+                brandId: publishBrandId,
+                postId: input.postId ?? 0,
+                connectionId: destination.id,
+                platform: "linkedin",
+                destinationId: destination.destinationId,
+                destinationName: destination.destinationName,
+                idempotencyKey: input.idempotencyKey,
+                status: "pending",
+              });
+              const [row] = await db.select().from(publications)
+                .where(and(
+                  eq(publications.accountId, ctx.user.id),
+                  eq(publications.idempotencyKey, input.idempotencyKey),
+                )).limit(1);
+              publicationId = row?.id ?? null;
+            } catch {
+              // Unique(account, idempotency_key) hit -> this exact publish already ran.
+              throw new Error("Dette innlegget er allerede publisert.");
+            }
+          }
+        }
+
         // Create post (tokens are encrypted at rest). Company-Page posting uses
         // the SEPARATE org token from the Community-Management app; personal
         // posting uses the member token.
@@ -291,6 +353,18 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
         }
         // result.id is the LinkedIn platform post id (URN/share id) returned by createLinkedInPost.
         if (publishedPostId) await recordPostAnalytics(ctx.user.id, publishedPostId, "linkedin", publishedAt, result?.id ?? null);
+
+        // Close the publication record with the provider response (MB2 audit trail).
+        if (publicationId != null) {
+          const { publications } = await import("../../drizzle/schema");
+          await db.update(publications).set({
+            status: "published",
+            providerPostId: result?.id ?? null,
+            providerResponse: JSON.stringify(result ?? {}).slice(0, 2_000),
+            publishedAt,
+            postId: publishedPostId ?? 0,
+          }).where(eq(publications.id, publicationId));
+        }
 
         return result;
       }),

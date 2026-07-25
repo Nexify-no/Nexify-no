@@ -329,6 +329,58 @@ export type LinkedInConnection = typeof linkedinConnections.$inferSelect;
 export type InsertLinkedInConnection = typeof linkedinConnections.$inferInsert;
 
 /**
+ * Multi-brand social destinations (MB2). One row per (brand, platform) target.
+ * `status = needs_brand_assignment` marks a migrated connection whose brand could
+ * not be determined safely — the user picks the brand before it can publish.
+ */
+export const brandSocialConnections = mysqlTable("brand_social_connections", {
+  id: int("id").autoincrement().primaryKey(),
+  accountId: int("account_id").notNull(),
+  brandId: int("brand_id"),
+  platform: mysqlEnum("platform", ["linkedin", "facebook", "instagram", "twitter"]).notNull(),
+  /** FK to the provider-specific token row (e.g. linkedin_connections.id). */
+  providerConnectionId: int("provider_connection_id"),
+  destinationId: varchar("destination_id", { length: 255 }),
+  destinationName: varchar("destination_name", { length: 255 }),
+  destinationType: mysqlEnum("destination_type", ["person", "page", "organization", "account"]).default("person").notNull(),
+  status: mysqlEnum("status", ["active", "needs_brand_assignment", "expired", "revoked"]).default("active").notNull(),
+  tokenExpiresAt: timestamp("token_expires_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  accountIdx: index("idx_bsc_account").on(table.accountId),
+  brandPlatformIdx: index("idx_bsc_brand_platform").on(table.brandId, table.platform),
+}));
+
+export type BrandSocialConnection = typeof brandSocialConnections.$inferSelect;
+
+/** Publish attempts: idempotent, auditable, per brand + destination (MB2). */
+export const publications = mysqlTable("publications", {
+  id: int("id").autoincrement().primaryKey(),
+  accountId: int("account_id").notNull(),
+  brandId: int("brand_id"),
+  postId: int("post_id").notNull(),
+  connectionId: int("connection_id"),
+  platform: mysqlEnum("platform", ["linkedin", "facebook", "instagram", "twitter"]).notNull(),
+  destinationId: varchar("destination_id", { length: 255 }),
+  destinationName: varchar("destination_name", { length: 255 }),
+  idempotencyKey: varchar("idempotency_key", { length: 64 }).notNull(),
+  status: mysqlEnum("status", ["pending", "published", "failed"]).default("pending").notNull(),
+  providerPostId: varchar("provider_post_id", { length: 255 }),
+  providerResponse: text("provider_response"),
+  errorMessage: varchar("error_message", { length: 500 }),
+  publishedAt: timestamp("published_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  postIdx: index("idx_publications_post").on(table.postId),
+  brandIdx: index("idx_publications_brand").on(table.brandId),
+  idemUniq: unique("uq_publications_idem").on(table.accountId, table.idempotencyKey),
+}));
+
+export type Publication = typeof publications.$inferSelect;
+
+/**
  * Content Analysis table - AI Content Coach feature
  * Stores analysis and scoring for each generated post
  */

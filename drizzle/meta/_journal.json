@@ -631,6 +631,13 @@
       "when": 1785024000000,
       "tag": "0089_multi_brand",
       "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "5",
+      "when": 1785110400000,
+      "tag": "0090_brand_social_connections",
+      "breakpoints": true
     }
   ]
 }
