@@ -385,7 +385,8 @@ export const contentRouter = router({
       
     list: protectedProcedure.query(async ({ ctx }) => {
       const { getUserPosts } = await import("../db");
-      return getUserPosts(ctx.user.id);
+      const { getActiveBrandIdIfEnabled } = await import("../services/brands");
+      return getUserPosts(ctx.user.id, await getActiveBrandIdIfEnabled(ctx.user.id));
     }),
     
     getActivityData: protectedProcedure.query(async ({ ctx }) => {

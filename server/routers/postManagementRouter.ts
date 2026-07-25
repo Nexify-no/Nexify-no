@@ -40,11 +40,13 @@ export const postManagementRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
+      const { getActiveBrandIdIfEnabled } = await import("../services/brands");
       const userPosts = await getUserPosts(
         ctx.user.id,
         input.limit,
         input.offset,
-        input.status
+        input.status,
+        await getActiveBrandIdIfEnabled(ctx.user.id)
       );
       return {
         success: true,

@@ -4,7 +4,7 @@
  * Unauthorized copying, distribution, or use is strictly prohibited.
  */
 
-import { desc, eq, and, count, gte, lte, lt, sql, isNotNull, inArray } from "drizzle-orm";
+import { desc, eq, and, or, isNull, count, gte, lte, lt, sql, isNotNull, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import * as schema from "../drizzle/schema";
 import { sanitizeHtml } from "./_core/sanitizeHtml";
@@ -629,17 +629,38 @@ export async function getUserById(userId: number) {
 export async function createPost(post: InsertPost): Promise<Post> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  const [result] = await db.insert(posts).values(post).$returningId();
+
+  // Multi-brand (MB1): stamp the author's ACTIVE brand when the caller didn't
+  // pass one, so every new post belongs to exactly one brand. No-op when the
+  // feature is off, and never blocks the write.
+  let values = post;
+  if (post.brandId == null && post.userId != null) {
+    try {
+      const { getActiveBrandIdIfEnabled } = await import("./services/brands");
+      const brandId = await getActiveBrandIdIfEnabled(post.userId);
+      if (brandId != null) values = { ...post, brandId };
+    } catch { /* keep the post unscoped rather than failing the write */ }
+  }
+
+  const [result] = await db.insert(posts).values(values).$returningId();
   const [newPost] = await db.select().from(posts).where(eq(posts.id, result.id));
   return newPost!;
 }
 
-export async function getUserPosts(userId: number): Promise<Post[]> {
+/**
+ * Posts for a user. When `brandId` is given (multi-brand, MB1) only that brand's
+ * posts are returned — legacy rows with a NULL brand_id stay visible so nothing
+ * disappears after the migration.
+ */
+export async function getUserPosts(userId: number, brandId?: number | null): Promise<Post[]> {
   const db = await getDb();
   if (!db) return [];
-  
-  return db.select().from(posts).where(eq(posts.userId, userId)).orderBy(desc(posts.createdAt));
+
+  const where = brandId == null
+    ? eq(posts.userId, userId)
+    : and(eq(posts.userId, userId), or(eq(posts.brandId, brandId), isNull(posts.brandId)));
+
+  return db.select().from(posts).where(where).orderBy(desc(posts.createdAt));
 }
 
 export async function getPostById(postId: number): Promise<Post | undefined> {
