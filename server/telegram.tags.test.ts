@@ -36,7 +36,7 @@ describe("Telegram Tag Management Procedures", () => {
     avatarUrl: null,
     createdAt: new Date(),
     updatedAt: new Date(),
-    lastSignedIn: new Date(), passwordHash: null, emailVerified: null, twoFactorSecret: null, twoFactorEnabled: 0, twoFactorBackupCodes: null, tokenVersion: 0,
+    lastSignedIn: new Date(), passwordHash: null, emailVerified: null, twoFactorSecret: null, twoFactorEnabled: 0, twoFactorBackupCodes: null, activeBrandId: null, tokenVersion: 0,
   };
 
   const mockContext: TrpcContext = {
