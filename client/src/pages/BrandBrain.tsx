@@ -45,6 +45,19 @@ function ListField({ label, value, onChange, placeholder }: { label: string; val
   return <div className="space-y-2"><Label>{label}</Label><Textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={4} /><p className="text-xs text-muted-foreground">Én per linje eller skill med komma.</p></div>;
 }
 
+function needsReviewBanner(warningCount: number, factCount: number) {
+  if (warningCount === 0 && factCount > 0) return null;
+  return (
+    <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+      <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+      <p className="text-sm">
+        Se ekstra nøye gjennom dette.{warningCount > 0 ? ` Vi filtrerte bort mistenkelig instruksjonstekst fra ${warningCount} kilde(r).` : ""}
+        {factCount === 0 ? " Vi fant ingen dokumenterte fakta med kildesitat." : ""}
+      </p>
+    </div>
+  );
+}
+
 function Shell({ children }: { children: ReactNode }) {
   return (
     <main className="container max-w-4xl py-8 px-4">
@@ -68,6 +81,8 @@ export default function BrandBrain() {
   const [tab, setTab] = useState<Tab>("company");
   const [form, setForm] = useState<Editable>(EMPTY);
   const [newFact, setNewFact] = useState("");
+  // MB3: lets the user skip the confirm screen and edit fields directly.
+  const [forceEdit, setForceEdit] = useState(false);
 
   useEffect(() => {
     if (!profile) return;
@@ -187,6 +202,98 @@ export default function BrandBrain() {
             </div>
           </CardContent>
         </Card>
+      </Shell>
+    );
+  }
+
+  // ── STATE: analysed but NOT confirmed → review screen (MB3) ───────────────
+  // Nothing is generated from a brand until the user has seen and confirmed what
+  // we read from the website.
+  if (!profile.confirmedAt && !forceEdit) {
+    const line = (label: string, value: string) =>
+      value ? (
+        <div key={label} className="flex flex-col gap-0.5 py-2 border-b last:border-b-0">
+          <dt className="text-xs text-muted-foreground">{label}</dt>
+          <dd className="text-sm">{value}</dd>
+        </div>
+      ) : null;
+    const joined = (v: unknown, n = 6) =>
+      Array.isArray(v) ? (v as unknown[]).filter((x): x is string => typeof x === "string").slice(0, n).join(" · ") : "";
+    const colors = (profile.brandColors ?? []) as string[];
+    return (
+      <Shell>
+        <div className="flex items-center gap-3 mb-1">
+          <BrainCircuit className="h-7 w-7 text-primary" />
+          <h1 className="text-2xl font-bold">Stemmer dette?</h1>
+        </div>
+        <p className="text-sm text-muted-foreground mb-5">
+          Dette fant vi på {profile.websiteUrl}. Bekreft før vi lager innhold — du kan endre alt senere.
+        </p>
+
+        {needsReviewBanner(warnings.length, facts.length)}
+
+        <Card className="mb-4">
+          <CardContent className="p-5">
+            <dl>
+              {line("Bedrift", profile.companyName ?? "")}
+              {line("Bransje", profile.industry ?? "")}
+              {line("Beskrivelse", profile.summary ?? "")}
+              {line("Tjenester", joined(profile.offers))}
+              {line("Målgrupper", joined(profile.audiences))}
+              {line("Tone", joined(profile.tonePersonality))}
+              {line("Skrivestil", profile.writingStyle ?? "")}
+            </dl>
+            {colors.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 pt-3">
+                <span className="text-xs text-muted-foreground">Farger</span>
+                {colors.slice(0, 6).map((c) => (
+                  <span key={c} className="inline-flex items-center gap-1.5 text-xs border rounded-full px-2 py-1">
+                    <span className="h-3.5 w-3.5 rounded-full border" style={{ backgroundColor: c }} />
+                    {c}
+                  </span>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="mb-5">
+          <CardHeader><CardTitle className="text-base">Fakta og kilder</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            {facts.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                Vi fant ingen dokumenterte fakta med kildesitat. Du kan legge inn nøkkelinfo selv etterpå.
+              </p>
+            )}
+            {facts.slice(0, 5).map((fact, index) => (
+              <div key={index} className="rounded-lg border p-3">
+                <p className="text-sm flex gap-2"><Check className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />{fact.statement}</p>
+                {fact.evidenceQuote && (
+                  <p className="mt-2 flex gap-2 text-xs text-muted-foreground italic">
+                    <Quote className="h-3 w-3 shrink-0 mt-0.5" />«{fact.evidenceQuote}»
+                  </p>
+                )}
+                {fact.sourceUrl && (
+                  <a href={fact.sourceUrl} target="_blank" rel="noreferrer" className="text-xs text-primary mt-2 block truncate">
+                    <Globe2 className="h-3 w-3 inline mr-1" />{fact.sourceUrl}
+                  </a>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => confirmBrain.mutate()} disabled={confirmBrain.isPending}>
+            <BadgeCheck className="h-4 w-4 mr-2" />
+            {confirmBrain.isPending ? "Bekrefter …" : "Bekreft og lag innhold"}
+          </Button>
+          <Button variant="outline" onClick={() => setForceEdit(true)}>Rediger informasjonen</Button>
+          <Button variant="outline" onClick={() => runAnalyze(profile.websiteUrl)} disabled={analyze.isPending}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${analyze.isPending ? "animate-spin" : ""}`} />
+            Analyser på nytt
+          </Button>
+        </div>
       </Shell>
     );
   }

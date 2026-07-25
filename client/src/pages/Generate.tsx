@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
+import { buildBrandExamples } from "@/lib/brandExamples";
 import { takeEditorHandoff, setAbTestHandoff } from "@/lib/editorHandoff";
 import { createGenerationGuard } from "@/lib/generationGuard";
 import { Copy, Loader2, Sparkles, Wand2, Upload, X, Image as ImageIcon, Mic, Flame, Save, Cloud } from "lucide-react";
@@ -275,6 +276,12 @@ export default function Generate() {
   const { data: subscription } = trpc.user.getSubscription.useQuery();
   // View mode (simple = one guided screen; advanced = full studio). Saved per account.
   const viewModeQuery = trpc.user.getViewMode.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
+  // MB3: which platforms this brand can actually publish to (empty when multi-brand is off).
+  const socialFlags = trpc.brands.flags.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
+  const destinationsQuery = trpc.social.destinations.useQuery(undefined, {
+    enabled: socialFlags.data?.enabled === true,
+    staleTime: 60 * 1000,
+  });
   const setViewModeMutation = trpc.user.setViewMode.useMutation({
     onSuccess: (d) => {
       try { window.localStorage.setItem("penna-view-mode", d.viewMode); } catch { /* ignore */ }
@@ -636,16 +643,19 @@ export default function Generate() {
   if (simpleMode) {
     const busy = generateMutation.isPending;
     const brandName = brandProfileQuery.data?.companyName ?? "";
-    const platformPicks = [
+    // MB3: only offer platforms this brand is actually connected to. When the
+    // multi-brand flag is off we keep the previous behaviour (all three shown).
+    const ALL_PICKS = [
       { id: "linkedin" as const, label: "LinkedIn", Icon: Linkedin },
       { id: "facebook" as const, label: "Facebook", Icon: Facebook },
       { id: "instagram" as const, label: "Instagram", Icon: Instagram },
     ];
-    const examples = [
-      "Vi har lansert en ny ballongpakke for bursdager",
-      "Tips til å dekorere et firmaarrangement",
-      "En fornøyd kunde delte bildene fra bryllupet",
-    ];
+    const connected = destinationsQuery.data?.platforms?.filter((p) => p.connected).map((p) => p.platform) ?? null;
+    const platformPicks = connected ? ALL_PICKS.filter((p) => connected.includes(p.id)) : ALL_PICKS;
+    const destinationName =
+      destinationsQuery.data?.platforms?.find((p) => p.platform === platform && p.connected)?.destinationName ?? null;
+    // MB3: examples come from the ACTIVE brand's Merkehjerne, never hard-coded.
+    const examples = buildBrandExamples(brandProfileQuery.data ?? null);
     const startOver = () => {
       genGuardRef.current.start();
       setGeneratedContent("");
@@ -700,6 +710,11 @@ export default function Generate() {
 
               <div className="space-y-2">
                 <Label className="text-sm text-muted-foreground">Hvor skal det deles?</Label>
+                {platformPicks.length === 0 && (
+                  <p className="text-xs text-amber-600">
+                    Ingen kanaler er koblet til denne merkevaren ennå. Du kan fortsatt lage innlegget og publisere det senere.
+                  </p>
+                )}
                 <div className="flex flex-wrap gap-2">
                   {platformPicks.map(({ id, label, Icon }) => (
                     <button
@@ -716,6 +731,9 @@ export default function Generate() {
                     </button>
                   ))}
                 </div>
+                {destinationName && (
+                  <p className="text-xs text-muted-foreground">Publiseres som <span className="font-medium">{destinationName}</span></p>
+                )}
               </div>
 
               <div className="flex items-center gap-2.5 rounded-xl border bg-muted/30 p-3.5 text-sm text-muted-foreground">
