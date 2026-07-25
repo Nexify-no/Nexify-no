@@ -208,6 +208,10 @@ export default function EnkelCreate() {
                 <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" aria-label="Regner ut" /></div>
               ) : (
                 <dl className="grid grid-cols-2 gap-y-3 text-sm">
+                  {previewQuery.data?.brandName && (<>
+                    <dt className="text-muted-foreground">Merkevare</dt>
+                    <dd className="text-right font-medium truncate">{previewQuery.data.brandName}</dd>
+                  </>)}
                   <dt className="text-muted-foreground">Periode</dt>
                   <dd className="text-right font-medium">4 uker</dd>
                   <dt className="text-muted-foreground">Innlegg</dt>
@@ -216,10 +220,27 @@ export default function EnkelCreate() {
                   <dd className="text-right font-medium">{previewQuery.data?.images ?? previewQuery.data?.posts}</dd>
                   <dt className="text-muted-foreground">Plattform</dt>
                   <dd className="text-right font-medium">{PLATFORMS.find((p) => p.id === platform)?.label}</dd>
+                  {previewQuery.data?.postsRemaining != null && (<>
+                    <dt className="text-muted-foreground">Innlegg igjen denne måneden</dt>
+                    <dd className={`text-right font-medium ${previewQuery.data.postsRemaining < (previewQuery.data.posts ?? 0) ? "text-amber-600" : ""}`}>
+                      {previewQuery.data.postsRemaining}
+                    </dd>
+                  </>)}
+                  {previewQuery.data?.imagesRemaining != null && (<>
+                    <dt className="text-muted-foreground">Bilder igjen denne måneden</dt>
+                    <dd className={`text-right font-medium ${previewQuery.data.imagesRemaining < (previewQuery.data.images ?? 0) ? "text-amber-600" : ""}`}>
+                      {previewQuery.data.imagesRemaining}
+                    </dd>
+                  </>)}
                 </dl>
               )}
             </CardContent>
           </Card>
+          {previewQuery.data?.postsRemaining != null && previewQuery.data.postsRemaining < previewQuery.data.posts && (
+            <p className="text-xs text-amber-600 mb-3" role="status">
+              Planen er større enn det du har igjen denne måneden. Vi lager så mange vi kan — resten kan du lage neste periode.
+            </p>
+          )}
           <p className="text-xs text-muted-foreground mb-4">
             Innleggene lages i bakgrunnen og dukker opp etter hvert. Ingenting publiseres automatisk —
             du godkjenner selv.
