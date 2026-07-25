@@ -11,7 +11,7 @@
  * on (workspace, idempotencyKey) and snapshots Merkehjerne at creation time.
  */
 import { TRPCError } from "@trpc/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { brandProfiles } from "../../drizzle/schema";
 import { ENV } from "../_core/env";
@@ -57,7 +57,14 @@ export const plannedContentRouter = router({
         if (db) {
           const { brandProfiles, subscriptions, subscriptionPlans, userUsageTracking } = await import("../../drizzle/schema");
           const { and, eq, gte, lte } = await import("drizzle-orm");
-          const [bp] = await db.select().from(brandProfiles).where(eq(brandProfiles.userId, ctx.user.id)).limit(1);
+          const { getActiveBrandIdIfEnabled } = await import("../services/brands");
+          const { or, isNull } = await import("drizzle-orm");
+          const activeId = await getActiveBrandIdIfEnabled(ctx.user.id);
+          const [bp] = await db.select().from(brandProfiles).where(
+            activeId == null
+              ? eq(brandProfiles.userId, ctx.user.id)
+              : and(eq(brandProfiles.userId, ctx.user.id), or(eq(brandProfiles.brandId, activeId), isNull(brandProfiles.brandId)))
+          ).limit(1);
           brandName = bp?.companyName ?? "";
 
           const sub = await getUserSubscription(ctx.user.id);
@@ -97,7 +104,15 @@ export const plannedContentRouter = router({
 
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Databasen er ikke tilgjengelig." });
-    const [brand] = await db.select().from(brandProfiles).where(eq(brandProfiles.userId, userId)).limit(1);
+    // MB1: the plan is built from the ACTIVE brand's Merkehjerne (legacy NULL-brand rows still work).
+    const { getActiveBrandIdIfEnabled } = await import("../services/brands");
+    const activeBrandId = await getActiveBrandIdIfEnabled(userId);
+    const { or, isNull } = await import("drizzle-orm");
+    const [brand] = await db.select().from(brandProfiles).where(
+      activeBrandId == null
+        ? eq(brandProfiles.userId, userId)
+        : and(eq(brandProfiles.userId, userId), or(eq(brandProfiles.brandId, activeBrandId), isNull(brandProfiles.brandId)))
+    ).limit(1);
     if (!brand || brand.status !== "ready") {
       throw new TRPCError({ code: "BAD_REQUEST", message: "Bygg Merkehjernen din først — planen lages fra bedriftens profil." });
     }
@@ -120,6 +135,7 @@ export const plannedContentRouter = router({
       platform: input.platform,
       postsPerWeek: input.postsPerWeek,
       timeZone: input.timeZone ?? "Europe/Oslo",
+      brandId: activeBrandId,
       brandSnapshot: brand, // frozen copy — the worker never reads the live profile
       companyProfileVersion: profileVersion,
       visualIdentityVersion: profileVersion,

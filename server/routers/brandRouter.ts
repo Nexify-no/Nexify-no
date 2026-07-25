@@ -5,7 +5,7 @@
 
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 import { brandProfiles } from "../../drizzle/schema";
 import { getDb, hasAnalysisQuota, chargeAnalysisQuota } from "../db";
@@ -62,10 +62,28 @@ function publicFailure(error: unknown): { code: "BAD_REQUEST" | "TOO_MANY_REQUES
   return { code: "INTERNAL_SERVER_ERROR", message: "Analysen mislyktes. Prøv igjen senere." };
 }
 
+
+/**
+ * The brand this request operates on (MB1). Returns null when multi-brand is off,
+ * so every query keeps its previous account-wide behaviour.
+ */
+async function activeBrand(accountId: number): Promise<number | null> {
+  const { getActiveBrandIdIfEnabled } = await import("../services/brands");
+  return getActiveBrandIdIfEnabled(accountId);
+}
+
+/** Scope a brand_profiles row to (user, brand) — legacy NULL-brand rows included. */
+function ownProfile(userId: number, brandId: number | null) {
+  return brandId == null
+    ? eq(brandProfiles.userId, userId)
+    : and(eq(brandProfiles.userId, userId), or(eq(brandProfiles.brandId, brandId), isNull(brandProfiles.brandId)));
+}
+
 export const brandRouter = router({
   get: protectedProcedure.query(async ({ ctx }) => {
     const db = await requireDb();
-    const [profile] = await db.select().from(brandProfiles).where(eq(brandProfiles.userId, ctx.user.id)).limit(1);
+    const brandId = await activeBrand(ctx.user.id);
+    const [profile] = await db.select().from(brandProfiles).where(ownProfile(ctx.user.id, brandId)).limit(1);
     return profile ?? null;
   }),
 
@@ -73,10 +91,11 @@ export const brandRouter = router({
     .input(z.object({ websiteUrl: z.string().trim().min(3).max(1_000) }).strict())
     .mutation(async ({ ctx, input }) => {
       const db = await requireDb();
+      const brandId = await activeBrand(ctx.user.id);
       const [existing] = await db
         .select()
         .from(brandProfiles)
-        .where(eq(brandProfiles.userId, ctx.user.id))
+        .where(ownProfile(ctx.user.id, brandId))
         .limit(1);
       const now = Date.now();
       if (existing?.status === "analyzing" && now - existing.updatedAt.getTime() < ACTIVE_SCAN_WINDOW_MS) {
@@ -103,6 +122,7 @@ export const brandRouter = router({
       const analysisId = randomUUID();
       await db.insert(brandProfiles).values({
         userId: ctx.user.id,
+        brandId,
         websiteUrl: input.websiteUrl,
         status: "analyzing",
         analysisId,
@@ -129,9 +149,9 @@ export const brandRouter = router({
             lastError: null,
             analyzedAt: new Date(),
           })
-          .where(and(eq(brandProfiles.userId, ctx.user.id), eq(brandProfiles.analysisId, analysisId)));
+          .where(and(ownProfile(ctx.user.id, brandId), eq(brandProfiles.analysisId, analysisId)));
 
-        const [saved] = await db.select().from(brandProfiles).where(eq(brandProfiles.userId, ctx.user.id)).limit(1);
+        const [saved] = await db.select().from(brandProfiles).where(ownProfile(ctx.user.id, await activeBrand(ctx.user.id))).limit(1);
         if (!saved) throw new Error("brand_profile_missing_after_analysis");
         if (result.unchanged) {
           logMerkehjerneEvent("brand_analysis_skipped_unchanged", { userId: ctx.user.id, durationMs: Date.now() - startedAt });
@@ -159,7 +179,7 @@ export const brandRouter = router({
         await db
           .update(brandProfiles)
           .set({ status: "failed", lastError: failure.message })
-          .where(and(eq(brandProfiles.userId, ctx.user.id), eq(brandProfiles.analysisId, analysisId)));
+          .where(and(ownProfile(ctx.user.id, brandId), eq(brandProfiles.analysisId, analysisId)));
         logMerkehjerneEvent("brand_analysis_failed", {
           userId: ctx.user.id,
           errorCode: error && typeof error === "object" && "code" in error
@@ -176,8 +196,8 @@ export const brandRouter = router({
     await db
       .update(brandProfiles)
       .set({ ...input, confirmedAt: null })
-      .where(and(eq(brandProfiles.userId, ctx.user.id), eq(brandProfiles.status, "ready")));
-    const [saved] = await db.select().from(brandProfiles).where(eq(brandProfiles.userId, ctx.user.id)).limit(1);
+      .where(and(ownProfile(ctx.user.id, await activeBrand(ctx.user.id)), eq(brandProfiles.status, "ready")));
+    const [saved] = await db.select().from(brandProfiles).where(ownProfile(ctx.user.id, await activeBrand(ctx.user.id))).limit(1);
     if (!saved) throw new TRPCError({ code: "NOT_FOUND", message: "Opprett Merkehjernen først." });
     logMerkehjerneEvent("brand_profile_edited", { userId: ctx.user.id, trigger: "fields" });
     return saved;
@@ -189,8 +209,8 @@ export const brandRouter = router({
     await db
       .update(brandProfiles)
       .set({ facts: input.facts, confirmedAt: null })
-      .where(and(eq(brandProfiles.userId, ctx.user.id), eq(brandProfiles.status, "ready")));
-    const [saved] = await db.select().from(brandProfiles).where(eq(brandProfiles.userId, ctx.user.id)).limit(1);
+      .where(and(ownProfile(ctx.user.id, await activeBrand(ctx.user.id)), eq(brandProfiles.status, "ready")));
+    const [saved] = await db.select().from(brandProfiles).where(ownProfile(ctx.user.id, await activeBrand(ctx.user.id))).limit(1);
     if (!saved) throw new TRPCError({ code: "NOT_FOUND", message: "Opprett Merkehjernen først." });
     logMerkehjerneEvent("brand_profile_edited", { userId: ctx.user.id, trigger: "facts" });
     return saved;
@@ -202,8 +222,8 @@ export const brandRouter = router({
     await db
       .update(brandProfiles)
       .set({ confirmedAt: new Date() })
-      .where(and(eq(brandProfiles.userId, ctx.user.id), eq(brandProfiles.status, "ready")));
-    const [saved] = await db.select().from(brandProfiles).where(eq(brandProfiles.userId, ctx.user.id)).limit(1);
+      .where(and(ownProfile(ctx.user.id, await activeBrand(ctx.user.id)), eq(brandProfiles.status, "ready")));
+    const [saved] = await db.select().from(brandProfiles).where(ownProfile(ctx.user.id, await activeBrand(ctx.user.id))).limit(1);
     if (!saved) throw new TRPCError({ code: "NOT_FOUND", message: "Opprett Merkehjernen først." });
     logMerkehjerneEvent("brand_profile_confirmed", { userId: ctx.user.id });
     return saved;
