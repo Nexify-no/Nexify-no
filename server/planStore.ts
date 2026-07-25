@@ -43,6 +43,8 @@ const affected = (res: unknown): number =>
 export async function createPlanWithPosts(input: {
   userId: number;
   workspaceId: number;
+  /** Multi-brand (MB1): which brand this plan belongs to. Null when the flag is off. */
+  brandId?: number | null;
   idempotencyKey: string;
   goal: ContentPlan["goal"];
   platform: "linkedin" | "facebook" | "instagram";
@@ -64,6 +66,7 @@ export async function createPlanWithPosts(input: {
       const res = await tx.insert(contentPlans).values({
         userId: input.userId,
         workspaceId: input.workspaceId,
+        brandId: input.brandId ?? null,
         idempotencyKey: input.idempotencyKey,
         goal: input.goal,
         platform: input.platform,
@@ -85,6 +88,7 @@ export async function createPlanWithPosts(input: {
         contentPlanId: planId,
         userId: input.userId,
         workspaceId: input.workspaceId,
+        brandId: input.brandId ?? null,
         postGenerationId: randomUUID(),
         weekNumber: item.weekNumber,
         suggestedDate: new Date(`${item.suggestedDate}T00:00:00Z`),
