@@ -19,10 +19,13 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  CalendarDays, Check, CheckCheck, ChevronDown, ChevronUp, ImageOff,
-  Loader2, Pencil, RefreshCw, Save, Trash2, X,
+  CalendarClock, CalendarDays, Check, CheckCheck, ChevronDown, ChevronUp, ImageOff,
+  Loader2, Pencil, RefreshCw, Save, Send, Trash2, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { ActiveBrandHeader } from "@/components/ActiveBrandHeader";
+import { ScheduleDialog } from "@/components/ScheduleDialog";
 
 const TYPE_LABELS: Record<string, string> = {
   intro: "Presentasjon",
@@ -142,10 +145,56 @@ function PostCard({ planId, post }: { planId: number; post: PostRow }) {
   const editPost = trpc.plan.editPost.useMutation({ onSuccess: () => { setEditing(false); invalidate(); } });
   const removePost = trpc.plan.removePost.useMutation({ onSettled: invalidate });
 
-  const busy = approve.isPending || unapprove.isPending || editPost.isPending || removePost.isPending;
+  // PR #84: act on the card, not on the whole plan.
+  //
+  // "Publiser nå" and "Planlegg" both need a real `posts` row — publishing and
+  // scheduling are defined on saved posts — so the card saves this one post first
+  // and then hands off. The user picked one post; saving all of them to act on one
+  // is the wrong granularity.
+  const [scheduleFor, setScheduleFor] = useState<number | null>(null);
+  // social.destinations is FORBIDDEN unless multi-brand is on, and the two flags
+  // are independent. Querying it unconditionally left `destination` undefined, so
+  // Publiser nå and Planlegg were permanently disabled with "koble til en konto
+  // først" even on a connected LinkedIn.
+  const brandFlags = trpc.brands.flags.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
+  const multiBrand = brandFlags.data?.enabled === true;
+  const destinations = trpc.social.destinations.useQuery(undefined, {
+    enabled: multiBrand,
+    staleTime: 60 * 1000,
+  });
+  const destination = destinations.data?.platforms?.find((p) => p.platform === post.platform);
+  // With multi-brand off, per-brand destinations are not modelled at all and the
+  // server keeps its previous account-wide behaviour — so do not block on them.
+  const destinationKnown = !multiBrand || destinations.isSuccess;
+  const canSend = !multiBrand || destination?.connected === true;
+
+  // Invalidate: the server sets savedPostId and approvalStatus, and polling has
+  // already stopped by now. Without this the card kept acting on stale state — and
+  // `Fjern` stayed visible, hard-deleting the plan row and orphaning the draft.
+  const saveOne = trpc.plan.saveOne.useMutation({ onSettled: invalidate });
+  const publishNow = trpc.platform.publishToSpecific.useMutation({
+    onSuccess: (r) => {
+      if (r.success === false) { toast.error(r.error || "Publisering mislyktes"); return; }
+      if ((r.failureCount ?? 0) > 0) {
+        toast.error((r.results ?? []).filter((x) => !x.success).map((x) => x.error).join(", ") || "Publisering mislyktes");
+        return;
+      }
+      toast.success("Innlegget er publisert");
+      invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const busy = approve.isPending || unapprove.isPending || editPost.isPending || removePost.isPending
+    || saveOne.isPending || publishNow.isPending;
   const approved = post.approvalStatus === "approved";
   const saved = post.savedPostId != null;
   const canApprove = post.generationStatus === "done" && post.verificationStatus !== "high_risk";
+  const blockedReason = !canApprove
+    ? "Rett det som er flagget over før du publiserer eller planlegger."
+    : !canSend
+      ? "Koble til en konto for denne kanalen før du publiserer eller planlegger."
+      : null;
 
   return (
     <Card className="overflow-hidden">
@@ -260,28 +309,109 @@ function PostCard({ planId, post }: { planId: number; post: PostRow }) {
 
         {post.generationStatus === "done" && !!post.content && <PostImage planId={planId} post={post} />}
 
-        {/* Handlinger */}
+        {/* PR #84: where this goes and when, stated on the card.
+            "Klar til publisering" without naming the channel or the date is not an
+            answer — and with several brands connected it is the thing most worth
+            checking before pressing Publiser. */}
+        {post.generationStatus === "done" && !!post.content && !editing && (
+          <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">{PLATFORM_LABELS[post.platform] ?? post.platform}</span>
+            {multiBrand && destinationKnown && (
+              destination?.connected
+                ? <span>→ {destination.destinationName || "tilkoblet konto"}</span>
+                : <span className="text-amber-600">→ ingen konto koblet til</span>
+            )}
+            <span aria-hidden="true">·</span>
+            <span className="capitalize">{formatDate(post.suggestedDate)}</span>
+          </p>
+        )}
+
+        {/* Handlinger — PR #84: Publiser nå / Planlegg / Rediger. */}
         {post.generationStatus === "done" && !!post.content && !editing && (
           <div className="mt-3 flex flex-wrap gap-2 border-t pt-3">
-            {approved ? (
-              <Button size="sm" variant="outline" className="h-11 text-xs" disabled={busy || saved} onClick={() => unapprove.mutate({ planId, plannedPostId: post.id })}>
+            <Button
+              size="sm"
+              className="h-11 text-xs"
+              disabled={busy || !canApprove || !canSend}
+              aria-describedby={blockedReason ? `blocked-${post.id}` : undefined}
+              onClick={async () => {
+                try {
+                  const { postId } = await saveOne.mutateAsync({ planId, plannedPostId: post.id });
+                  publishNow.mutate({
+                    platforms: [post.platform],
+                    content: post.content ?? "",
+                    postId,
+                    imageUrl: post.imageUrl ?? undefined,
+                  });
+                } catch (e) {
+                  toast.error((e as Error)?.message || "Kunne ikke publisere");
+                }
+              }}
+            >
+              <Send className="mr-1 h-3.5 w-3.5" aria-hidden="true" />Publiser nå
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-11 text-xs"
+              disabled={busy || !canApprove || !canSend}
+              aria-describedby={blockedReason ? `blocked-${post.id}` : undefined}
+              onClick={async () => {
+                try {
+                  const { postId } = await saveOne.mutateAsync({ planId, plannedPostId: post.id });
+                  setScheduleFor(postId);
+                } catch (e) {
+                  toast.error((e as Error)?.message || "Kunne ikke planlegge");
+                }
+              }}
+            >
+              <CalendarClock className="mr-1 h-3.5 w-3.5" aria-hidden="true" />Planlegg
+            </Button>
+
+            {/* Editing stays available after Planlegg. Disabling it on `saved` meant
+                a post whose suggested date had passed — so ScheduleDialog refused
+                the time — could never be edited again: the user cancelled the
+                dialog and the card offered nothing but the two actions that had
+                just failed. editPostContent keeps the saved draft in sync. */}
+            <Button size="sm" variant="ghost" className="h-11 text-xs" disabled={busy} onClick={() => { setDraft(post.content ?? ""); setEditing(true); }}>
+              <Pencil className="mr-1 h-3.5 w-3.5" aria-hidden="true" />Rediger
+            </Button>
+
+            {/* The reason, as text. `title` on a DISABLED button is not exposed by
+                most touch and assistive stacks, and it could only name one of the
+                two possible causes. */}
+            {blockedReason && (
+              <p id={`blocked-${post.id}`} className="w-full text-xs text-amber-600 dark:text-amber-400">
+                {blockedReason}
+              </p>
+            )}
+
+            {/* Advanced-only from here: approving and removing are plan bookkeeping,
+                not something the simple journey needs. */}
+            {approved && (
+              <Button size="sm" variant="ghost" className="h-11 text-xs text-muted-foreground" disabled={busy || saved} onClick={() => unapprove.mutate({ planId, plannedPostId: post.id })}>
                 Angre godkjenning
               </Button>
-            ) : (
-              <Button size="sm" className="h-11 text-xs" disabled={busy || !canApprove} onClick={() => approve.mutate({ planId, plannedPostId: post.id })} title={!canApprove ? "Kan ikke godkjennes automatisk" : undefined}>
-                <Check className="h-3.5 w-3.5 mr-1" aria-hidden="true" />Godkjenn
-              </Button>
             )}
-            <Button size="sm" variant="ghost" className="h-11 text-xs" disabled={busy || saved} onClick={() => { setDraft(post.content ?? ""); setEditing(true); }}>
-              <Pencil className="h-3.5 w-3.5 mr-1" aria-hidden="true" />Rediger
-            </Button>
-            {!saved && (
+            {!saved && !approved && (
               <Button size="sm" variant="ghost" className="h-11 text-xs text-destructive hover:text-destructive" disabled={busy} onClick={() => { if (confirm("Fjerne dette innlegget og lage et nytt i stedet?")) removePost.mutate({ planId, plannedPostId: post.id }); }}>
-                <Trash2 className="h-3.5 w-3.5 mr-1" aria-hidden="true" />Fjern
+                <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />Fjern
               </Button>
             )}
           </div>
         )}
+
+        <ScheduleDialog
+          open={scheduleFor != null}
+          onClose={() => setScheduleFor(null)}
+          postId={scheduleFor}
+          platform={post.platform as "linkedin" | "twitter" | "instagram" | "facebook"}
+          content={post.content ?? ""}
+          imageUrl={post.imageUrl ?? null}
+          defaultDate={typeof post.suggestedDate === "string" ? post.suggestedDate : post.suggestedDate?.toISOString() ?? null}
+          onScheduled={() => { setScheduleFor(null); invalidate(); }}
+        />
       </CardContent>
     </Card>
   );
@@ -356,6 +486,11 @@ export default function ContentPlan() {
 
   return (
     <main className="container max-w-3xl py-6 md:py-8" lang="nb">
+      {/* PR #84: which brand this plan belongs to, before anything else. The
+          switcher lives at the bottom of a collapsible sidebar, so on the page
+          where content is approved and published the answer was off-screen. */}
+      <ActiveBrandHeader />
+
       <div className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight">Din 4-ukers innholdsplan</h1>
         {plan && (
@@ -395,40 +530,61 @@ export default function ContentPlan() {
         <p className="mb-4 text-sm text-destructive">Planen kunne ikke lages. Prøv å lage en ny plan senere.</p>
       )}
 
-      {/* Topphandlinger — vises når planen har ferdige innlegg */}
+      {/* PR #84: the bulk plan actions move BEHIND a disclosure.
+          Every card now carries Publiser nå / Planlegg / Rediger, which is the
+          journey; "Godkjenn alle sikre" and "Lagre i Mine innlegg" are plan
+          bookkeeping, and offering them first made the page look like an admin
+          screen instead of four weeks of ready posts. */}
       {planId && !generating && (planQuery.data?.posts?.length ?? 0) > 0 && (
-        <div className="mb-6 flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            className="min-h-11"
-            disabled={approveAll.isPending || counts.approvable === 0}
-            onClick={() => approveAll.mutate({ planId })}
-          >
-            <CheckCheck className="h-4 w-4 mr-1.5" aria-hidden="true" />Godkjenn alle sikre{counts.approvable > 0 ? ` (${counts.approvable})` : ""}
-          </Button>
-          <Button
-            className="min-h-11"
-            disabled={saveApproved.isPending || counts.approvedUnsaved === 0}
-            onClick={() => saveApproved.mutate({ planId })}
-          >
-            {saveApproved.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4 mr-1.5" aria-hidden="true" />}
-            Lagre i Mine innlegg{counts.approvedUnsaved > 0 ? ` (${counts.approvedUnsaved})` : ""}
-          </Button>
-          {saveApproved.isSuccess && saveApproved.data && (
-            <span className="text-xs text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
-              <Check className="h-3.5 w-3.5" aria-hidden="true" />{saveApproved.data.count} lagret som utkast
-            </span>
-          )}
-          {(saveApproved.isError || approveAll.isError) && (
-            <span className="text-xs text-destructive" role="alert">
-              {saveApproved.error?.message ?? approveAll.error?.message}
-            </span>
-          )}
-        </div>
+        <details className="mb-6 rounded-xl border bg-muted/20 px-3.5 py-2.5">
+          <summary className="cursor-pointer text-sm font-medium">Flere handlinger for hele planen</summary>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              className="min-h-11"
+              disabled={approveAll.isPending || counts.approvable === 0}
+              onClick={() => approveAll.mutate({ planId })}
+            >
+              <CheckCheck className="h-4 w-4 mr-1.5" aria-hidden="true" />Godkjenn alle sikre{counts.approvable > 0 ? ` (${counts.approvable})` : ""}
+            </Button>
+            <Button
+              variant="outline"
+              className="min-h-11"
+              disabled={saveApproved.isPending || counts.approvedUnsaved === 0}
+              onClick={() => saveApproved.mutate({ planId })}
+            >
+              {saveApproved.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4 mr-1.5" aria-hidden="true" />}
+              Lagre i Mine innlegg{counts.approvedUnsaved > 0 ? ` (${counts.approvedUnsaved})` : ""}
+            </Button>
+            {saveApproved.isSuccess && saveApproved.data && (
+              <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+                <Check className="h-3.5 w-3.5" aria-hidden="true" />{saveApproved.data.count} lagret som utkast
+                {/* PR #83 surfaces what was held back rather than returning a
+                    quietly smaller number. */}
+                {(saveApproved.data.skipped ?? 0) > 0 && (
+                  <span className="ml-1 text-amber-600 dark:text-amber-400">
+                    · {saveApproved.data.skipped} holdt igjen (må rettes først)
+                  </span>
+                )}
+              </span>
+            )}
+            {(saveApproved.isError || approveAll.isError) && (
+              // No role="alert": this lives inside a <details> the user has just
+              // opened by hand, and an alert in a collapsed section is announced to
+              // nobody. The text is right where the button they pressed is.
+              <span className="text-xs text-destructive">
+                {saveApproved.error?.message ?? approveAll.error?.message}
+              </span>
+            )}
+          </div>
+        </details>
       )}
+      {/* Deliberately OUTSIDE the disclosure. This is the page that just gained a
+          per-card "Publiser nå"; hiding the reassurance behind a collapsed section
+          is exactly the wrong place for it. */}
       {planId && (planQuery.data?.posts?.length ?? 0) > 0 && (
         <p className="mb-6 -mt-3 text-xs text-muted-foreground">
-          Godkjente innlegg lagres som utkast i «Mine innlegg». Ingenting publiseres automatisk.
+          Ingenting publiseres automatisk — du bestemmer per innlegg.
         </p>
       )}
 

@@ -17,7 +17,7 @@ import { ENV } from "../_core/env";
 import { aiProcedure, protectedProcedure, router } from "../_core/trpc";
 import { buildPlanSkeleton, totalPosts, type PlanGoal } from "../planContent";
 import { getDb } from "../db";
-import { createPlanWithPosts, getPlanForUser, listPlansForUser, regeneratePostImage, approvePost, setPostApproval, editPostContent, removePlannedPost, approveAllDone, saveApprovedAsDrafts } from "../planStore";
+import { createPlanWithPosts, getPlanForUser, listPlansForUser, regeneratePostImage, approvePost, setPostApproval, editPostContent, removePlannedPost, approveAllDone, saveApprovedAsDrafts, saveOnePlannedPost } from "../planStore";
 
 const goalSchema = z.enum(["customers", "trust", "showcase", "engagement", "offer", "mixed"]);
 const platformSchema = z.enum(["linkedin", "facebook", "instagram"]);
@@ -211,6 +211,33 @@ export const plannedContentRouter = router({
     // instead of quietly returning a smaller number.
     const { saved, skipped } = await saveApprovedAsDrafts(input.planId, ctx.user.id);
     return { count: saved, skipped };
+  }),
+
+  /**
+   * PR #84: turn ONE card into a real draft and hand back its id.
+   *
+   * The Enkel card's "Publiser nå" and "Planlegg" both act on a saved post, and
+   * the user picked one post — saving the whole plan to act on one card is the
+   * wrong granularity.
+   */
+  saveOne: protectedProcedure
+    .input(z.object({
+      planId: z.number().int().positive(),
+      plannedPostId: z.number().int().positive(),
+    }).strict())
+    .mutation(async ({ ctx, input }) => {
+      requireFlag();
+      const { postId, blocked } = await saveOnePlannedPost(input.planId, input.plannedPostId, ctx.user.id);
+      if (blocked === "high_risk") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Innlegget inneholder en påstand som ikke kan dokumenteres. Rett den først.",
+        });
+      }
+      if (!postId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Innlegget er ikke klart ennå." });
+      }
+      return { postId };
   }),
 
 
