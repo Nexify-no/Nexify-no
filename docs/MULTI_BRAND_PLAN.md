@@ -1,90 +1,147 @@
-# Multi-brand plan (Enkel-first)
+# Multi-brand (Merkevarer) — status og invarianter
 
-One customer account (users.id = account_id) manages several brands. Each brand owns
-its Merkehjerne, voice, posts/images, 4-week plans, schedule and social destinations.
-Everything ships behind FEATURE_MULTI_BRAND until tests pass.
+> Én kundekonto kan forvalte flere merkevarer. Hver merkevare har sin egen
+> Merkehjerne, sitt eget innhold, sin egen kalender og sine egne sosiale kanaler.
 
-## Current state (audited)
+**Feature flag:** `FEATURE_MULTI_BRAND` (server-side, runtime).
+Eksponert til klienten via `brands.flags` — samme mønster som `plan.flags`.
+Er flagget av, oppfører appen seg presis som før: alt kjører som én implisitt
+merkevare, og `brand_id` er `NULL`.
 
-| Concern | Today |
+---
+
+## 1. Datamodell
+
+| Migrasjon | Innhold |
 |---|---|
-| Account | `users.id` (no separate account table) |
-| Identity | `brand_profiles` with UNIQUE(user_id) - exactly one per account |
-| LinkedIn destination | `linkedin_connections` (1:1 user): publishTarget + organizationUrn/Name |
-| FB / IG / X | no connection tables yet |
-| Plans | `content_plans` already carry workspaceId + brandSnapshot + profile/visual versions |
-| Worker | reads plan.brandSnapshot only (already isolated per plan) |
-| User scheduling | `scheduled_posts` (+ `content_schedule`); `calendar_events` is a global holiday catalog |
-| Flags | env (`FEATURE_*`) exposed to client via tRPC (e.g. plan.flags) |
+| `0089_multi_brand.sql` | `brands`-tabellen, `users.active_brand_id`, `brand_id` på 7 tabeller, `UNIQUE(user_id, brand_id)` på `brand_profiles` |
+| `0090` | `brand_social_connections`, `publications` |
+| `0091` | `image_alt_text`, `image_brand_id`, `image_visual_identity_version` |
 
-## Target model
+`brand_id` finnes på: `brand_profiles`, `posts`, `scheduled_posts`,
+`content_plans`, `planned_posts`, `content_schedule`, `linkedin_connections`.
 
-Account -> brands -> {brand_profiles, content_plans/planned_posts, posts (+images on posts),
-scheduled_posts, content_schedule, brand_social_connections, publications}.
-`users.active_brand_id` selects the working brand. account_id/permissions always from
-session (ctx.user.id), never from client input.
+### Kjente hull
 
-## Phases (each = one flag-gated PR)
+- **`ideas` og `drafts` har ingen `brand_id`.** De deles fortsatt på tvers av
+  merkevarer. Å lukke dette krever en ny migrasjon; det er en bevisst utsettelse,
+  ikke en forglemmelse.
+- **Historiske rader har `brand_id = NULL`** og vises derfor under *alle*
+  merkevarer. Valgt med vilje: alternativet var å skjule innhold brukeren
+  allerede har laget. En engangs-tilordning kan bygges hvis ønskelig.
 
-### MB1 - Foundation (this PR)
-- Migration 0089: `brands` table; `users.active_brand_id`; nullable `brand_id` on
-  brand_profiles, posts, scheduled_posts, content_plans, planned_posts, content_schedule,
-  linkedin_connections; swap brand_profiles UNIQUE(user_id) -> UNIQUE(user_id, brand_id).
-- Lazy safe backfill (`ensureDefaultBrand`): first use creates a default brand from the
-  existing Merkehjerne (name/website), links all the user's legacy rows, sets active_brand_id.
-  No cross-source guessing; linkedin_connections is linked to the default brand only when
-  the account has exactly one brand (else left for needs_brand_assignment in MB2).
-- `brands` router: flags/list/create/setActive/archive (+ last-brand archive guard).
-- BrandSelector in the sidebar (flag-gated): switch invalidates ALL queries (no stale
-  cross-brand data; brandLoading while switching).
-- Brand scoping helpers exported for later phases.
+---
 
-### MB2 - Brand social connections
-- `brand_social_connections` (account_id, brand_id, platform, provider_connection_id,
-  destination_id/name/type, status incl. needs_brand_assignment, token_expires_at).
-- Migrate linkedin_connections rows into it (status=needs_brand_assignment when ambiguous).
-- Publish window redesign: shows brand + platform + destination name; disabled
-  unconnected platforms; no publish without destination; final confirm; idempotency key;
-  publication log (status + provider response).
-- MANDATORY guard: post.brand_id === connection.brand_id else abort + security event.
+## 2. Sikkerhetsinvarianter
 
-### MB3 - Simple UX
-- Enkel sidebar: Oversikt / Lag innhold / Innholdsplan / Mine innlegg / Kalender /
-  Innstillinger / Bytt til avansert.
-- Add brand via URL -> analyze -> confirm screen (name, description, services, audience,
-  language, tone, colors, facts+sources; buttons Bekreft og lag innhold / Rediger /
-  Analyser pa nytt with visible loading/success/error) -> only then generate.
-- Enkel generate: brand preselected, brand-generated example chips (replace static
-  "ballongpakke" examples), connected-platforms picker only, auto image, one button.
-  Result actions: Rediger / Bytt bilde / Lag pa nytt / Lagre som utkast / Publiser na /
-  Planlegg; explicit save message + where it lives.
-- 4-week plan: pre-generation summary (brand, period, platform, post/image counts, quota
-  needed/left); per-post verification state + destination; bulk actions (Godkjenn alle
-  sikre / Lagre valgte / Planlegg valgte / Publiser valgte). Never auto-approve
-  needs_review/high_risk.
+Disse skal ikke svekkes for å få en test til å passere.
 
-### MB4 - Scheduling + safety
-- Draft -> Planlegg dialog (date/time/timezone/platform/destination + preview).
-- Calendar date click -> pick existing draft OR create new with scheduled_at carried
-  through generation; after confirm: post.status=scheduled + scheduled_posts row ->
-  calendar shows it immediately.
-- Content verification layer: verified / needs_review / unsupported / high_risk.
-  Numbers, customer stories, prices, services and links must trace to Merkehjerne facts;
-  seasonal check against proposed publish date/locale; repetition check across a plan.
-- Images: link account/brand/post/generation/visual-identity-version; text-edit warning +
-  Oppdater bilde; reject cross-brand or stale-generation images; alt text.
-- Full test matrix (3 brands, parallel generation, late cross-brand image, cross-brand
-  publish block, calendar date persistence, idempotency, migration, a11y, mobile, CI).
+### 2.1 Konto og rettigheter kommer fra sesjonen
 
-## Legacy data migration (safe rules)
-1. Default brand per account with legacy data; move Merkehjerne to it; link old
-   posts/plans/images to it.
-2. Never auto-attach a social connection when identity is ambiguous ->
-   needs_brand_assignment; ask the user on first login.
-3. Never assume Ballong account + Penna page + Nexify LinkedIn are one brand.
+`account_id` leses **alltid** fra `ctx.user.id`. Ingen prosedyre tar imot en
+konto- eller merkevare-id fra klienten uten å verifisere eierskap først
+(`requireOwnBrand`).
 
-## Files touched in MB1
-drizzle/0089_multi_brand.sql, drizzle/meta/_journal.json, drizzle/schema.ts,
-server/_core/env.ts, server/services/brands.ts (new), server/routers/brandsRouter.ts (new),
-server/routers.ts, client/src/components/BrandSelector.tsx (new),
-client/src/components/DashboardNav.tsx.
+### 2.2 Publisering krever at merkevaren eier kanalen
+
+```
+post.brand_id === social_connection.brand_id
+```
+
+Matcher de ikke, stanses publiseringen og hendelsen logges som security event.
+Se `assertBrandOwnsConnection` i `server/services/socialDestinations.ts`.
+
+Det finnes **ingen** generell publiseringsdestinasjon som gjelder alle merkevarer.
+
+### 2.3 Ingen kryssvisning under bytte
+
+Ved merkevarebytte invalideres hele query-cachen (`utils.invalidate()`), slik at
+ingenting fra forrige merkevare vises et halvt sekund før nye data kommer.
+
+### 2.4 Aldri auto-godkjenn usikret innhold
+
+Et innlegg med `needs_review` eller `high_risk` godkjennes ikke automatisk.
+Massegodkjenning tar kun `verified`. Se `contentVerification.ts` og `canBulkApprove`.
+
+---
+
+## 3. Isolasjon — hva som faktisk er scoped
+
+Alt nedenfor ble funnet ved **live testing**, ikke av CI. Koden kompilerte og
+alle tester var grønne mens lekkasjene var der.
+
+| Flate | Status |
+|---|---|
+| `Mine innlegg` / dashbord (`getUserPosts`, begge implementasjoner) | scoped |
+| Merkehjerne (`brandRouter`, alle lesninger og skrivinger) | scoped |
+| Kalender (`content.getScheduledPosts`) | scoped |
+| Innholdsplan (`content_plans` + `planned_posts`) | scoped, `brand_id` persisteres |
+| Nye innlegg (alle skrivestier) | stemples, se §4 |
+| `ideas`, `drafts` | **ikke scoped** — mangler kolonne |
+
+---
+
+## 4. Hvert nytt innlegg stemples med sin merkevare
+
+`db.createPost()` stempler den aktive merkevaren. Men tre kodestier skrev
+direkte til `posts` og gikk forbi den, slik at innlegget fikk `brand_id = NULL`
+og dermed dukket opp under *alle* merkevarer:
+
+- `postManagementService.createPost` → stempler nå forfatterens aktive merkevare
+- `telegramWebhook` → stempler den koblede brukerens aktive merkevare
+- `telegramRouter.duplicate` → arver **originalens** merkevare, ikke den som
+  tilfeldigvis er valgt nå (duplisering fra merkevare A mens B er valgt skal
+  ikke flytte kopien til B)
+
+**Regresjonsvakt:** `server/services/brandStamping.test.ts` skanner kildekoden og
+feiler hvis en ny `insert(posts)` mangler `brandId`. Den fanget en feil i vårt
+eget leveranseskript før den nådde repoet.
+
+All stempling er *best effort*: en feil lar innlegget stå uscopet framfor å
+blokkere skrivingen, og er en no-op når flagget er av.
+
+---
+
+## 5. Adopsjon av gamle rader (og 500-feilen den forårsaket)
+
+`ensureDefaultBrand` tilordner gamle rader til standardmerkevaren ved første
+kall. Den opprinnelige implementasjonen gjorde det med én blank UPDATE:
+
+```sql
+UPDATE brand_profiles SET brand_id = ? WHERE user_id = ? AND brand_id IS NULL
+```
+
+Siden migrasjon 0089 har `brand_profiles` `UNIQUE(user_id, brand_id)`. Så snart
+en konto hadde mer enn én profilrad — noe gjentatte «Analyser på nytt»-forsøk
+lager — kolliderte setningen, `brands.list` svarte 500, og `BrandSelector`
+returnerte `null`. **Merkevare-velgeren forsvant helt uten én feilmelding.**
+
+Rettelsen, i tre lag:
+
+1. `brands.ts` — adopter **maksimalt én** `brand_profiles`-rad, scoped på `id`,
+   og bare når `(user, brand)`-plassen er ledig. Alle adopsjonsskrivinger går
+   gjennom en `adopt()`-hjelper som logger og hopper videre ved feil. Adopsjon er
+   en bekvemmelighet; den skal aldri kunne felle endepunktet.
+2. `_core/index.ts` — la til `onError` på tRPC-middlewaren. `errorFormatter`
+   redigerer korrekt bort interne feil mot klienten, men **ingenting logget
+   årsaken**: en 500 i produksjon ga null diagnostikk. Vi logger driverens
+   feilkode og SQL-state — ikke meldingen, som ekkoer kolonneverdier tilbake.
+3. `BrandSelector.tsx` — skiller «funksjon av» fra «klarte ikke laste».
+   Viser `Kunne ikke laste merkevarer` med en retry i stedet for å forsvinne.
+
+**Lærdom:** et redigert feilsvar uten server-side logging er et blindpunkt.
+Hver ny `INTERNAL_SERVER_ERROR`-sti skal være diagnostiserbar fra loggen alene.
+
+---
+
+## 6. Sesongriktighet
+
+Et innlegg om nyttår skal ikke lages i august. `verifyPostContent` sammenligner
+sesongmarkører i teksten mot foreslått publiseringsdato og flagger avvik som
+`needs_review`.
+
+## 7. Ikke antatt
+
+Ballong-kontoen, Penna-siden og Nexify-LinkedIn tilhører **ikke** samme
+merkevare. Ingen kobling adopteres automatisk med mindre kontoen har nøyaktig
+én merkevare — da, og bare da, er tilordningen entydig.
