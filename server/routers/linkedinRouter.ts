@@ -261,6 +261,12 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
         // log — with ids of its own choosing.
         const publishBrandId = await resolvePublishBrand(ctx.user.id, input.postId);
 
+        // PR #83: refuse an undocumented claim before it reaches LinkedIn.
+        const { assertContentIsPublishable } = await import("../services/publishGuard");
+        await assertContentIsPublishable({
+          accountId: ctx.user.id, postId: input.postId, content: input.content, brandId: publishBrandId,
+        });
+
         let publicationId: number | null = null;
         let brandDestination: Awaited<ReturnType<typeof requireDestination>> = null;
         if (publishBrandId != null) {

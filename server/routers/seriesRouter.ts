@@ -8,17 +8,12 @@
 import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 
-/** Strip markdown so series posts read like a normal clean social-media post. */
-function stripMarkdown(input: string): string {
-  return input
-    .replace(/\*\*(.*?)\*\*/g, "$1")
-    .replace(/__(.*?)__/g, "$1")
-    .replace(/^#{1,6}\s+/gm, "")
-    .replace(/^\s*[*-]\s+/gm, "")
-    .replace(/\*/g, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
+// PR #83: use the ONE shared stripper.
+//
+// The local copy stripped EVERY asterisk unconditionally, which deleted the one in
+// "2 * 3" and any inside a URL — and its `__` rule had no word-boundary guard, so
+// `/__cache__/` in a path became `/cache/`: a 404 link, published.
+import { stripMarkdown } from "../services/verification/contentVerification";
 
 export const seriesRouter = router({
     list: protectedProcedure.query(async ({ ctx }) => {

@@ -121,6 +121,47 @@ export async function getPlanForUser(planId: number, userId: number, workspaceId
   const posts = await db.select().from(plannedPosts)
     .where(and(eq(plannedPosts.contentPlanId, planId), eq(plannedPosts.userId, userId)))
     .orderBy(plannedPosts.weekNumber, plannedPosts.suggestedDate);
+
+  // PR #83: re-check on open. A verdict frozen at generation time means every
+  // plan written before verification existed carries the DEFAULT status rather
+  // than a judgement, and a plan written before the rules got stricter keeps its
+  // old, more permissive one. The checks are pure regex over local text, and the
+  // result is persisted with verifiedAt so this is idempotent, not a write on
+  // every read. Best-effort: never block opening a plan.
+  try {
+    const { reverifyPlanPosts, brandFactsForUser } = await import("./services/verification/reverify");
+    // The LIVE Merkehjerne, falling back to the plan's frozen snapshot.
+    //
+    // Re-checking against the snapshot made the UI's advice impossible to follow:
+    // the user adds the customer story as a sourced fact, reopens the plan, and
+    // the check still consults the facts as they were when the plan was created.
+    // Generation still uses the snapshot — the content must not change under the
+    // user — but the QUESTION "is this claim documented?" is about now.
+    const liveBrand = await brandFactsForUser(userId);
+    const updates = await reverifyPlanPosts({
+      planId,
+      userId,
+      brand: (liveBrand ?? plan.brandSnapshot ?? null) as never,
+      rows: posts.map((p) => ({
+        id: p.id,
+        content: p.content,
+        generationStatus: p.generationStatus,
+        suggestedDate: p.suggestedDate,
+        verifiedAt: p.verifiedAt,
+      })),
+    });
+    if (updates.size > 0) {
+      for (const p of posts) {
+        const u = updates.get(p.id);
+        if (!u) continue;
+        p.verificationStatus = u.status;
+        p.verificationIssues = u.issues;
+      }
+    }
+  } catch (e) {
+    console.warn(`[plan ${planId}] re-verification skipped:`, (e as Error)?.message);
+  }
+
   return { plan, posts };
 }
 
@@ -230,9 +271,15 @@ export async function heartbeat(plan: ClaimedPlan, post: ClaimedPost | null): Pr
  * Persists text and (Fase 2) the best-effort image outcome together, so a
  * refresh/restart never shows text without its already-decided image state.
  */
-export async function savePostSuccess(post: ClaimedPost, content: string, image?: PostImageOutcome): Promise<boolean> {
+export async function savePostSuccess(post: ClaimedPost, rawContent: string, image?: PostImageOutcome): Promise<boolean> {
   const db = await requireDb();
   const now = new Date();
+
+  // Verify what will actually be PUBLISHED, not the Markdown source: stripping
+  // afterwards could change a number or a link the checks had already cleared.
+  const { stripMarkdown } = await import("./services/verification/contentVerification");
+  const strippedContent = stripMarkdown(rawContent);
+  const content = strippedContent;
 
   // The plan row carries the FROZEN brand snapshot + versions (MB1/MB4).
   const [planRow] = await db.select().from(contentPlans).where(eq(contentPlans.id, post.planId)).limit(1);
@@ -241,6 +288,10 @@ export async function savePostSuccess(post: ClaimedPost, content: string, image?
   // its own suggested publish date (seasonal check), plus the plan's other posts
   // (repetition check). Never trust the model's own claims.
   let verificationStatus: "verified" | "needs_review" | "unsupported" | "high_risk" = "needs_review";
+  // PR #83: keep the findings too. Storing only the status let the UI say
+  // "Høy risiko" and nothing else, so the only way to clear it was to guess which
+  // sentence was the problem.
+  let verificationIssues: Array<{ code: string; message: string; evidence?: string }> = [];
   try {
     const { verifyPostContent } = await import("./services/verification/contentVerification");
     const snapshot = (planRow?.brandSnapshot ?? {}) as {
@@ -254,15 +305,22 @@ export async function savePostSuccess(post: ClaimedPost, content: string, image?
       .select({ content: plannedPosts.content })
       .from(plannedPosts)
       .where(and(eq(plannedPosts.contentPlanId, post.planId), ne(plannedPosts.id, post.id)));
-    verificationStatus = verifyPostContent({
+    const verdict = verifyPostContent({
       content,
       brand: snapshot,
       publishAt: post.suggestedDate ? new Date(post.suggestedDate) : null,
       siblingContents: siblings.map((r) => r.content ?? "").filter(Boolean),
-    }).status;
+    });
+    verificationStatus = verdict.status;
+    verificationIssues = verdict.issues.slice(0, 20).map((i) => ({
+      code: i.code,
+      message: i.message.slice(0, 300),
+      ...(i.evidence ? { evidence: i.evidence.slice(0, 200) } : {}),
+    }));
   } catch {
     // Verification must never block the worker — fall back to manual review.
     verificationStatus = "needs_review";
+    verificationIssues = [];
   }
 
   // Map the best-effort image outcome onto the row's image columns.
@@ -285,9 +343,15 @@ export async function savePostSuccess(post: ClaimedPost, content: string, image?
   }
 
   const res = await db.update(plannedPosts).set({
-    content,
+    // PR #83: Markdown is stripped ONCE, on the way in. LinkedIn and Facebook
+    // render `**bold**` and `## heading` as literal asterisks and hashes, so
+    // leaving it meant the preview and the published post both looked like broken
+    // source. Doing it at display time only would still publish the raw text.
+    content: strippedContent,
     generationStatus: "done",
     verificationStatus,
+    verificationIssues,
+    verifiedAt: now,
     lastError: null,
     leaseToken: null,
     lockedBy: null,
@@ -493,8 +557,52 @@ export async function editPostContent(planId: number, postId: number, userId: nu
   const db = await requireDb();
   const post = await getPostForUser(planId, postId, userId);
   if (!post) return false;
-  await db.update(plannedPosts).set({ content, approvalStatus: "draft" })
-    .where(and(eq(plannedPosts.id, postId), eq(plannedPosts.userId, userId)));
+
+  // PR #83: re-grade the edited text, immediately.
+  //
+  // The UI tells the user "fjern påstanden … da forsvinner flagget av seg selv".
+  // That was false: `verifiedAt` still looked fresh, so the re-check on open
+  // skipped the row and the post stayed high_risk — permanently unapprovable,
+  // still quoting a sentence the user had already deleted. The mirror case was
+  // worse: adding a fabricated claim to a `verified` post kept it verified and
+  // bulk-approvable.
+  //
+  // Verified against the LIVE Merkehjerne, not the plan's frozen snapshot, so the
+  // other advertised fix — add the story as a fact — works too.
+  const { stripMarkdown, verifyPostContent } = await import("./services/verification/contentVerification");
+  const clean = stripMarkdown(content);
+
+  let verificationStatus = post.verificationStatus;
+  let verificationIssues: Array<{ code: string; message: string; evidence?: string }> = [];
+  try {
+    const { brandFactsForUser } = await import("./services/verification/reverify");
+    const siblings = await db
+      .select({ id: plannedPosts.id, content: plannedPosts.content })
+      .from(plannedPosts)
+      .where(and(eq(plannedPosts.contentPlanId, planId), ne(plannedPosts.id, postId)));
+    const verdict = verifyPostContent({
+      content: clean,
+      brand: (await brandFactsForUser(userId)) ?? (post as { brandSnapshot?: never }) as never,
+      publishAt: post.suggestedDate ? new Date(post.suggestedDate) : null,
+      siblingContents: siblings.map((r) => r.content ?? "").filter(Boolean),
+    });
+    verificationStatus = verdict.status;
+    verificationIssues = verdict.issues.slice(0, 20).map((i) => ({
+      code: i.code,
+      message: i.message.slice(0, 300),
+      ...(i.evidence ? { evidence: i.evidence.slice(0, 200) } : {}),
+    }));
+  } catch (e) {
+    console.warn(`[plan ${planId}] post ${postId} not re-graded on edit:`, (e as Error)?.message);
+  }
+
+  await db.update(plannedPosts).set({
+    content: clean,
+    approvalStatus: "draft",
+    verificationStatus,
+    verificationIssues,
+    verifiedAt: new Date(),
+  }).where(and(eq(plannedPosts.id, postId), eq(plannedPosts.userId, userId)));
   return true;
 }
 
@@ -546,20 +654,39 @@ export async function approveAllDone(planId: number, userId: number): Promise<nu
  * a lost claim deletes the just-inserted draft so a double click never
  * duplicates. Nothing is scheduled or published (scheduledFor stays null).
  */
-export async function saveApprovedAsDrafts(planId: number, userId: number): Promise<number> {
+export async function saveApprovedAsDrafts(
+  planId: number,
+  userId: number,
+): Promise<{ saved: number; skipped: number }> {
   const db = await requireDb();
   const result = await getPlanForUser(planId, userId, userId);
-  if (!result) return 0;
+  if (!result) return { saved: 0, skipped: 0 };
   const { posts: postsTable } = await import("../drizzle/schema");
   let saved = 0;
+  // PR #83: report what was held back. Skipping in silence meant "4 lagret" with
+  // no hint of which fifth post was refused or why, and it was retried and
+  // skipped again on every click.
+  let skipped = 0;
   for (const post of result.posts) {
     if (post.approvalStatus !== "approved" || post.savedPostId != null || post.generationStatus !== "done") continue;
+    // PR #83: a high-risk post must not escape into "Mine innlegg", where nothing
+    // remembers why it was flagged. getPlanForUser above has just re-checked it,
+    // so this reflects the CURRENT rules — an approval given before the rules
+    // tightened does not carry the post through.
+    if (post.verificationStatus === "high_risk") { skipped++; continue; }
     const draft = plannedPostToDraft({
       userId: post.userId, platform: post.platform, content: post.content, reason: post.reason,
       imageUrl: post.imageUrl, imageStatus: post.imageStatus, imageGenerationId: post.imageGenerationId,
       postGenerationId: post.postGenerationId,
     });
-    const res = await db.insert(postsTable).values(draft);
+    // The verdict travels WITH the post. Without this a flagged claim became
+    // publishable simply by changing table.
+    const res = await db.insert(postsTable).values({
+      ...draft,
+      verificationStatus: post.verificationStatus,
+      verificationIssues: post.verificationIssues ?? [],
+      verifiedAt: post.verifiedAt ?? new Date(),
+    } as typeof draft);
     const newId = (res as unknown as { insertId?: number })?.insertId ??
       (res as unknown as Array<{ insertId?: number }>)?.[0]?.insertId ?? 0;
     const upd = await db.update(plannedPosts).set({ savedPostId: newId })
@@ -567,7 +694,7 @@ export async function saveApprovedAsDrafts(planId: number, userId: number): Prom
     if (affected(upd) > 0) saved++;
     else if (newId) await db.delete(postsTable).where(eq(postsTable.id, newId)); // lost claim → drop duplicate
   }
-  return saved;
+  return { saved, skipped };
 }
 
 /** Real worker deps wired to planStore + generateContent (pure; persists nothing itself). */

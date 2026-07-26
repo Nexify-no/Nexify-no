@@ -152,12 +152,38 @@ export const contentRouter = router({
         // Persist the generated content as a draft so it shows up under "Mine innlegg".
         // (Generation previously only counted quota and never saved the post, so the
         // list stayed empty and work was lost on navigation.)
+        // PR #83: grade the post as it is saved, so "Mine innlegg" can show the
+        // verdict instead of the user discovering it only when publish is refused.
+        let verdict: { status: "verified" | "needs_review" | "unsupported" | "high_risk"; issues: Array<{ code: string; message: string; evidence?: string }> } | null = null;
+        try {
+          const { brandFactsForUser } = await import("../services/verification/reverify");
+          const { verifyPostContent } = await import("../services/verification/contentVerification");
+          const { getActiveBrandIdIfEnabled } = await import("../services/brands");
+          const facts = await brandFactsForUser(ctx.user.id, await getActiveBrandIdIfEnabled(ctx.user.id));
+          if (facts) {
+            const r = verifyPostContent({ content, brand: facts });
+            verdict = {
+              status: r.status,
+              issues: r.issues.slice(0, 20).map((i) => ({
+                code: i.code,
+                message: i.message.slice(0, 300),
+                ...(i.evidence ? { evidence: i.evidence.slice(0, 200) } : {}),
+              })),
+            };
+          }
+        } catch { /* grading must never block saving the user's work */ }
+
         const savedPost = await createPost({
           userId: ctx.user.id,
           platform: input.platform,
           tone: input.tone ?? "professional",
           rawInput: input.topic,
           generatedContent: content,
+          ...(verdict ? {
+            verificationStatus: verdict.status,
+            verificationIssues: verdict.issues,
+            verifiedAt: new Date(),
+          } : {}),
           imageUrl: (input.imageUrl && /^https?:\/\//.test(input.imageUrl)) ? input.imageUrl : null, // only persist hosted URLs, never giant data: URLs
           tags: input.keywords ?? null,
           status: "draft",

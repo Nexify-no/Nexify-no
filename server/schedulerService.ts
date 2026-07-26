@@ -124,9 +124,20 @@ async function processScheduledPostsInner() {
           // had its scheduled posts published to the user's personal feed. The
           // destination check at schedule time guaranteed nothing about where the
           // post actually landed, because this is the code that lands it.
-          const { resolvePublishBrand, requireDestination, claimPublication, settlePublication } =
+          const { resolvePublishBrand, requireDestination, claimPublication, settlePublication, assertContentIsPublishable } =
             await import('./services/publishGuard');
+
+          // PR #83: re-check at PUBLISH time, not just when it was scheduled. A
+          // post can sit in the calendar for weeks; if the Merkehjerne changed, or
+          // the rules tightened, the claim it makes may no longer be defensible —
+          // and the worker publishes with nobody watching.
           const brandId = await resolvePublishBrand(post.userId, post.id);
+          await assertContentIsPublishable({
+            accountId: post.userId,
+            postId: post.id,
+            content: post.generatedContent,
+            brandId,
+          });
           const destination = await requireDestination(post.userId, brandId, 'linkedin', post.id);
           const toOrg = destination?.destinationType === 'organization';
           const authorOverride = toOrg

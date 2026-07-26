@@ -95,11 +95,22 @@ export const posts = mysqlTable("posts", {
   imageVisualIdentityVersion: int("image_visual_identity_version"),
   scheduledFor: timestamp("scheduled_for"),
   publishedAt: timestamp("published_at"),
+  /**
+   * PR #83: a post's verification verdict travels WITH it.
+   *
+   * NULL means "never checked" — the case for everything created before this
+   * existed — and is re-checked the first time the post is opened. Defaulting it
+   * to 'verified' would have quietly blessed every old undocumented claim.
+   */
+  verificationStatus: mysqlEnum("verification_status", ["verified", "needs_review", "unsupported", "high_risk"]),
+  verificationIssues: json("verification_issues").$type<VerificationIssueRecord[]>(),
+  verifiedAt: timestamp("verified_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 }, (table) => ({
   userIdIdx: index("idx_posts_user_id").on(table.userId),
   statusSchedIdx: index("idx_posts_status_scheduled_for").on(table.status, table.scheduledFor),
+  verificationIdx: index("idx_posts_verification").on(table.verificationStatus),
 }));
 
 export type Post = typeof posts.$inferSelect;
@@ -183,6 +194,14 @@ export type InsertPaymentOrder = typeof paymentOrders.$inferInsert;
  * User preferences table - stores language and other settings
  */
 export type BrandFact = { statement: string; sourceUrl: string; evidenceQuote?: string };
+
+/** One stored verification finding (PR #83) — the reason behind a status. */
+export type VerificationIssueRecord = {
+  code: string;
+  message: string;
+  /** The offending snippet, so the user can find and fix the exact sentence. */
+  evidence?: string;
+};
 export type BrandSourceManifestEntry = {
   url: string;
   title: string;
@@ -1986,6 +2005,10 @@ export const plannedPosts = mysqlTable("planned_posts", {
   imageBrandId: int("image_brand_id"),
   imageVisualIdentityVersion: int("image_visual_identity_version"),
   verificationStatus: mysqlEnum("verification_status", ["verified", "needs_review", "unsupported", "high_risk"]).default("needs_review").notNull(),
+  /** PR #83: the actual findings, so the UI can say WHY, not just show a badge. */
+  verificationIssues: json("verification_issues").$type<VerificationIssueRecord[]>(),
+  /** Which check produced the status above — enables a cheap re-check on open. */
+  verifiedAt: timestamp("verified_at"),
   approvalStatus: mysqlEnum("approval_status", ["draft", "approved", "needs_edit"]).default("draft").notNull(),
   generationStatus: mysqlEnum("generation_status", ["pending", "generating", "done", "failed"]).default("pending").notNull(),
   contentQuotaCharged: boolean("content_quota_charged").default(false).notNull(),

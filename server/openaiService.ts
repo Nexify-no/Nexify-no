@@ -5,6 +5,7 @@
  */
 
 import OpenAI from "openai";
+import { stripMarkdown as sharedStripMarkdown } from "./services/verification/contentVerification";
 
 // Text LLM endpoint. Override order: LLM_API_URL (e.g. a local Ollama / any
 // OpenAI-compatible server) → BUILT_IN_FORGE_API_URL → OpenAI default.
@@ -73,19 +74,19 @@ export interface GenerateContentDeps {
 }
 
 /**
- * Strip markdown emphasis (**bold**, ***x***, __bold__) from social copy. Models
- * often emit these, but they render as literal asterisks in a LinkedIn/Facebook
- * post. Hashtags (#tag), bullet dashes and single * are left untouched.
+ * Strip Markdown from social copy.
+ *
+ * PR #83: this used to handle only `**`/`__` emphasis, so `## Nyheter`,
+ * `- punkt` and `[Les mer](https://x.no)` reached LinkedIn as literal `##`, `-`
+ * and `[](...)`. Three different strippers existed — here, in seriesRouter, and
+ * the full one in the verification service — each lossier than the last.
+ *
+ * There is now ONE implementation. This wrapper keeps the old name so existing
+ * call sites are untouched.
  */
 export function stripMarkdownEmphasis(text: string): string {
-  return text
-    .replace(/\*\*\*(.+?)\*\*\*/g, "$1")
-    .replace(/\*\*(.+?)\*\*/g, "$1")
-    .replace(/___(.+?)___/g, "$1")
-    .replace(/__(.+?)__/g, "$1")
-    .replace(/\*\*/g, "")
-    .replace(/___/g, "")
-    .replace(/__/g, "");
+  // Sync re-export: the shared implementation is pure and dependency-free.
+  return sharedStripMarkdown(text);
 }
 
 export async function generateContent(

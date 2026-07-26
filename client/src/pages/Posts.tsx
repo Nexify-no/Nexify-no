@@ -444,6 +444,38 @@ export default function Posts() {
                             />
                           )}
                           
+                          {/* PR #83: the verdict travels with the post, so show it
+                              here too. Without this a flagged draft looked
+                              identical to a clean one and the user only found out
+                              when publishing was refused. */}
+                          {post.verificationStatus && post.verificationStatus !== "verified" && (
+                            <div
+                              className={`mt-2 rounded-lg border p-2 text-xs ${
+                                post.verificationStatus === "high_risk"
+                                  ? "border-red-500/40 bg-red-500/5"
+                                  : "border-amber-500/40 bg-amber-500/5"
+                              }`}
+                            >
+                              <p className="font-medium">
+                                {post.verificationStatus === "high_risk"
+                                  ? (language === "no" ? "Kan ikke publiseres før dette er rettet:" : "Cannot be published until fixed:")
+                                  : (language === "no" ? "Sjekk dette før du publiserer:" : "Check before publishing:")}
+                              </p>
+                              <ul className="mt-1 space-y-0.5">
+                                {(post.verificationIssues ?? []).slice(0, 3).map((issue, i) => (
+                                  <li key={`${issue.code}-${i}`} className="text-muted-foreground">
+                                    • {issue.message}
+                                    {issue.evidence && (
+                                      <span className="ml-1 rounded bg-background px-1 font-mono text-[11px] text-foreground">
+                                        {issue.evidence}
+                                      </span>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
                           {post.generatedContent.length > 200 && (
                             <button 
                               onClick={() => setExpandedPost(isExpanded ? null : post.id)}
