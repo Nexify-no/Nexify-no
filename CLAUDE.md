@@ -118,3 +118,37 @@ This uses **Tailwind v4 via `@tailwindcss/vite`** — there is **no `tailwind.co
 - Scope every per-user query with `and(eq(table.id, id), eq(table.userId, ctx.user.id))` — ownership checks are enforced in-query, not by a separate guard.
 - Distributed rate limiting: `_core/rateLimiter.ts` uses a Redis store (`rate-limit-redis` over `ioredis`) when `REDIS_URL` is set, else an in-memory store (dev only — ineffective on serverless).
 - Tests are part of `pnpm check` (`tsconfig.json` no longer excludes `*.test.ts`); vitest's `.not` matcher types need `@types/chai@4` (the v5 stub is empty). Tests mock `./db` with `vi.mock`. `vitest.config.ts` runs with `isolate: true`, `fileParallelism: false`, `testTimeout: 30000` (the heavy `import("./routers")` exceeds the 5s default), and `setupFiles: ["./server/test-setup.ts"]` which forces `DATABASE_URL=""` for hermetic, deterministic runs — keep all of these. Network/credential integration tests use `it.skipIf(!process.env.X)`.
+
+### Multi-brand invariants
+
+Behind `FEATURE_MULTI_BRAND`. Full detail in `docs/MULTI_BRAND_PLAN.md`.
+
+- `account_id` comes from the session (`ctx.user.id`), never from client input.
+- Publishing requires `post.brand_id === social_connection.brand_id`. On mismatch,
+  stop and log a security event. There is no global publish destination.
+- Every new post must carry a brand. `db.createPost()` stamps the active brand;
+  a raw `insert(posts)` must pass `brandId` explicitly. `brandStamping.test.ts`
+  scans for this and fails the build if a path is missed.
+- A duplicate inherits the ORIGINAL post's brand, not whatever is active now.
+- Never auto-approve `needs_review` or `high_risk`. Bulk approval takes only
+  `verified`.
+- Legacy-row adoption is best effort: it logs and skips on failure rather than
+  failing the request. `brand_profiles` has `UNIQUE(user_id, brand_id)`, so never
+  blanket-update it by `brand_id IS NULL`.
+
+### Error visibility
+
+`errorFormatter` redacts `INTERNAL_SERVER_ERROR` for the client — keep it that
+way. The tRPC `onError` hook is what makes those errors diagnosable server-side.
+Log the driver error CODE and SQL state, not the message: MySQL echoes column
+values back in text like `Duplicate entry '...'`.
+
+Every new `INTERNAL_SERVER_ERROR` path must be diagnosable from the log alone.
+
+### UI theming
+
+The new app shell's design tokens live under `.penna-app`, never `:root`.
+`index.css` maps colours indirectly (`--color-primary: var(--primary)`), so
+redefining a variable on an ancestor cascades into every shadcn/ui utility
+without touching a component. Marketing, legal and blog pages must stay
+unaffected. See `docs/MODERN_UI_PLAN.md`.

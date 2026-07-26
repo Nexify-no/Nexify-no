@@ -111,3 +111,22 @@ echo 'pnpm exec lint-staged' > .husky/pre-commit
 - Repair the report-only tests, then re-enable the hard test gate.
 - Make the repo **private** (conflicts with the "Proprietary and confidential" headers).
 - SPF/DKIM/DMARC, backups, uptime monitor — see LAUNCH-BLOCKERS-PLAYBOOK.md.
+
+## Feature flags
+
+Full list, per-environment values and the production checklist:
+[`docs/FEATURE_FLAGS.md`](docs/FEATURE_FLAGS.md).
+
+Two kinds, and the difference decides how you turn one off:
+
+- **Runtime (server)** — `FEATURE_MULTI_BRAND`, `FEATURE_ENKEL_PLAN`. Read on
+  every call. A restart is enough.
+- **Build-time (client)** — anything `VITE_`-prefixed, e.g.
+  `VITE_FEATURE_NEW_SHELL`. Vite inlines the value at compile time.
+
+For a `VITE_` flag on Render you must choose **Save, rebuild, and deploy**.
+`Save and deploy` alone reuses the previous build and the new value never reaches
+the bundle. A `VITE_` flag is therefore not an instant kill switch.
+
+Note: `render.yaml` has no `previews:` block, so `previewValue` is ignored. Use
+the standing `nexify-ai-staging` service (branch `staging`) for preview instead.
