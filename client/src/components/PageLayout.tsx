@@ -7,10 +7,23 @@
 import { useLocation } from "wouter";
 import GlobalNav from "./GlobalNav";
 import DashboardNav from "./DashboardNav";
+import AppSidebar from "./app-shell/AppSidebar";
 import { RouteErrorBoundary } from "./RouteErrorBoundary";
 import { useState, useEffect } from "react";
 
 const SIDEBAR_COLLAPSED_KEY = "sidebar-collapsed";
+
+/**
+ * New app shell (Batch 1 of the UI refresh) — OFF unless explicitly enabled.
+ *
+ * This is a BUILD-TIME flag: Vite inlines it at compile time, so changing it on
+ * Render requires "Save, rebuild, and deploy" — a plain redeploy reuses the old
+ * build and the new value never reaches the bundle. There is no instant runtime
+ * kill switch in this batch; that would need a server- or DB-driven flag.
+ *
+ * When off, this file behaves exactly as before: DashboardNav, same margins.
+ */
+const NEW_SHELL = import.meta.env.VITE_FEATURE_NEW_SHELL === "true";
 
 interface PageLayoutProps {
   children: React.ReactNode;
@@ -82,6 +95,22 @@ export default function PageLayout({ children }: PageLayoutProps) {
     publicNavExact.has(location) ||
     publicNavPrefixes.some((path) => location.startsWith(path));
   
+  // New shell: only for app pages. Public, auth, legal and blog pages keep the
+  // current look untouched, because `.penna-app` (and its tokens) never wraps
+  // them and AppSidebar is not mounted there.
+  if (NEW_SHELL && shouldShowDashboardNav) {
+    return (
+      <div className="penna-app min-h-screen">
+        <AppSidebar />
+        <div className="md:ml-64">
+          <RouteErrorBoundary resetKey={location}>
+            {children}
+          </RouteErrorBoundary>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       {shouldShowDashboardNav && <DashboardNav />}

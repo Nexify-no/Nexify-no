@@ -1,0 +1,70 @@
+/**
+ * Copyright © 2026 Nexify CRM Systems AS. All rights reserved.
+ * Org.nr: 936300278 — Proprietary and confidential.
+ */
+
+/**
+ * Penna app theme — SCOPED design tokens (Batch 1).
+ *
+ * These tokens are deliberately NOT declared on `:root`. They apply only inside
+ * `.penna-app`, which the app shell wraps around authenticated pages. Marketing,
+ * legal, blog and auth pages therefore keep their current look untouched.
+ *
+ * This works because `index.css` maps Tailwind colours through indirection:
+ *   @theme inline { --color-primary: var(--primary); ... }
+ * so redefining `--primary` on an ancestor cascades into every shadcn/ui
+ * utility inside it — with no component changes.
+ *
+ * Widening this to `:root` is a later, deliberate step that requires a visual
+ * pass over the marketing pages first.
+ */
+
+.penna-app {
+  /* Brand */
+  --primary: oklch(0.354 0.077 158.6);          /* #0E5C3A  dyp grønn      */
+  --primary-foreground: oklch(0.99 0 0);
+  --accent: oklch(0.945 0.019 158.6);           /* #E6F0EA  pale sage      */
+  --accent-foreground: oklch(0.354 0.077 158.6);
+
+  /* Surfaces */
+  --background: oklch(0.983 0.005 95);          /* #FAF9F6  app-bakgrunn   */
+  --card: oklch(1 0 0);                         /* #FFFFFF                 */
+  --card-foreground: oklch(0.211 0.014 264.4);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.211 0.014 264.4);
+
+  /* Text */
+  --foreground: oklch(0.211 0.014 264.4);       /* #111827                 */
+  --muted: oklch(0.968 0.004 265);
+  --muted-foreground: oklch(0.551 0.017 264.4); /* #6B7280                 */
+
+  /* Lines & focus */
+  --border: oklch(0.913 0.006 264.5);           /* #E5E7EB                 */
+  --input: oklch(0.913 0.006 264.5);
+  --ring: oklch(0.354 0.077 158.6);
+
+  /* Secondary surface = pale sage, used for active nav */
+  --secondary: oklch(0.945 0.019 158.6);
+  --secondary-foreground: oklch(0.354 0.077 158.6);
+
+  /* Geometry: mockups sit between 14px and 16px */
+  --radius: 0.9375rem;                          /* 15px                    */
+
+  /* Amber, for insight cards only. Not a shadcn token — used explicitly. */
+  --penna-insight: oklch(0.802 0.144 82.5);     /* #F2B233                 */
+  --penna-insight-soft: oklch(0.972 0.036 82.5);
+
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+/* Very light shadows — the mockups avoid heavy elevation. */
+.penna-app .penna-card-shadow {
+  box-shadow: 0 1px 2px 0 rgb(17 24 39 / 0.04), 0 1px 3px 0 rgb(17 24 39 / 0.03);
+}
+
+/* Visible focus ring for keyboard users (WCAG AA). */
+.penna-app :focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}

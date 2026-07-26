@@ -1,5 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+/* Scoped app theme (.penna-app only — never :root). See styles/penna-theme.css. */
+@import "./styles/penna-theme.css";
 
 @custom-variant dark (&:is(.dark *));
 
