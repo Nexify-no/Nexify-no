@@ -27,6 +27,9 @@ import {
 } from "lucide-react";
 import nbLocale from "@fullcalendar/core/locales/nb";
 import { PostCreationDialog } from "@/components/PostCreationDialog";
+import { PickDraftDialog, type DraftChoice } from "@/components/PickDraftDialog";
+import { calendarEventsFromPosts, dateFromCalendarClick } from "@/lib/calendarEvents";
+import { ScheduleDialog } from "@/components/ScheduleDialog";
 import { EventDetailsDialog } from "@/components/EventDetailsDialog";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { SkeletonCard } from "@/components/SkeletonLoader";
@@ -40,6 +43,10 @@ export default function Calendar() {
   const calendarRef = useRef<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  // PR #81: date click -> choose "new post" or "existing draft"; the draft path
+  // continues straight into ScheduleDialog without leaving the calendar.
+  const [pickDraftOpen, setPickDraftOpen] = useState(false);
+  const [scheduleDraft, setScheduleDraft] = useState<DraftChoice | null>(null);
   const [eventDialogOpen, setEventDialogOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
   const [, setLocation] = useLocation();
@@ -100,24 +107,20 @@ export default function Calendar() {
       .slice(0, 5);
   }, [posts]);
 
-  // Convert posts to FullCalendar events
-  const events =
-    posts?.map((post) => ({
-      id: post.id.toString(),
-      title: post.generatedContent.substring(0, 50) + "...",
-      start: post.scheduledFor || undefined,
-      backgroundColor: getPlatformColor(post.platform),
-      borderColor: getPlatformColor(post.platform),
-      extendedProps: {
-        platform: post.platform,
-        status: post.status,
-        content: post.generatedContent,
-      },
-    })) || [];
+  // Which posts become events, and which of them may be dragged, is decided by
+  // calendarEventsFromPosts — pure and unit-tested, because getting it wrong
+  // meant a published post could be re-queued and sent to LinkedIn twice.
+  const events = calendarEventsFromPosts(posts as any);
 
-  // Handle date click
+  // Handle date click.
+  //
+  // PR #81: in month view FullCalendar hands us "2026-07-30", which `new Date()`
+  // parses as UTC midnight. Round-tripping that through toISOString() and back
+  // through local getters shifted the day for every user west of UTC — clicking
+  // 30 July pre-filled 29 July in New York, and one click scheduled the post to
+  // the wrong day. Build the date from its parts, in local time.
   const handleDateClick = (info: any) => {
-    setSelectedDate(new Date(info.dateStr));
+    setSelectedDate(dateFromCalendarClick(String(info.dateStr ?? "")));
     setDialogOpen(true);
   };
 
@@ -472,7 +475,9 @@ export default function Calendar() {
                   }}
                   locale={nbLocale}
                   events={events}
+                  // Per-event `editable` decides what can be dragged; see events above.
                   editable={true}
+                  eventStartEditable={true}
                   selectable={true}
                   selectMirror={true}
                   dayMaxEvents={true}
@@ -630,16 +635,6 @@ export default function Calendar() {
                   Finn beste tidspunkt
                   <ArrowRight className="h-3 w-3 ml-auto text-muted-foreground" />
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start text-xs h-9"
-                  onClick={() => setLocation("/kalender-old")}
-                >
-                  <CalendarIcon className="h-3.5 w-3.5 mr-2 text-amber-500" />
-                  Innholds-kalender
-                  <ArrowRight className="h-3 w-3 ml-auto text-muted-foreground" />
-                </Button>
               </CardContent>
             </Card>
 
@@ -659,7 +654,7 @@ export default function Calendar() {
                 </li>
                 <li className="text-[11px] text-indigo-700/80 dark:text-indigo-400/80 flex items-start gap-1.5">
                   <span className="mt-0.5">•</span>
-                  Klikk på en dato for å opprette nytt
+                  Klikk på en dato for nytt innlegg eller et utkast
                 </li>
                 <li className="text-[11px] text-indigo-700/80 dark:text-indigo-400/80 flex items-start gap-1.5">
                   <span className="mt-0.5">•</span>
@@ -675,6 +670,29 @@ export default function Calendar() {
           open={dialogOpen}
           onOpenChange={setDialogOpen}
           selectedDate={selectedDate}
+          onPickDraft={(d) => { setSelectedDate(d); setPickDraftOpen(true); }}
+        />
+
+        {/* Date -> pick a draft -> confirm the time. */}
+        <PickDraftDialog
+          open={pickDraftOpen}
+          onClose={() => setPickDraftOpen(false)}
+          date={selectedDate}
+          onChoose={(draft) => { setPickDraftOpen(false); setScheduleDraft(draft); }}
+        />
+
+        <ScheduleDialog
+          open={scheduleDraft != null}
+          onClose={() => setScheduleDraft(null)}
+          postId={scheduleDraft?.id ?? null}
+          platform={scheduleDraft?.platform ?? "linkedin"}
+          content={scheduleDraft?.content ?? ""}
+          imageUrl={scheduleDraft?.imageUrl ?? null}
+          defaultDate={selectedDate ? selectedDate.toISOString() : null}
+          // The calendar renders from posts.scheduledFor, which schedulePost now
+          // writes — so refetching here is enough to show the entry immediately,
+          // and it survives a reload because it is real server state.
+          onScheduled={() => { setScheduleDraft(null); refetch(); }}
         />
 
         {/* Event Details Dialog */}

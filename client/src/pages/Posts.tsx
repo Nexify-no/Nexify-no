@@ -8,7 +8,8 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Copy, Zap, Trash2, Star, FileText, Plus, Search, Sparkles, Send, Loader2, Pencil, Image as ImageIcon } from "lucide-react";
+import { Copy, Zap, Trash2, Star, FileText, Plus, Search, Sparkles, Send, Loader2, Pencil, Image as ImageIcon, CalendarClock } from "lucide-react";
+import { ScheduleDialog } from "@/components/ScheduleDialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -88,6 +89,16 @@ export default function Posts() {
     },
     onError: (e) => toast.error(e.message),
   });
+  // PR #81: schedule a draft straight from "Mine innlegg" — previously the only
+  // way in was the calendar, so a draft you were already looking at could not be
+  // planned without navigating away and finding it again.
+  const [schedulePost, setSchedulePost] = useState<{
+    id: number;
+    platform: "linkedin" | "twitter" | "instagram" | "facebook";
+    content: string;
+    imageUrl?: string | null;
+  } | null>(null);
+
   const genImageMutation = trpc.content.generateImageNanoBanana.useMutation();
   const attachImageMutation = trpc.content.attachImage.useMutation();
 
@@ -439,6 +450,23 @@ export default function Posts() {
 
                         {/* Actions */}
                         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0">
+                          {post.status === "draft" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setSchedulePost({
+                                id: post.id,
+                                platform: post.platform,
+                                content: post.generatedContent,
+                                imageUrl: post.imageUrl ?? null,
+                              })}
+                              title={language === "no" ? "Planlegg" : "Schedule"}
+                              aria-label={language === "no" ? "Planlegg innlegg" : "Schedule post"}
+                              className="h-8 w-8 p-0 text-slate-400 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-900/30"
+                            >
+                              <CalendarClock className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                           <Button 
                             variant="ghost" 
                             size="sm" 
@@ -682,6 +710,19 @@ export default function Posts() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* PR #81: schedule the draft you are looking at, without leaving the page.
+          On success the post becomes status='scheduled' with a real
+          posts.scheduledFor, so it shows up in /kalender straight away. */}
+      <ScheduleDialog
+        open={schedulePost != null}
+        onClose={() => setSchedulePost(null)}
+        postId={schedulePost?.id ?? null}
+        platform={schedulePost?.platform ?? "linkedin"}
+        content={schedulePost?.content ?? ""}
+        imageUrl={schedulePost?.imageUrl ?? null}
+        onScheduled={() => setSchedulePost(null)}
+      />
     </div>
   );
 }

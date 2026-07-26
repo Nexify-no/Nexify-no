@@ -4,6 +4,19 @@
  * Unauthorized copying, distribution, or use is strictly prohibited.
  */
 
+/**
+ * What happens when you click a date in /kalender (PR #81).
+ *
+ * Two routes out, because both are things people actually want:
+ *   - "Lag nytt innlegg"            → the generator, carrying the date
+ *   - "Velg et eksisterende utkast" → pick a draft and schedule it directly
+ *
+ * The date travels through the in-memory `editorHandoff`, not sessionStorage.
+ * The old `prefilledScheduleDate` key was written here and read by nobody — the
+ * generator only ever looked at the handoff — so picking a date and creating a
+ * post silently lost the date. One channel now, so it cannot drift again.
+ */
+
 import { useLocation } from "wouter";
 import {
   Dialog,
@@ -13,29 +26,39 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Calendar, Sparkles } from "lucide-react";
+import { Calendar, FileText, Sparkles } from "lucide-react";
+import { setEditorHandoff } from "@/lib/editorHandoff";
 
 interface PostCreationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedDate: Date | null;
+  /** Open the draft picker for this date instead of leaving the calendar. */
+  onPickDraft?: (date: Date) => void;
 }
 
 export function PostCreationDialog({
   open,
   onOpenChange,
   selectedDate,
+  onPickDraft,
 }: PostCreationDialogProps) {
   const [, setLocation] = useLocation();
 
   const handleCreatePost = () => {
-    // Navigate to Generate page with pre-filled date
+    // Carry the clicked date all the way into the editor, so the post can be
+    // scheduled for it after generation without the user re-picking it.
     if (selectedDate) {
-      // Store selected date in sessionStorage for Generate page to pick up
-      sessionStorage.setItem("prefilledScheduleDate", selectedDate.toISOString());
+      setEditorHandoff({ scheduledAt: selectedDate.toISOString(), source: "calendar" });
     }
     setLocation("/generate");
     onOpenChange(false);
+  };
+
+  const handlePickDraft = () => {
+    if (!selectedDate) return;
+    onOpenChange(false);
+    onPickDraft?.(selectedDate);
   };
 
   const formatDate = (date: Date | null) => {
@@ -50,44 +73,49 @@ export function PostCreationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[440px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            Lag nytt innlegg
+            <Calendar className="h-5 w-5 text-primary" />
+            {formatDate(selectedDate)}
           </DialogTitle>
-          <DialogDescription>
-            Opprett et nytt innlegg planlagt for{" "}
-            <span className="font-semibold text-foreground">
-              {formatDate(selectedDate)}
-            </span>
-          </DialogDescription>
+          <DialogDescription>Hva vil du legge på denne datoen?</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/50 p-4">
-            <Calendar className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <p className="text-sm font-medium">Planlagt dato</p>
-              <p className="text-sm text-muted-foreground">
-                {formatDate(selectedDate)}
-              </p>
-            </div>
-          </div>
+        <div className="space-y-2 py-2">
+          <button
+            type="button"
+            onClick={handleCreatePost}
+            className="w-full flex items-start gap-3 rounded-xl border p-4 text-left hover:border-primary/50 hover:bg-muted/50 transition-colors"
+          >
+            <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+            <span className="min-w-0">
+              <span className="block text-sm font-medium">Lag nytt innlegg</span>
+              <span className="block text-sm text-muted-foreground">
+                Åpner generatoren med datoen klar.
+              </span>
+            </span>
+          </button>
 
-          <p className="text-sm text-muted-foreground">
-            Du vil bli tatt til innholdsgeneratoren hvor du kan lage innlegget
-            ditt. Datoen vil være forhåndsutfylt.
-          </p>
+          <button
+            type="button"
+            onClick={handlePickDraft}
+            disabled={!onPickDraft}
+            className="w-full flex items-start gap-3 rounded-xl border p-4 text-left hover:border-primary/50 hover:bg-muted/50 transition-colors disabled:opacity-50"
+          >
+            <FileText className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span className="min-w-0">
+              <span className="block text-sm font-medium">Velg et eksisterende utkast</span>
+              <span className="block text-sm text-muted-foreground">
+                Planlegg noe du allerede har skrevet.
+              </span>
+            </span>
+          </button>
         </div>
 
-        <div className="flex justify-end gap-3">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <div className="flex justify-end">
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Avbryt
-          </Button>
-          <Button onClick={handleCreatePost}>
-            <Sparkles className="mr-2 h-4 w-4" />
-            Lag innlegg
           </Button>
         </div>
       </DialogContent>

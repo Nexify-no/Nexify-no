@@ -586,6 +586,18 @@ export const contentRouter = router({
           throw new Error("Post not found or unauthorized");
         }
 
+        // PR #81: only a post that is still PENDING may be dragged to a new date.
+        //
+        // Before this guard a PUBLISHED post could be rescheduled: nothing
+        // cleared posts.scheduledFor on publish, so it kept its calendar entry,
+        // and dragging it set status back to 'scheduled' and inserted a fresh
+        // pending row — the worker then sent the identical post to LinkedIn a
+        // second time. This became reachable the moment schedulePost started
+        // writing posts.scheduledFor at all.
+        if (post.status !== "draft" && post.status !== "scheduled") {
+          throw new Error("Bare planlagte innlegg kan flyttes. Dette innlegget er allerede publisert.");
+        }
+
         const when = new Date(input.scheduledFor);
         // Atomic: mark the post scheduled, cancel any prior pending schedule
         // entry, and create the fresh schedule row in ONE transaction — so we can

@@ -26,6 +26,42 @@ async function brandScopedUser(userId: number) {
   return ownedBy(scheduledPosts.userId, scheduledPosts.brandId, userId, brandId);
 }
 
+const WEEKDAY_INDEX: Record<string, number> = {
+  Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+};
+
+/**
+ * The hour and weekday of an instant **as seen in `timeZone`** (PR #81).
+ *
+ * `Date.getHours()`/`getDay()` answer in the process's local zone, which on a
+ * server is whatever the host is set to — usually UTC. Anything that compares a
+ * user's chosen time against per-user optimal slots has to read it in the user's
+ * own zone or the comparison is meaningless. Falls back to the server's local
+ * values if the zone string is not one Intl recognises.
+ */
+export function localPartsInZone(
+  when: Date,
+  timeZone: string,
+): { hour: number; dayOfWeek: number } {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hour12: false,
+      hour: "2-digit",
+      weekday: "short",
+    }).formatToParts(when);
+    const hourRaw = parts.find((p) => p.type === "hour")?.value ?? "";
+    const weekday = parts.find((p) => p.type === "weekday")?.value ?? "";
+    // en-US hour12:false renders midnight as "24" in some ICU versions.
+    const hour = Number(hourRaw) % 24;
+    const dayOfWeek = WEEKDAY_INDEX[weekday];
+    if (Number.isNaN(hour) || dayOfWeek === undefined) throw new Error("unparsable");
+    return { hour, dayOfWeek };
+  } catch {
+    return { hour: when.getHours(), dayOfWeek: when.getDay() };
+  }
+}
+
 export interface OptimalTime {
   dayOfWeek: number;
   hour: number;
@@ -236,16 +272,20 @@ export async function schedulePost(
   // caller could schedule someone else's postId and have the scheduler publish
   // another tenant's content to the caller's connected account.
   const [owned] = await db
-    .select({ id: posts.id })
+    .select({ id: posts.id, brandId: posts.brandId })
     .from(posts)
     .where(and(eq(posts.id, postId), eq(posts.userId, userId)))
     .limit(1);
   if (!owned) throw new Error("Post not found or unauthorized");
 
-  // Calculate optimality score (0-100)
+  // Calculate optimality score (0-100).
+  // PR #81: read the hour and weekday in the USER's timezone. `getHours()` /
+  // `getDay()` resolve in the SERVER's zone, so an Oslo user picking 09:00 —
+  // LinkedIn's best slot — was scored as 07:00 on a UTC server, matched nothing,
+  // and silently got the fallback 50. The `timezone` column was stored and never
+  // read.
   const optimalTimes = await getOptimalPostingTimes(userId, platform);
-  const scheduledHour = scheduledFor.getHours();
-  const scheduledDay = scheduledFor.getDay();
+  const { hour: scheduledHour, dayOfWeek: scheduledDay } = localPartsInZone(scheduledFor, timezone);
 
   let optimalityScore = 50; // Base score
   for (const optimalTime of optimalTimes) {
@@ -255,17 +295,89 @@ export async function schedulePost(
     }
   }
 
-  // Create scheduled post
-  const result = await db.insert(scheduledPosts).values({
-    postId,
-    userId,
-    platform,
-    scheduledFor,
-    timezone,
-    status: "scheduled",
-    optimalityScore: optimalityScore as any,
-    engagementScore: (optimalityScore * 0.8) as any, // Slightly lower than optimality
-  });
+  // ── PR #81: the calendar reads `posts`, not `scheduled_posts` ────────────
+  //
+  // This is the whole "scheduling doesn't stick" bug. We wrote a scheduled_posts
+  // row and stopped there, but /kalender renders from posts.scheduledFor via
+  // content.getScheduledPosts. So the new entry appeared only because the client
+  // had optimistically drawn it, and vanished on the next refetch — the post was
+  // still status='draft' with scheduledFor NULL.
+  //
+  // Re-scheduling the same post must also UPDATE rather than stack a second row:
+  // two pending rows for one post make the worker publish it twice.
+  //
+  // The lookup is keyed by PLATFORM too. Without it, scheduling the same post to
+  // a second platform rewrote the first row's platform instead of adding one, so
+  // the first platform's publish was silently dropped.
+  //
+  // A row already claimed by the worker (`publishing`) is IN FLIGHT: the LinkedIn
+  // call may be seconds from completing. Matching only `scheduled` meant a
+  // reschedule during that window left the in-flight publish running AND
+  // inserted a fresh pending row — the post went out twice. Refuse instead; the
+  // reaper releases a genuinely stuck row after its timeout.
+  const [inFlight] = await db
+    .select({ id: scheduledPosts.id })
+    .from(scheduledPosts)
+    .where(and(
+      eq(scheduledPosts.postId, postId),
+      eq(scheduledPosts.userId, userId),
+      eq(scheduledPosts.platform, platform),
+      eq(scheduledPosts.status, "publishing"),
+    ))
+    .limit(1);
+  if (inFlight) {
+    throw new Error("Innlegget publiseres akkurat nå — vent til det er ferdig før du endrer tidspunktet.");
+  }
+
+  const [existing] = await db
+    .select({ id: scheduledPosts.id })
+    .from(scheduledPosts)
+    .where(and(
+      eq(scheduledPosts.postId, postId),
+      eq(scheduledPosts.userId, userId),
+      eq(scheduledPosts.platform, platform),
+      eq(scheduledPosts.status, "scheduled"),
+    ))
+    .limit(1);
+
+  let result;
+  if (existing) {
+    result = await db
+      .update(scheduledPosts)
+      .set({
+        platform,
+        scheduledFor,
+        timezone,
+        // PR #79: re-stamp the brand. A row left NULL by an earlier write stays
+        // invisible to every brand-scoped read while /kalender still shows it.
+        brandId: owned.brandId ?? null,
+        optimalityScore: optimalityScore as any,
+        engagementScore: (optimalityScore * 0.8) as any,
+      })
+      .where(and(eq(scheduledPosts.id, existing.id), eq(scheduledPosts.userId, userId)));
+  } else {
+    result = await db.insert(scheduledPosts).values({
+      postId,
+      userId,
+      // PR #79: the schedule row inherits the post's brand, so the brand-scoped
+      // calendar and stats can find it. Without this it is unowned and invisible.
+      brandId: owned.brandId ?? null,
+      platform,
+      scheduledFor,
+      timezone,
+      status: "scheduled",
+      optimalityScore: optimalityScore as any,
+      engagementScore: (optimalityScore * 0.8) as any, // Slightly lower than optimality
+    });
+  }
+
+  // Reflect the schedule on the post itself — this is what makes it show up in
+  // /kalender and survive a page refresh. Scoped by (id, userId) so it can only
+  // ever touch the caller's own post.
+  await db
+    .update(posts)
+    .set({ status: "scheduled", scheduledFor, updatedAt: new Date() })
+    .where(and(eq(posts.id, postId), eq(posts.userId, userId)));
 
   return result;
 }
@@ -326,7 +438,26 @@ export async function cancelScheduledPost(scheduledPostId: number, userId: numbe
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  return await db
+  // PR #81: keep `posts` in sync — the calendar renders from posts.scheduledFor,
+  // so a cancelled schedule that left the post at status='scheduled' kept
+  // drawing a ghost entry the user could not remove.
+  //
+  // Only a row that is still PENDING may be cancelled. Cancelling an already
+  // published row used to flip the post from 'published' back to 'draft' and null
+  // its scheduledFor, so a post that had genuinely gone out vanished from the
+  // calendar and from the Publisert count while publishedAt still said otherwise.
+  const [row] = await db
+    .select({ postId: scheduledPosts.postId })
+    .from(scheduledPosts)
+    .where(and(
+      eq(scheduledPosts.id, scheduledPostId),
+      eq(scheduledPosts.userId, userId),
+      eq(scheduledPosts.status, "scheduled"),
+    ))
+    .limit(1);
+  if (!row) throw new Error("Fant ingen planlagt publisering å avbryte.");
+
+  const result = await db
     .update(scheduledPosts)
     .set({
       status: "cancelled",
@@ -335,9 +466,24 @@ export async function cancelScheduledPost(scheduledPostId: number, userId: numbe
     .where(
       and(
         eq(scheduledPosts.id, scheduledPostId),
-        eq(scheduledPosts.userId, userId)
+        eq(scheduledPosts.userId, userId),
+        eq(scheduledPosts.status, "scheduled")
       )
     );
+
+  if (row.postId != null) {
+    await db
+      .update(posts)
+      .set({ status: "draft", scheduledFor: null, updatedAt: new Date() })
+      .where(and(
+        eq(posts.id, row.postId),
+        eq(posts.userId, userId),
+        // Never rewrite a post that already went out.
+        eq(posts.status, "scheduled"),
+      ));
+  }
+
+  return result;
 }
 
 /**
@@ -351,7 +497,22 @@ export async function reschedulePost(
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  return await db
+  // PR #81: only a PENDING row can move. Rescheduling a published, failed or
+  // cancelled row used to set the post back to 'scheduled' with a future date
+  // while no pending schedule row existed — the calendar showed a confident
+  // "Planlagt" entry the worker would never pick up.
+  const [row] = await db
+    .select({ postId: scheduledPosts.postId })
+    .from(scheduledPosts)
+    .where(and(
+      eq(scheduledPosts.id, scheduledPostId),
+      eq(scheduledPosts.userId, userId),
+      eq(scheduledPosts.status, "scheduled"),
+    ))
+    .limit(1);
+  if (!row) throw new Error("Fant ingen planlagt publisering å flytte.");
+
+  const result = await db
     .update(scheduledPosts)
     .set({
       scheduledFor: newScheduledFor,
@@ -360,9 +521,25 @@ export async function reschedulePost(
     .where(
       and(
         eq(scheduledPosts.id, scheduledPostId),
-        eq(scheduledPosts.userId, userId)
+        eq(scheduledPosts.userId, userId),
+        eq(scheduledPosts.status, "scheduled")
       )
     );
+
+  // Same reason as cancel — move the date the calendar actually reads, otherwise
+  // a drag-and-drop reschedule snapped back on the next refetch.
+  if (row.postId != null) {
+    await db
+      .update(posts)
+      .set({ status: "scheduled", scheduledFor: newScheduledFor, updatedAt: new Date() })
+      .where(and(
+        eq(posts.id, row.postId),
+        eq(posts.userId, userId),
+        eq(posts.status, "scheduled"),
+      ));
+  }
+
+  return result;
 }
 
 /**

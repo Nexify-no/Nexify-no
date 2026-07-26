@@ -60,7 +60,7 @@ import {
   InsertGenerationPreset
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
-import { authTokens } from "../drizzle/schema";
+import { authTokens, scheduledPosts } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -731,6 +731,28 @@ export async function markPostPublished(postId: number, userId: number): Promise
 export async function deletePost(postId: number, userId: number): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+
+  // PR #81: cancel any pending schedule FIRST, or the worker is left holding a
+  // row whose post no longer exists. It then claims the orphan, fails with
+  // "Post not found", marks the row failed, and pushes a "Publisering feilet —
+  // sjekk LinkedIn-tilkoblingen" notification blaming the user's connection for a
+  // post they deliberately deleted.
+  //
+  // Best-effort and BEFORE the delete: leaving a live row behind is worse than
+  // failing the delete, and this became reachable as soon as scheduled posts
+  // started appearing on the calendar where they can be deleted.
+  try {
+    await db
+      .update(scheduledPosts)
+      .set({ status: "cancelled", updatedAt: new Date() })
+      .where(and(
+        eq(scheduledPosts.postId, postId),
+        eq(scheduledPosts.userId, userId),
+        eq(scheduledPosts.status, "scheduled"),
+      ));
+  } catch (e) {
+    console.warn("[posts.delete] could not cancel pending schedule:", (e as Error)?.message);
+  }
 
   // SECURITY: ownership enforced at the SQL layer (postId AND userId).
   await db.delete(posts).where(and(eq(posts.id, postId), eq(posts.userId, userId)));
