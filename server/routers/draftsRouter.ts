@@ -20,14 +20,17 @@ export const draftsRouter = router({
         const { getDb } = await import("../db");
         const { drafts } = await import("../../drizzle/schema");
         const { eq, and } = await import("drizzle-orm");
+        const { activeBrandId, ownedBy, requireWriteBrandId } = await import("../services/brandScope");
         const db = await getDb();
         if (!db) throw new Error("Database not available");
-        
-        // Check if draft exists for this user and page
+
+        // PR #79: a draft is per (user, brand, page). Without the brand in the
+        // key, switching from Ballong to Penna reopened Ballong's autosaved form.
+        const brandId = await activeBrandId(ctx.user.id);
         const existing = await db.select()
           .from(drafts)
           .where(and(
-            eq(drafts.userId, ctx.user.id),
+            ownedBy(drafts.userId, drafts.brandId, ctx.user.id, brandId),
             eq(drafts.pageType, input.pageType)
           ))
           .limit(1);
@@ -45,6 +48,7 @@ export const draftsRouter = router({
           // Create new draft
           const result = await db.insert(drafts).values({
             userId: ctx.user.id,
+            brandId: await requireWriteBrandId(ctx.user.id),
             pageType: input.pageType,
             formData: input.formData,
             title: input.title,
@@ -62,13 +66,15 @@ export const draftsRouter = router({
         const { getDb } = await import("../db");
         const { drafts } = await import("../../drizzle/schema");
         const { eq, and } = await import("drizzle-orm");
+        const { activeBrandId, ownedBy } = await import("../services/brandScope");
         const db = await getDb();
         if (!db) throw new Error("Database not available");
-        
+
+        const brandId = await activeBrandId(ctx.user.id);
         const draft = await db.select()
           .from(drafts)
           .where(and(
-            eq(drafts.userId, ctx.user.id),
+            ownedBy(drafts.userId, drafts.brandId, ctx.user.id, brandId),
             eq(drafts.pageType, input.pageType)
           ))
           .limit(1);
@@ -88,9 +94,11 @@ export const draftsRouter = router({
         const db = await getDb();
         if (!db) throw new Error("Database not available");
         
+        const { activeBrandId: activeId, ownedBy: owned } = await import("../services/brandScope");
+        const brandId = await activeId(ctx.user.id);
         await db.delete(drafts)
           .where(and(
-            eq(drafts.userId, ctx.user.id),
+            owned(drafts.userId, drafts.brandId, ctx.user.id, brandId),
             eq(drafts.pageType, input.pageType)
           ));
         
@@ -101,13 +109,15 @@ export const draftsRouter = router({
     list: protectedProcedure.query(async ({ ctx }) => {
       const { getDb } = await import("../db");
       const { drafts } = await import("../../drizzle/schema");
-      const { eq, desc } = await import("drizzle-orm");
+      const { desc } = await import("drizzle-orm");
+      const { activeBrandId, ownedBy } = await import("../services/brandScope");
       const db = await getDb();
       if (!db) throw new Error("Database not available");
-      
+
+      const brandId = await activeBrandId(ctx.user.id);
       const userDrafts = await db.select()
         .from(drafts)
-        .where(eq(drafts.userId, ctx.user.id))
+        .where(ownedBy(drafts.userId, drafts.brandId, ctx.user.id, brandId))
         .orderBy(desc(drafts.lastSavedAt));
       
       return userDrafts;

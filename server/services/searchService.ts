@@ -11,7 +11,21 @@
 
 import { getDb } from "../db";
 import { posts } from "../../drizzle/schema";
-import { eq, and, or, like, gte, lte, inArray, desc } from "drizzle-orm";
+import { and, or, like, gte, lte, inArray, desc } from "drizzle-orm";
+
+/**
+ * PR #79 — every search read is scoped to the ACTIVE brand.
+ *
+ * Search was the loudest remaining leak: it matched on `user_id` alone, so with
+ * Penna selected a query returned Ballong's `generated_content` verbatim. The
+ * keyword, suggestion, filter and statistics helpers below shared the same
+ * gap — they are all derived from the same post set.
+ */
+async function brandScopedUser(userId: number) {
+  const { activeBrandId, ownedBy } = await import("./brandScope");
+  const brandId = await activeBrandId(userId);
+  return ownedBy(posts.userId, posts.brandId, userId, brandId);
+}
 
 /**
  * Search filters interface
@@ -80,7 +94,7 @@ export async function searchPosts(
   } = filters;
 
   // Build WHERE conditions
-  const conditions: any[] = [eq(posts.userId, userId)];
+  const conditions: any[] = [await brandScopedUser(userId)];
 
   // Full-text search
   if (query) {
@@ -258,7 +272,7 @@ export async function getTrendingSearchTerms(userId: number, limit: number = 10)
   const userPosts = await db
     .select()
     .from(posts)
-    .where(eq(posts.userId, userId));
+    .where(await brandScopedUser(userId));
 
   // Extract and count keywords
   const keywordMap = new Map<string, number>();
@@ -309,7 +323,7 @@ export async function getSearchSuggestions(
     .from(posts)
     .where(
       and(
-        eq(posts.userId, userId),
+        await brandScopedUser(userId),
         or(
           like(posts.generatedContent, `%${query}%`),
           like(posts.rawInput, `%${query}%`),
@@ -345,7 +359,7 @@ export async function getFilterOptions(userId: number) {
   const userPosts = await db
     .select()
     .from(posts)
-    .where(eq(posts.userId, userId));
+    .where(await brandScopedUser(userId));
 
   // Get unique values for each filter
   const platforms = Array.from(new Set(userPosts.map((p) => p.platform)));
@@ -434,7 +448,7 @@ export async function getPostStatistics(userId: number) {
   const userPosts = await db
     .select()
     .from(posts)
-    .where(eq(posts.userId, userId));
+    .where(await brandScopedUser(userId));
 
   // Count by status
   const statusCounts = {

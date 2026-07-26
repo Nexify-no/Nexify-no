@@ -18,7 +18,7 @@ import {
   postAuditLog,
   backupSchedule,
 } from "../../drizzle/schema";
-import { eq, and, or, isNull, lte, desc } from "drizzle-orm";
+import { eq, and, lte, desc } from "drizzle-orm";
 
 /**
  * Create a new post
@@ -34,13 +34,23 @@ export async function createPost(
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  // Multi-brand (MB1): stamp the author's ACTIVE brand so the post shows up
-  // under the right brand. No-op when the flag is off; never blocks the write.
+  // Multi-brand: stamp the author's ACTIVE brand so the post shows up under the
+  // right brand. No-op when the flag is off.
+  //
+  // PR #79: with multi-brand ON this throws instead of writing brand_id NULL.
+  // An ownerless post is not a degraded success — it is a row that used to show
+  // up under every brand at once.
   let brandId: number | null = null;
   try {
     const { getActiveBrandIdIfEnabled } = await import("../services/brands");
     brandId = await getActiveBrandIdIfEnabled(userId);
-  } catch { /* leave unscoped rather than failing the write */ }
+  } catch { /* fall through to the guard below */ }
+  if (brandId == null) {
+    const { ENV } = await import("../_core/env");
+    if (ENV.featureMultiBrand) {
+      throw new Error("Innlegget kan ikke lagres uten merkevare. Velg en merkevare og prøv igjen.");
+    }
+  }
 
   const result = await db.insert(posts).values({
     userId,
@@ -96,7 +106,11 @@ export async function getUserPosts(
   limit: number = 20,
   offset: number = 0,
   status?: string,
-  /** Multi-brand (MB1): restrict to one brand; legacy NULL-brand rows stay visible. */
+  /**
+   * Multi-brand: restrict to exactly one brand.
+   * PR #79 — no NULL fallback. Unowned rows belong to no brand, not to all of
+   * them; they are reached through the "Uklassifisert" surface.
+   */
   brandId?: number | null
 ) {
   const db = await getDb();
@@ -107,7 +121,7 @@ export async function getUserPosts(
     conditions.push(eq(posts.status, status as any));
   }
   if (brandId != null) {
-    conditions.push(or(eq(posts.brandId, brandId), isNull(posts.brandId))!);
+    conditions.push(eq(posts.brandId, brandId));
   }
 
   const result = await db

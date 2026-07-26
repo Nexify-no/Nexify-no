@@ -13,6 +13,19 @@ import { getDb } from "../db";
 import { schedulingPreferences, scheduledPosts, postingTimesAnalytics, posts } from "../../drizzle/schema";
 import { eq, and, gte, desc } from "drizzle-orm";
 
+/**
+ * PR #79 — scheduled-post reads are scoped to the ACTIVE brand.
+ *
+ * `scheduled_posts.brand_id` is backfilled by migration 0092, but these list
+ * and stats helpers still matched on `user_id` alone — so brand A's schedule
+ * showed up while brand B was selected.
+ */
+async function brandScopedUser(userId: number) {
+  const { activeBrandId, ownedBy } = await import("./brandScope");
+  const brandId = await activeBrandId(userId);
+  return ownedBy(scheduledPosts.userId, scheduledPosts.brandId, userId, brandId);
+}
+
 export interface OptimalTime {
   dayOfWeek: number;
   hour: number;
@@ -267,7 +280,7 @@ export async function getScheduledPosts(
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const conditions = [eq(scheduledPosts.userId, userId)];
+  const conditions = [await brandScopedUser(userId)];
 
   if (status) {
     conditions.push(eq(scheduledPosts.status, status));
@@ -297,7 +310,7 @@ export async function getUpcomingScheduledPosts(
     .from(scheduledPosts)
     .where(
       and(
-        eq(scheduledPosts.userId, userId),
+        await brandScopedUser(userId),
         eq(scheduledPosts.status, "scheduled"),
         gte(scheduledPosts.scheduledFor, now)
       )
@@ -434,7 +447,7 @@ export async function getSchedulingStats(userId: number) {
     .from(scheduledPosts)
     .where(
       and(
-        eq(scheduledPosts.userId, userId),
+        await brandScopedUser(userId),
         eq(scheduledPosts.status, "scheduled")
       )
     );
