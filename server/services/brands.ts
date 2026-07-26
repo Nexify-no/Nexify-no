@@ -75,25 +75,65 @@ export async function ensureDefaultBrand(accountId: number): Promise<number> {
     brandId = created[0].id;
   }
 
-  // Link legacy rows (only rows still without a brand — never overwrite).
-  await db.update(brandProfiles).set({ brandId })
-    .where(and(eq(brandProfiles.userId, accountId), isNull(brandProfiles.brandId)));
-  await db.update(posts).set({ brandId })
-    .where(and(eq(posts.userId, accountId), isNull(posts.brandId)));
-  await db.update(scheduledPosts).set({ brandId })
-    .where(and(eq(scheduledPosts.userId, accountId), isNull(scheduledPosts.brandId)));
-  await db.update(contentPlans).set({ brandId })
-    .where(and(eq(contentPlans.userId, accountId), isNull(contentPlans.brandId)));
-  await db.update(plannedPosts).set({ brandId })
-    .where(and(eq(plannedPosts.userId, accountId), isNull(plannedPosts.brandId)));
-  await db.update(contentSchedule).set({ brandId })
-    .where(and(eq(contentSchedule.userId, accountId), isNull(contentSchedule.brandId)));
+  // ---- Adopt legacy rows (only rows still without a brand — never overwrite) ----
+  //
+  // Adoption is BEST-EFFORT. It is a convenience migration, not the purpose of
+  // this call, so a failure on one table must never take down brands.list — that
+  // is what made the brand switcher disappear entirely instead of degrading.
+  const adopt = async (label: string, run: () => Promise<unknown>) => {
+    try {
+      await run();
+    } catch (err) {
+      const e = err as { code?: string; sqlState?: string };
+      console.error(
+        `[brands] legacy adoption skipped for ${label} (account ${accountId}, brand ${brandId}):`,
+        e?.code ?? (err as Error)?.name ?? "unknown",
+        e?.sqlState ?? "",
+      );
+    }
+  };
+
+  // brand_profiles carries UNIQUE(user_id, brand_id) since migration 0089, so a
+  // blanket UPDATE collides in two ways: when a stamped row already occupies the
+  // (user, brand) slot, and when several unstamped rows would be given the same
+  // brand at once. Repeated "Analyser på nytt" attempts create exactly those
+  // extra rows. Adopt at most ONE row, and only into a free slot.
+  await adopt("brand_profiles", async () => {
+    const [taken] = await db
+      .select({ id: brandProfiles.id })
+      .from(brandProfiles)
+      .where(and(eq(brandProfiles.userId, accountId), eq(brandProfiles.brandId, brandId)))
+      .limit(1);
+    if (taken) return;
+
+    const [oldest] = await db
+      .select({ id: brandProfiles.id })
+      .from(brandProfiles)
+      .where(and(eq(brandProfiles.userId, accountId), isNull(brandProfiles.brandId)))
+      .orderBy(brandProfiles.id)
+      .limit(1);
+    if (!oldest) return;
+
+    await db.update(brandProfiles).set({ brandId }).where(eq(brandProfiles.id, oldest.id));
+  });
+
+  // The remaining tables have no per-brand uniqueness, so a blanket update is safe.
+  await adopt("posts", () => db.update(posts).set({ brandId })
+    .where(and(eq(posts.userId, accountId), isNull(posts.brandId))));
+  await adopt("scheduled_posts", () => db.update(scheduledPosts).set({ brandId })
+    .where(and(eq(scheduledPosts.userId, accountId), isNull(scheduledPosts.brandId))));
+  await adopt("content_plans", () => db.update(contentPlans).set({ brandId })
+    .where(and(eq(contentPlans.userId, accountId), isNull(contentPlans.brandId))));
+  await adopt("planned_posts", () => db.update(plannedPosts).set({ brandId })
+    .where(and(eq(plannedPosts.userId, accountId), isNull(plannedPosts.brandId))));
+  await adopt("content_schedule", () => db.update(contentSchedule).set({ brandId })
+    .where(and(eq(contentSchedule.userId, accountId), isNull(contentSchedule.brandId))));
 
   // Social connection: safe to adopt ONLY while the account has exactly one brand.
   const all = await listBrands(accountId);
   if (all.length === 1) {
-    await db.update(linkedinConnections).set({ brandId })
-      .where(and(eq(linkedinConnections.userId, accountId), isNull(linkedinConnections.brandId)));
+    await adopt("linkedin_connections", () => db.update(linkedinConnections).set({ brandId })
+      .where(and(eq(linkedinConnections.userId, accountId), isNull(linkedinConnections.brandId))));
   }
 
   // Active brand: set when missing or pointing at a brand this account no longer has.
