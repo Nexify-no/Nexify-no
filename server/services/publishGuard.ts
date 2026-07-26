@@ -133,6 +133,87 @@ export async function requireDestination(
 }
 
 /**
+ * Refuse to publish an unverifiable claim (PR #83).
+ *
+ * `high_risk` means an undocumented customer story, an undocumented price, or an
+ * unprovable superlative — the three things that turn a marketing post into a
+ * statement the business cannot stand behind. Approval already blocks these
+ * inside a plan, but publishing a SAVED post had no such check, so the claim only
+ * had to survive one hop into "Mine innlegg".
+ *
+ * Re-checked live against the account's current Merkehjerne, which is what makes
+ * the fix work both ways: delete the claim, or add it as a sourced fact, and the
+ * post becomes publishable without anyone clearing a flag by hand.
+ */
+export async function assertContentIsPublishable(input: {
+  accountId: number;
+  postId?: number | null;
+  content: string;
+  /**
+   * The brand this publish belongs to — from resolvePublishBrand, which every
+   * caller already computes. Never the active brand: see brandFactsForUser.
+   */
+  brandId?: number | null;
+}): Promise<void> {
+  try {
+    const { brandFactsForUser, reverifyPost } = await import("./verification/reverify");
+    const brand = await brandFactsForUser(input.accountId, input.brandId);
+    // No Merkehjerne at all means nothing to check against — that is the
+    // pre-brand state, and blocking every publish for it would be wrong. Logged,
+    // because "skipped" and "passed" look identical from the outside and this is
+    // the difference between a guard and a no-op.
+    if (!brand) {
+      logSecurityEvent("publish_verification_skipped", {
+        accountId: input.accountId,
+        postId: input.postId ?? -1,
+        reason: "no_brand_profile",
+      });
+      return;
+    }
+
+    const verdict = input.postId
+      ? await reverifyPost({
+          postId: input.postId,
+          userId: input.accountId,
+          content: input.content,
+          brand,
+          persist: true,
+        })
+      : await reverifyPost({
+          postId: 0,
+          userId: input.accountId,
+          content: input.content,
+          brand,
+          persist: false,
+        });
+
+    if (verdict?.status === "high_risk") {
+      const why = verdict.issues.map((i) => i.message).slice(0, 3).join(" ");
+      logSecurityEvent("high_risk_publish_blocked", {
+        accountId: input.accountId,
+        postId: input.postId ?? -1,
+        codes: verdict.issues.map((i) => i.code).join(","),
+      });
+      throw new PublishBlockedError(
+        why || "Innlegget inneholder en påstand som ikke kan dokumenteres. Fjern den, eller legg den til som et faktum med kilde i Merkehjernen.",
+      );
+    }
+  } catch (e) {
+    // A genuine block must propagate; anything else must not stop a publish.
+    if (e instanceof PublishBlockedError) throw e;
+    console.warn("[publishGuard] verification check skipped:", (e as Error)?.message);
+  }
+}
+
+/** Distinguishes a deliberate refusal from an incidental failure. */
+export class PublishBlockedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PublishBlockedError";
+  }
+}
+
+/**
  * Refuse a repeat of the same publish.
  *
  * Independent of any client-supplied key, because the key was optional and the

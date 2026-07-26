@@ -120,6 +120,8 @@ interface PostRow {
   generationStatus: string;
   approvalStatus: string;
   verificationStatus: string;
+  /** PR #83: the actual findings behind the status, so we can say WHY. */
+  verificationIssues?: Array<{ code: string; message: string; evidence?: string }> | null;
   content: string | null;
   reason: string | null;
   imageUrl: string | null;
@@ -165,10 +167,9 @@ function PostCard({ planId, post }: { planId: number; post: PostRow }) {
                   ? "bg-red-500/10 text-red-600 dark:text-red-400"
                   : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
               }`}
-              title="Innhold som ikke er dokumentert i Merkehjernen må sjekkes før det brukes"
             >
               {post.verificationStatus === "high_risk"
-                ? "Høy risiko — sjekk manuelt"
+                ? "Høy risiko"
                 : post.verificationStatus === "unsupported"
                   ? "Udokumentert påstand"
                   : "Sjekk før bruk"}
@@ -178,6 +179,46 @@ function PostCard({ planId, post }: { planId: number; post: PostRow }) {
             <span className="text-xs rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5">Kontrollert</span>
           )}
         </div>
+
+        {/* PR #83: say WHAT is wrong and WHAT to do. A bare "Høy risiko" badge told
+            the user something was broken but not which sentence, so the only way
+            to clear it was to guess. */}
+        {post.generationStatus === "done"
+          && post.verificationStatus !== "verified"
+          && (post.verificationIssues?.length ?? 0) > 0 && (
+          <div
+            className={cn(
+              "mb-2 rounded-lg border p-2.5 text-xs",
+              post.verificationStatus === "high_risk"
+                ? "border-red-500/40 bg-red-500/5"
+                : "border-amber-500/40 bg-amber-500/5",
+            )}
+          >
+            <p className="font-medium">
+              {post.verificationStatus === "high_risk"
+                ? "Kan ikke godkjennes før dette er rettet:"
+                : "Sjekk dette før du bruker innlegget:"}
+            </p>
+            <ul className="mt-1 space-y-1">
+              {(post.verificationIssues ?? []).slice(0, 4).map((issue, i) => (
+                <li key={`${issue.code}-${i}`} className="text-muted-foreground">
+                  • {issue.message}
+                  {issue.evidence && (
+                    <span className="ml-1 rounded bg-background px-1 py-0.5 font-mono text-[11px] text-foreground">
+                      {issue.evidence}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+            {post.verificationStatus === "high_risk" && (
+              <p className="mt-1.5 text-muted-foreground">
+                Fjern påstanden, eller legg den til som et faktum med kilde i Merkehjernen — da
+                forsvinner flagget av seg selv.
+              </p>
+            )}
+          </div>
+        )}
 
         {post.reason && <p className="text-xs text-muted-foreground mb-2">{post.reason}</p>}
 

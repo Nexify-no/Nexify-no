@@ -659,6 +659,13 @@
       "when": 1785456000000,
       "tag": "0093_brand_draft_status",
       "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "5",
+      "when": 1785542400000,
+      "tag": "0094_verification_reasons",
+      "breakpoints": true
     }
   ]
 }

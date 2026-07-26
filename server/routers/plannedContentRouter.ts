@@ -132,7 +132,15 @@ export const plannedContentRouter = router({
     // for accounts that were working fine a minute earlier.
 
     const profileVersion = brand.updatedAt ? Math.floor(new Date(brand.updatedAt).getTime() / 1000) : 0;
-    const hasCases = Array.isArray(brand.facts) && (brand.facts as unknown[]).length > 0;
+    // PR #83: do not generate a Kundecase without a DOCUMENTED customer story.
+    //
+    // `facts.length > 0` was the old test, so any fact at all — an opening hour, a
+    // service list — unlocked a "customer case" slot, and the model then invented
+    // the customer. Verification would flag the result high_risk, which is the
+    // right verdict but the wrong moment: the user has already paid for the
+    // generation and now has an unusable post in their plan.
+    const { hasDocumentedCustomerStory } = await import("../services/verification/contentVerification");
+    const hasCases = hasDocumentedCustomerStory(brand as never);
     const items = buildPlanSkeleton({
       goal: input.goal as PlanGoal,
       postsPerWeek: input.postsPerWeek,
@@ -199,7 +207,10 @@ export const plannedContentRouter = router({
   }),
   saveApproved: protectedProcedure.input(z.object({ planId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
     requireFlag();
-    return { count: await saveApprovedAsDrafts(input.planId, ctx.user.id) };
+    // PR #83: `skipped` is the count held back as high_risk, so the UI can say so
+    // instead of quietly returning a smaller number.
+    const { saved, skipped } = await saveApprovedAsDrafts(input.planId, ctx.user.id);
+    return { count: saved, skipped };
   }),
 
 

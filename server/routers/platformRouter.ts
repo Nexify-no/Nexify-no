@@ -279,6 +279,12 @@ export const platformRouter = router({
       } = await import("../services/publishGuard");
 
       const publishBrandId = await resolvePublishBrand(ctx.user.id, input.postId);
+
+      // PR #83: an undocumented claim is refused before anything is sent.
+      const { assertContentIsPublishable } = await import("../services/publishGuard");
+      await assertContentIsPublishable({
+        accountId: ctx.user.id, postId: input.postId, content: input.content, brandId: publishBrandId,
+      });
       const claims = new Map<string, number | null>();
       const destinations = new Map<string, { destinationId: string | null; destinationType: string | null }>();
 
