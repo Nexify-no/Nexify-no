@@ -68,6 +68,14 @@ export default function Posts() {
 
   const publishMutation = trpc.platform.publishToSpecific.useMutation({
     onSuccess: (r) => {
+      // PR #82: the procedure's outer catch RESOLVES with { success: false }, so
+      // a server-side refusal arrived here — not in onError — and neither count
+      // was set. The user clicked Publiser and got no feedback whatsoever.
+      if (r.success === false) {
+        toast.error(r.error || (language === "no" ? "Publisering mislyktes" : "Publishing failed"));
+        setPublishPostId(null);
+        return;
+      }
       if ((r.successCount ?? 0) > 0) {
         toast.success(language === "no" ? `Publisert til ${r.successCount} plattform(er)` : `Published to ${r.successCount} platform(s)`);
       }

@@ -333,10 +333,21 @@ export class PublishingManager {
     return results;
   }
 
+  /**
+   * PR #82: `destinations` says WHERE each platform must publish, per brand.
+   *
+   * Without it this method derived the LinkedIn author from the account-wide
+   * `linkedin_connections` row, so validating the brand's destination upstream
+   * was cosmetic — the post still went wherever that single row pointed. An
+   * account whose provider row had been switched to another brand's Company Page
+   * published one brand's content into the other brand's feed, while the audit
+   * row recorded a correct-looking destination.
+   */
   async publishToSpecificPlatforms(
     userId: number,
     platforms: string[],
-    content: PublishContent
+    content: PublishContent,
+    destinations?: Map<string, { destinationId: string | null; destinationType: string | null }>,
   ): Promise<PublishResult[]> {
     const results: PublishResult[] = [];
 
@@ -355,8 +366,14 @@ export class PublishingManager {
       let result: PublishResult;
       switch (platform) {
         case "linkedin": {
-          const author =
-            token.publishTarget === "organization" && token.organizationUrn
+          // The brand's destination wins. The account-wide row is only the
+          // fallback for multi-brand-off installs.
+          const wanted = destinations?.get(platform);
+          const author = wanted?.destinationId
+            ? (wanted.destinationId.startsWith("urn:li:")
+                ? wanted.destinationId
+                : `urn:li:${wanted.destinationType === "organization" ? "organization" : "person"}:${wanted.destinationId}`)
+            : token.publishTarget === "organization" && token.organizationUrn
               ? token.organizationUrn
               : token.personUrn
                 ? (token.personUrn.startsWith("urn:li:") ? token.personUrn : `urn:li:person:${token.personUrn}`)
@@ -371,8 +388,13 @@ export class PublishingManager {
           result = await this.instagramPublisher.publish(token.accessToken, content);
           break;
         case "facebook": {
+          const wanted = destinations?.get(platform);
           const conn = await platformManager.getPlatformConnection(userId, "facebook");
-          result = await this.facebookPublisher.publish(token.accessToken, content, conn?.accountId ?? undefined);
+          result = await this.facebookPublisher.publish(
+            token.accessToken,
+            content,
+            wanted?.destinationId ?? conn?.accountId ?? undefined,
+          );
           break;
         }
         default:

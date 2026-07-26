@@ -116,12 +116,59 @@ async function processScheduledPostsInner() {
             .limit(1);
           if (!connection) throw new Error('LinkedIn not connected');
 
+          // ── PR #82: the worker publishes where the BRAND says, not wherever
+          // the account-wide connection points ──────────────────────────────
+          //
+          // This call passed no author override at all, so it ignored
+          // publishTarget entirely: a brand whose destination is a Company Page
+          // had its scheduled posts published to the user's personal feed. The
+          // destination check at schedule time guaranteed nothing about where the
+          // post actually landed, because this is the code that lands it.
+          const { resolvePublishBrand, requireDestination, claimPublication, settlePublication } =
+            await import('./services/publishGuard');
+          const brandId = await resolvePublishBrand(post.userId, post.id);
+          const destination = await requireDestination(post.userId, brandId, 'linkedin', post.id);
+          const toOrg = destination?.destinationType === 'organization';
+          const authorOverride = toOrg
+            ? (destination?.destinationId ?? (connection as { organizationUrn?: string | null }).organizationUrn ?? null)
+            : null;
+
+          // Same audit trail and duplicate protection as an interactive publish,
+          // so a worker retry cannot double-post either.
+          const publicationId = await claimPublication({
+            accountId: post.userId,
+            brandId,
+            postId: post.id,
+            platform: 'linkedin',
+            destination,
+            content: post.generatedContent,
+          });
+
           const { decryptSecret } = await import('./_core/tokenCrypto');
-          await createLinkedInPost(
-            decryptSecret(connection.accessToken) ?? '',
-            connection.personUrn,
-            post.generatedContent
-          );
+          const orgToken = (connection as { orgAccessToken?: string | null }).orgAccessToken;
+          const activeToken = toOrg && orgToken
+            ? decryptSecret(orgToken) ?? ''
+            : decryptSecret(connection.accessToken) ?? '';
+          try {
+            const published = await createLinkedInPost(
+              activeToken,
+              connection.personUrn,
+              post.generatedContent,
+              authorOverride,
+            );
+            await settlePublication(publicationId, {
+              status: 'published',
+              providerPostId: published?.id ?? null,
+              providerResponse: published,
+              postId: post.id,
+            });
+          } catch (error) {
+            await settlePublication(publicationId, {
+              status: 'failed',
+              errorMessage: error instanceof Error ? error.message : 'Ukjent feil',
+            });
+            throw error;
+          }
 
           // Mark published in BOTH tables so the schedule list and "Mine innlegg" agree.
           const publishedAt = new Date();

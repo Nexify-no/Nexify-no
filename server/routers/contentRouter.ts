@@ -599,6 +599,17 @@ export const contentRouter = router({
           throw new Error("Bare planlagte innlegg kan flyttes. Dette innlegget er allerede publisert.");
         }
 
+        // PR #82: drag-to-reschedule goes through the same destination gate as
+        // ScheduleDialog. Without it the calendar happily moved a post that the
+        // dialog would have refused to schedule at all.
+        const { resolvePublishBrand, requireDestination } = await import("../services/publishGuard");
+        await requireDestination(
+          ctx.user.id,
+          await resolvePublishBrand(ctx.user.id, input.postId),
+          post.platform,
+          input.postId,
+        );
+
         const when = new Date(input.scheduledFor);
         // Atomic: mark the post scheduled, cancel any prior pending schedule
         // entry, and create the fresh schedule row in ONE transaction — so we can

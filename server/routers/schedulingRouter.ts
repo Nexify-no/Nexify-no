@@ -101,6 +101,17 @@ export const schedulingRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // PR #82: refuse to schedule what cannot be published.
+      //
+      // Without this the post sat in the calendar looking fine until its time
+      // came, then failed in the worker — where the user is not watching and the
+      // only signal is a "Publisering feilet" notification hours later. The same
+      // brand-ownership check as the publish paths, applied at the moment the
+      // user can still do something about it.
+      const { resolvePublishBrand, requireDestination } = await import("../services/publishGuard");
+      const brandId = await resolvePublishBrand(ctx.user.id, input.postId);
+      await requireDestination(ctx.user.id, brandId, input.platform, input.postId);
+
       const result = await schedulePost(
         input.postId,
         ctx.user.id,
@@ -299,6 +310,12 @@ export const schedulingRouter = router({
         input.platform,
         startDate
       );
+
+      // PR #82: same gate as schedulePost — refuse to schedule what cannot be
+      // published, while the user is still here to fix it.
+      const { resolvePublishBrand: brandOf, requireDestination: needDest } =
+        await import("../services/publishGuard");
+      await needDest(ctx.user.id, await brandOf(ctx.user.id, input.postId), input.platform, input.postId);
 
       // Schedule the post
       const result = await schedulePost(
