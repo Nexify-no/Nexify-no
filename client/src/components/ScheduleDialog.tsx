@@ -7,7 +7,7 @@
 // brand's publish destination plus a preview, then writes a real scheduled_posts
 // row so the post appears in the calendar immediately.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CalendarClock, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -30,13 +30,36 @@ const pad = (n: number) => String(n).padStart(2, "0");
 export function ScheduleDialog({ open, onClose, postId, platform, content, imageUrl, defaultDate, onScheduled }: Props) {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Oslo";
   const initial = defaultDate ? new Date(defaultDate) : new Date(Date.now() + 24 * 60 * 60 * 1000);
-  const [date, setDate] = useState(`${initial.getFullYear()}-${pad(initial.getMonth() + 1)}-${pad(initial.getDate())}`);
+  const isoDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const [date, setDate] = useState(isoDate(initial));
   const [time, setTime] = useState("09:00");
+
+  // PR #81: the dialog stays mounted between openings (it just renders null), so
+  // useState's initial values are only ever read once. Without this reset:
+  //
+  //  - clicking a second date in /kalender reopened the dialog still showing the
+  //    FIRST date, and confirming scheduled the post to the wrong day;
+  //  - on /innlegg, where there is no defaultDate at all, the date and time the
+  //    user typed for draft A were still there for draft B — one click put B on
+  //    A's date. An early-return on a missing defaultDate would have left exactly
+  //    that case broken, so the fallback is the explicit default instead.
+  useEffect(() => {
+    if (!open) return;
+    const d = defaultDate ? new Date(defaultDate) : new Date(Date.now() + 24 * 60 * 60 * 1000);
+    setDate(isoDate(Number.isNaN(d.getTime()) ? new Date(Date.now() + 24 * 60 * 60 * 1000) : d));
+    setTime("09:00");
+  }, [open, defaultDate]);
 
   const utils = trpc.useUtils();
   const flags = trpc.brands.flags.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
-  const dest = trpc.social.destinations.useQuery(undefined, { enabled: open && flags.data?.enabled === true });
+  const multiBrand = flags.data?.enabled === true;
+  const dest = trpc.social.destinations.useQuery(undefined, { enabled: open && multiBrand });
   const destination = dest.data?.platforms.find((p) => p.platform === platform);
+  // PR #81: name the brand this is scheduled for. Without it the dialog looked
+  // identical for Penna and Ballong, so there was nothing to catch a mis-click
+  // before the post went into the wrong brand's calendar.
+  const brands = trpc.brands.list.useQuery(undefined, { enabled: open && multiBrand, staleTime: 60 * 1000 });
+  const activeBrand = brands.data?.brands.find((b) => b.id === brands.data?.activeBrandId);
 
   const schedule = trpc.scheduling.schedulePost.useMutation({
     onSuccess: async () => {
@@ -76,6 +99,12 @@ export function ScheduleDialog({ open, onClose, postId, platform, content, image
           </div>
 
           <dl className="rounded-xl border divide-y text-sm">
+            {activeBrand && (
+              <div className="flex justify-between gap-3 px-3 py-2">
+                <dt className="text-muted-foreground">Merkevare</dt>
+                <dd className="font-medium truncate">{activeBrand.name}</dd>
+              </div>
+            )}
             <div className="flex justify-between gap-3 px-3 py-2">
               <dt className="text-muted-foreground">Tidssone</dt><dd className="font-medium">{tz}</dd>
             </div>
