@@ -6,7 +6,7 @@
 
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Zap, LayoutDashboard, Sparkles, FileText, MessageSquare, Settings as SettingsIcon, LogOut, Flame, Mic, BarChart3, Lightbulb, Calendar, Clock, Recycle, Send, Target, List, FlaskConical, Mail, ChevronLeft, ChevronRight, BrainCircuit } from "lucide-react";
+import { Menu, X, Zap, LayoutDashboard, Sparkles, FileText, MessageSquare, Settings as SettingsIcon, LogOut, Flame, Mic, BarChart3, Lightbulb, Calendar, Clock, Recycle, Send, Target, List, FlaskConical, Mail, ChevronLeft, ChevronRight, BrainCircuit, Plug } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
@@ -49,6 +49,9 @@ export default function DashboardNav() {
   // Enkel-plan feature flag (av i prod til Fase 3) - styrer Innholdsplan-innslaget.
   const planFlagsQuery = trpc.plan.flags.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
   const enkelPlanEnabled = planFlagsQuery.data?.enabled === true;
+  // Multi-brand gate for the per-brand Kanaler page (PR #82).
+  const brandFlagsQuery = trpc.brands.flags.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
+  const multiBrandEnabled = brandFlagsQuery.data?.enabled === true;
 
   // Primary navigation items
   const primaryNavItems = [
@@ -82,6 +85,10 @@ export default function DashboardNav() {
       title: "Tilpasning",
       items: [
           { label: "Merkehjerne", href: "/merkehjerne", icon: BrainCircuit },
+        // PR #82: per-brand publish destinations. Only meaningful with
+        // multi-brand on, where "which accounts does this BRAND publish to" is a
+        // different question from the account-wide list under /settings.
+        ...(multiBrandEnabled ? [{ label: "Kanaler", href: "/settings/platforms", icon: Plug }] : []),
         { label: "Stemme", href: "/stemme", icon: Mic },
         { label: "Coach", href: "/coach", icon: MessageSquare },
       ]

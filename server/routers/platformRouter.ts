@@ -5,6 +5,7 @@
  */
 
 import { router, publicProcedure, protectedProcedure } from "../_core/trpc";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
   LinkedInOAuth,
@@ -171,6 +172,17 @@ export const platformRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
+      // PR #82: publishToAllConnectedPlatforms iterates EVERY token the account
+      // owns — no brand, no destination, no duplicate check. That is exactly the
+      // hole this PR exists to close, so with multi-brand on it is refused and
+      // the caller must name its platforms and go through the guarded path.
+      const { ENV } = await import("../_core/env");
+      if (ENV.featureMultiBrand) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Velg hvilke kanaler innlegget skal publiseres til.",
+        });
+      }
       try {
         const publishContent: PublishContent = {
           content: input.content,
@@ -237,23 +249,82 @@ export const platformRouter = router({
         imageUrl: z.string().optional(),
         hashtags: z.array(z.string()).optional(),
         link: z.string().optional(),
+        /** Optional client key; the server dedupes regardless (PR #82). */
+        idempotencyKey: z.string().trim().min(8).max(64).optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
-      try {
-        const publishContent: PublishContent = {
-          content: input.content,
-          title: input.title,
-          imageUrl: input.imageUrl,
-          hashtags: input.hashtags,
-          link: input.link,
-        };
+      const publishContent: PublishContent = {
+        content: input.content,
+        title: input.title,
+        imageUrl: input.imageUrl,
+        hashtags: input.hashtags,
+        link: input.link,
+      };
 
+      // ── PR #82: the guard this path never had ────────────────────────────────
+      //
+      // publishToSpecificPlatforms resolves its provider token from userId alone
+      // — it has no idea brands exist. So a Penna post could go out through
+      // Ballong's connected LinkedIn, and two clicks meant two live posts. The
+      // brand guard and the duplicate guard lived only in linkedin.createPost.
+      //
+      // Deliberately OUTSIDE the try/catch below: that catch turns a throw into
+      // `{ success: false, error }`, and the client reads only successCount /
+      // failureCount — so a refusal in there resolved silently and the user saw
+      // nothing at all after clicking Publiser.
+      const {
+        resolvePublishBrand, requireDestination, assertNotDuplicatePublish,
+        claimPublication, settlePublication,
+      } = await import("../services/publishGuard");
+
+      const publishBrandId = await resolvePublishBrand(ctx.user.id, input.postId);
+      const claims = new Map<string, number | null>();
+      const destinations = new Map<string, { destinationId: string | null; destinationType: string | null }>();
+
+      // Check EVERY platform before claiming any of them, so a refusal on the
+      // second platform cannot leave the first one claimed and locked out.
+      const resolved: { platform: "linkedin" | "facebook" | "instagram" | "twitter"; destination: Awaited<ReturnType<typeof requireDestination>> }[] = [];
+      for (const platform of input.platforms) {
+        const p = platform as "linkedin" | "facebook" | "instagram" | "twitter";
+        await assertNotDuplicatePublish(ctx.user.id, input.postId, p, input.content);
+        resolved.push({ platform: p, destination: await requireDestination(ctx.user.id, publishBrandId, p, input.postId) });
+      }
+      for (const { platform: p, destination } of resolved) {
+        if (destination) {
+          destinations.set(p, { destinationId: destination.destinationId, destinationType: destination.destinationType });
+        }
+        claims.set(p, await claimPublication({
+          accountId: ctx.user.id,
+          brandId: publishBrandId,
+          postId: input.postId,
+          platform: p,
+          destination,
+          idempotencyKey: input.idempotencyKey ?? null,
+          content: input.content,
+        }));
+      }
+
+      try {
         const results = await publishingManager.publishToSpecificPlatforms(
           ctx.user.id,
           input.platforms,
-          publishContent
+          publishContent,
+          // The destination must DRIVE the publish, not merely be validated —
+          // otherwise the post still goes wherever the account-wide row points.
+          destinations,
         );
+
+        // Close every claim with what actually happened, so a failed attempt does
+        // not sit as `pending` and block the user's next try for a full minute.
+        for (const r of results) {
+          await settlePublication(
+            claims.get(r.platform) ?? null,
+            r.success
+              ? { status: "published", providerPostId: r.postId ?? null, providerResponse: r, postId: input.postId ?? null }
+              : { status: "failed", errorMessage: r.error ?? "Ukjent feil" },
+          );
+        }
 
         // Best-effort: record each successful publication as a published post + analytics
         // row so the "best time to post" pipeline has real engagement data to learn from.
@@ -298,6 +369,14 @@ export const platformRouter = router({
           failureCount: results.filter((r) => !r.success).length,
         };
       } catch (error) {
+        // PR #82: release every claim we made, or a transport failure locks the
+        // user out of retrying for the rest of the duplicate window.
+        for (const id of claims.values()) {
+          await settlePublication(id, {
+            status: "failed",
+            errorMessage: error instanceof Error ? error.message : "Unknown error",
+          });
+        }
         return {
           success: false,
           error: error instanceof Error ? error.message : "Unknown error",

@@ -226,13 +226,14 @@ describe("the journey the user actually sees", () => {
   });
 
   it("the connect step navigates client-side to a route that exists", () => {
-    // /settings/platforms is not a route; a raw <a href> would also hard-reload
-    // and tear the wizard down on the way to a 404.
-    // No link or navigation may target it (the comment explaining why may).
-    expect(ui).not.toMatch(/(href|setLocation\()\s*=?\s*["'`]\/settings\/platforms/);
-    expect(ui).toMatch(/setLocation\("\/settings"\)/);
+    // A raw <a href> would hard-reload and tear the wizard down. The target is
+    // the per-brand Kanaler page added in PR #82 — assert the ROUTE exists
+    // rather than trusting the string.
+    const target = ui.match(/setLocation\("([^"]+)"\)/)?.[1];
+    expect(target, "connect step must navigate somewhere").toBeTruthy();
     const app = readFileSync("client/src/App.tsx", "utf8");
-    expect(app).toMatch(/path=\{"\/settings"\}/);
+    expect(app).toContain(`path={"${target}"}`);
+    expect(ui).not.toMatch(/href="\/settings/);
   });
 
   it("refetches the review data instead of trusting the 30s global cache", () => {

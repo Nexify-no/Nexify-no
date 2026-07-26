@@ -69,8 +69,8 @@ function Chips({ label, items }: { label: string; items: readonly string[] | nul
 export function AddBrandWizard({ open, onClose }: Props) {
   const utils = trpc.useUtils();
   // Client-side navigation: a raw <a href> is a full reload, which tears down the
-  // wizard on the way out. /settings is where the platform connections live —
-  // there is no /settings/platforms route.
+  // wizard on the way out. /settings/platforms is the brand-scoped Kanaler page
+  // added in PR #82.
   const [, setLocation] = useLocation();
   const [step, setStep] = useState<Step>("url");
   const [websiteUrl, setWebsiteUrl] = useState("");
@@ -327,7 +327,7 @@ export function AddBrandWizard({ open, onClose }: Props) {
                     <span className="text-sm font-medium">{p.label}</span>
                     <button
                       type="button"
-                      onClick={() => { reset(); onClose(); setLocation("/settings"); }}
+                      onClick={() => { reset(); onClose(); setLocation("/settings/platforms"); }}
                       className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium hover:bg-muted"
                     >
                       Koble til konto

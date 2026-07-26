@@ -245,68 +245,53 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
         // ── Multi-brand safety (MB2) ─────────────────────────────────────
         // A post may only go out through a connection owned by the SAME brand.
         // Also reserve an idempotency row so a repeated click cannot double-post.
-        const { ENV: _ENV } = await import("../_core/env");
+        // PR #82: the same shared guard the generic publish path now uses, so the
+        // two cannot drift. It also closes the hole where double-submit
+        // protection only existed if the CLIENT chose to send an idempotencyKey —
+        // without one, two clicks meant two live LinkedIn posts.
+        const {
+          resolvePublishBrand, requireDestination, assertNotDuplicatePublish,
+          claimPublication, settlePublication,
+        } = await import("../services/publishGuard");
+
+        // input.brandId is IGNORED. The server decides which brand publishes:
+        // the post's own brand, else the active one. Honouring a client-supplied
+        // brand id bought nothing (it was always overridden when the post had a
+        // brand) and let a caller drive cross-brand attempts — and the security
+        // log — with ids of its own choosing.
+        const publishBrandId = await resolvePublishBrand(ctx.user.id, input.postId);
+
         let publicationId: number | null = null;
-        let publishBrandId: number | null = null;
-        if (_ENV.featureMultiBrand) {
-          const { getActiveBrandId } = await import("../services/brands");
-          const { getDestination, assertBrandOwnsConnection } = await import("../services/socialDestinations");
-          const { publications } = await import("../../drizzle/schema");
-
-          publishBrandId = input.brandId ?? (await getActiveBrandId(ctx.user.id));
-          // The post's own brand wins when it is known (never publish A as B).
-          if (input.postId) {
-            const [owned] = await db.select().from(posts)
-              .where(and(eq(posts.id, input.postId), eq(posts.userId, ctx.user.id))).limit(1);
-            if (!owned) throw new Error("Innlegget finnes ikke.");
-            if (owned.brandId != null) publishBrandId = owned.brandId;
-          }
-
-          const destination = await getDestination(ctx.user.id, publishBrandId, "linkedin");
-          if (!destination) {
-            throw new Error("Denne merkevaren har ingen tilkoblet LinkedIn-side. Koble til før du publiserer.");
-          }
-          assertBrandOwnsConnection({
+        let brandDestination: Awaited<ReturnType<typeof requireDestination>> = null;
+        if (publishBrandId != null) {
+          await assertNotDuplicatePublish(ctx.user.id, input.postId, "linkedin", input.content);
+          brandDestination = await requireDestination(ctx.user.id, publishBrandId, "linkedin", input.postId);
+          publicationId = await claimPublication({
             accountId: ctx.user.id,
-            postBrandId: publishBrandId,
-            connectionBrandId: destination.brandId,
-            platform: "linkedin",
+            brandId: publishBrandId,
             postId: input.postId,
+            platform: "linkedin",
+            destination: brandDestination,
+            idempotencyKey: input.idempotencyKey ?? null,
+            content: input.content,
           });
-
-          if (input.idempotencyKey) {
-            try {
-              await db.insert(publications).values({
-                accountId: ctx.user.id,
-                brandId: publishBrandId,
-                postId: input.postId ?? 0,
-                connectionId: destination.id,
-                platform: "linkedin",
-                destinationId: destination.destinationId,
-                destinationName: destination.destinationName,
-                idempotencyKey: input.idempotencyKey,
-                status: "pending",
-              });
-              const [row] = await db.select().from(publications)
-                .where(and(
-                  eq(publications.accountId, ctx.user.id),
-                  eq(publications.idempotencyKey, input.idempotencyKey),
-                )).limit(1);
-              publicationId = row?.id ?? null;
-            } catch {
-              // Unique(account, idempotency_key) hit -> this exact publish already ran.
-              throw new Error("Dette innlegget er allerede publisert.");
-            }
-          }
         }
 
         // Create post (tokens are encrypted at rest). Company-Page posting uses
         // the SEPARATE org token from the Community-Management app; personal
         // posting uses the member token.
         const { decryptSecret } = await import("../_core/tokenCrypto");
-        const toOrg =
-          (connection[0] as any).publishTarget === "organization" && (connection[0] as any).organizationUrn;
-        const authorOverride = toOrg ? (connection[0] as any).organizationUrn : null;
+        // PR #82: the brand's destination decides where this goes. Recomputing the
+        // target from the account-wide connection row is what made the guard
+        // cosmetic — switching the account's publish target to another brand's
+        // Company Page sent this brand's post into that brand's feed while the
+        // audit row recorded the right-looking destination.
+        const toOrg = brandDestination?.destinationType
+          ? brandDestination.destinationType === "organization"
+          : ((connection[0] as any).publishTarget === "organization" && !!(connection[0] as any).organizationUrn);
+        const authorOverride = toOrg
+          ? (brandDestination?.destinationId ?? (connection[0] as any).organizationUrn)
+          : null;
         if (toOrg && !(connection[0] as any).orgAccessToken) {
           throw new Error("Bedriftsside ikke tilkoblet. Koble til bedriftsside først.");
         }
@@ -331,13 +316,26 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
           throw new Error("Velg en merkevare før du publiserer.");
         }
 
-        const result = await createLinkedInPost(
-          activeToken,
-          connection[0].personUrn,
-          input.content,
-          authorOverride,
-          imageUrl
-        );
+        // PR #82: a throw here left the claimed publication `pending`, so
+        // assertNotDuplicatePublish refused the retry ("Publiseringen er allerede
+        // i gang") for the rest of the window — an expired token or a LinkedIn
+        // 429 locked the user out of their own retry.
+        let result;
+        try {
+          result = await createLinkedInPost(
+            activeToken,
+            connection[0].personUrn,
+            input.content,
+            authorOverride,
+            imageUrl
+          );
+        } catch (error) {
+          await settlePublication(publicationId, {
+            status: "failed",
+            errorMessage: error instanceof Error ? error.message : "Ukjent feil",
+          });
+          throw error;
+        }
 
         // Record the publication locally so "Mine innlegg" reflects it as published
         // (previously the post went live on LinkedIn but left no local trace).
@@ -364,17 +362,13 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
         // result.id is the LinkedIn platform post id (URN/share id) returned by createLinkedInPost.
         if (publishedPostId) await recordPostAnalytics(ctx.user.id, publishedPostId, "linkedin", publishedAt, result?.id ?? null);
 
-        // Close the publication record with the provider response (MB2 audit trail).
-        if (publicationId != null) {
-          const { publications } = await import("../../drizzle/schema");
-          await db.update(publications).set({
-            status: "published",
-            providerPostId: result?.id ?? null,
-            providerResponse: JSON.stringify(result ?? {}).slice(0, 2_000),
-            publishedAt,
-            postId: publishedPostId ?? 0,
-          }).where(eq(publications.id, publicationId));
-        }
+        // Close the publication record with the provider response (audit trail).
+        await settlePublication(publicationId, {
+          status: "published",
+          providerPostId: result?.id ?? null,
+          providerResponse: result,
+          postId: publishedPostId ?? null,
+        });
 
         return result;
       }),

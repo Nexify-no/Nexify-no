@@ -659,8 +659,32 @@ export default function Generate() {
       { id: "facebook" as const, label: "Facebook", Icon: Facebook },
       { id: "instagram" as const, label: "Instagram", Icon: Instagram },
     ];
-    const connected = destinationsQuery.data?.platforms?.filter((p) => p.connected).map((p) => p.platform) ?? null;
-    const platformPicks = connected ? ALL_PICKS.filter((p) => connected.includes(p.id)) : ALL_PICKS;
+    // PR #82: while the destinations are still loading we know NOTHING about what
+    // this brand can publish to. Falling back to ALL_PICKS meant the three
+    // platforms flashed up, the user clicked one, and it vanished a moment later
+    // when the real answer arrived — or worse, stayed selected and failed at
+    // publish time. Show nothing until we know; keep the old behaviour only when
+    // multi-brand is genuinely off.
+    // Key off the queries' own loading state, not isSuccess:
+    //  - while socialFlags itself is in flight, `data` is undefined, so
+    //    `!== true` was TRUE and all three chips still flashed up on first paint;
+    //  - isSuccess never becomes true on error, so a 500 (or the FORBIDDEN when
+    //    multi-brand is off for this account) left the page stuck on
+    //    "Henter kanalene …" forever with nothing selectable.
+    const flagsSettled = !socialFlags.isLoading;
+    const multiBrandOn = socialFlags.data?.enabled === true;
+    const destinationsKnown = flagsSettled && (!multiBrandOn || !destinationsQuery.isLoading);
+    // On error we know nothing about this brand's channels. Offering all three
+    // would invite a publish that fails; offering none would be a dead end. Fall
+    // back to all three and let the server refuse with a real message.
+    const connected = destinationsQuery.isError
+      ? null
+      : destinationsQuery.data?.platforms?.filter((p) => p.connected).map((p) => p.platform) ?? null;
+    const platformPicks = !destinationsKnown
+      ? []
+      : connected
+        ? ALL_PICKS.filter((p) => connected.includes(p.id))
+        : ALL_PICKS;
     const destinationName =
       destinationsQuery.data?.platforms?.find((p) => p.platform === platform && p.connected)?.destinationName ?? null;
     // MB3: examples come from the ACTIVE brand's Merkehjerne, never hard-coded.
@@ -726,9 +750,24 @@ export default function Generate() {
 
               <div className="space-y-2">
                 <Label className="text-sm text-muted-foreground">Hvor skal det deles?</Label>
-                {platformPicks.length === 0 && (
+                {!destinationsKnown && (
+                  <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                    Henter kanalene til merkevaren …
+                  </p>
+                )}
+                {destinationsKnown && platformPicks.length === 0 && (
                   <p className="text-xs text-amber-600">
-                    Ingen kanaler er koblet til denne merkevaren ennå. Du kan fortsatt lage innlegget og publisere det senere.
+                    Ingen kanaler er koblet til denne merkevaren ennå. Du kan fortsatt lage innlegget
+                    og publisere det senere — eller{" "}
+                    <button
+                      type="button"
+                      onClick={() => setLocation("/settings/platforms")}
+                      className="font-medium underline underline-offset-2"
+                    >
+                      koble til en konto
+                    </button>
+                    .
                   </p>
                 )}
                 <div className="flex flex-wrap gap-2">

@@ -44,41 +44,136 @@ export function logSecurityEvent(event: string, props: Record<string, number | s
 }
 
 /**
- * Mirror the account's provider connections into brand_social_connections.
- * Idempotent: existing rows are left untouched.
+ * Reconcile the account's provider connections into brand_social_connections.
+ *
+ * PR #82 rewrote this. It used to (a) mirror ONLY LinkedIn and (b) return the
+ * moment any linkedin row existed, so the mirror was written once and never
+ * corrected. Two consequences, both shipped:
+ *
+ *  - Facebook, Instagram and X had no mirror row at all. Once publishing started
+ *    requiring a destination, every one of them became permanently unpublishable
+ *    for accounts that had them connected and working.
+ *  - Disconnecting LinkedIn deleted `linkedin_connections` but left the mirror
+ *    row `active`. The Kanaler page kept saying "Tilkoblet", scheduling kept
+ *    succeeding, and the failure surfaced hours later in the worker — exactly
+ *    what per-brand destinations are supposed to prevent.
+ *
+ * So: mirror every platform, and REFRESH the destination each run so the mirror
+ * follows the provider row instead of freezing at first sight. A row whose
+ * provider connection has disappeared is marked `revoked`, never left active.
  */
 export async function syncConnectionsForAccount(accountId: number): Promise<void> {
   const db = await requireDb();
   const brands = await listBrands(accountId);
   const soleBrandId = brands.length === 1 ? brands[0].id : null;
 
+  const { platformIntegrations } = await import("../../drizzle/schema");
+
+  /** What the provider tables currently say, per platform. */
+  const live = new Map<Platform, {
+    providerConnectionId: number;
+    destinationId: string | null;
+    destinationName: string | null;
+    destinationType: "person" | "organization" | "page" | "account";
+    tokenExpiresAt: Date | null;
+  }>();
+
+  // LinkedIn lives in its own store (the "Koble til LinkedIn" flow).
   const [li] = await db
     .select()
     .from(linkedinConnections)
     .where(eq(linkedinConnections.userId, accountId))
     .limit(1);
-  if (!li) return;
+  if (li) {
+    const toOrg = li.publishTarget === "organization" && !!li.organizationUrn;
+    live.set("linkedin", {
+      providerConnectionId: li.id,
+      destinationId: toOrg ? li.organizationUrn : li.personUrn,
+      destinationName: toOrg ? li.organizationName : li.profileName,
+      destinationType: toOrg ? "organization" : "person",
+      tokenExpiresAt: li.expiresAt ?? null,
+    });
+  }
 
-  const [existing] = await db
+  // Everything else comes through the generic integrations table.
+  const integrations = await db
+    .select()
+    .from(platformIntegrations)
+    .where(eq(platformIntegrations.userId, accountId));
+  for (const row of integrations) {
+    const platform = row.platform as Platform;
+    if (platform === "linkedin" && live.has("linkedin")) continue; // dedicated store wins
+    live.set(platform, {
+      providerConnectionId: row.id,
+      destinationId: row.accountId ?? null,
+      destinationName: row.accountName ?? null,
+      destinationType: platform === "facebook" || platform === "instagram" ? "page" : "account",
+      tokenExpiresAt: row.expiresAt ?? null,
+    });
+  }
+
+  const mirrored = await db
     .select()
     .from(brandSocialConnections)
-    .where(and(eq(brandSocialConnections.accountId, accountId), eq(brandSocialConnections.platform, "linkedin")))
-    .limit(1);
-  if (existing) return;
+    .where(eq(brandSocialConnections.accountId, accountId));
 
-  const toOrg = li.publishTarget === "organization" && !!li.organizationUrn;
-  await db.insert(brandSocialConnections).values({
-    accountId,
-    // Only adopt automatically when the mapping is unambiguous.
-    brandId: li.brandId ?? soleBrandId,
-    platform: "linkedin",
-    providerConnectionId: li.id,
-    destinationId: toOrg ? li.organizationUrn : li.personUrn,
-    destinationName: toOrg ? li.organizationName : li.profileName,
-    destinationType: toOrg ? "organization" : "person",
-    status: (li.brandId ?? soleBrandId) ? "active" : "needs_brand_assignment",
-    tokenExpiresAt: li.expiresAt ?? null,
-  });
+  for (const [platform, current] of live) {
+    const existing = mirrored.find((m) => m.platform === platform);
+    if (!existing) {
+      await db.insert(brandSocialConnections).values({
+        accountId,
+        // Only adopt automatically when the mapping is unambiguous. With several
+        // brands the user decides — we never guess that a Ballong account, a
+        // Penna page and a Nexify LinkedIn belong to the same brand.
+        brandId: soleBrandId,
+        platform,
+        providerConnectionId: current.providerConnectionId,
+        destinationId: current.destinationId,
+        destinationName: current.destinationName,
+        destinationType: current.destinationType,
+        status: soleBrandId ? "active" : "needs_brand_assignment",
+        tokenExpiresAt: current.tokenExpiresAt,
+      });
+      continue;
+    }
+
+    // Follow the provider row. The brand assignment is the user's decision and
+    // is never overwritten here; everything else is provider truth.
+    const drifted =
+      existing.providerConnectionId !== current.providerConnectionId ||
+      existing.destinationId !== current.destinationId ||
+      existing.destinationName !== current.destinationName ||
+      existing.destinationType !== current.destinationType ||
+      (existing.status === "revoked" && existing.brandId != null);
+    if (drifted) {
+      await db
+        .update(brandSocialConnections)
+        .set({
+          providerConnectionId: current.providerConnectionId,
+          destinationId: current.destinationId,
+          destinationName: current.destinationName,
+          destinationType: current.destinationType,
+          tokenExpiresAt: current.tokenExpiresAt,
+          status: existing.brandId != null ? "active" : "needs_brand_assignment",
+        })
+        .where(and(
+          eq(brandSocialConnections.id, existing.id),
+          eq(brandSocialConnections.accountId, accountId),
+        ));
+    }
+  }
+
+  // A mirror row whose provider connection is gone must stop claiming to work.
+  for (const m of mirrored) {
+    if (live.has(m.platform as Platform) || m.status === "revoked") continue;
+    await db
+      .update(brandSocialConnections)
+      .set({ status: "revoked" })
+      .where(and(
+        eq(brandSocialConnections.id, m.id),
+        eq(brandSocialConnections.accountId, accountId),
+      ));
+  }
 }
 
 /** Connections for one brand (after syncing legacy rows). */

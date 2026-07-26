@@ -46,6 +46,7 @@ const SubscriptionSuccess = lazy(() => import("./pages/SubscriptionSuccess"));
 const SubscriptionCancel = lazy(() => import("./pages/SubscriptionCancel"));
 const AdminAnalytics = lazy(() => import("./pages/AdminAnalytics"));
 const Examples = lazy(() => import("./pages/Examples"));
+const BrandPlatforms = lazy(() => import("./pages/BrandPlatforms"));
 const BestTime = lazy(() => import("./pages/BestTime"));
 const ContentRepurpose = lazy(() => import("./pages/ContentRepurpose"));
 const TelegramBot = lazy(() => import("./pages/TelegramBot"));
@@ -137,6 +138,7 @@ function Router() {
         <Route path={"/kalender"} component={Calendar} />
         <Route path={"/best-time"} component={BestTime} />
         <Route path={"/pricing"} component={Pricing} />
+        <Route path={"/settings/platforms"} component={BrandPlatforms} />
         <Route path={"/settings/billing"} component={BillingPage} />
         <Route path={"/payment/success"} component={PaymentSuccess} />
         <Route path={"/payment/failure"} component={PaymentFailure} />
