@@ -4,120 +4,336 @@
  * Unauthorized copying, distribution, or use is strictly prohibited.
  */
 
-import { describe, it, expect, vi, beforeAll } from "vitest";
+/**
+ * Google OAuth login/callback routes.
+ *
+ * The previous version of this file mocked `google-auth-library` and then
+ * asserted on the mock: `client.getToken()` returns what the mock was told to
+ * return, `expect(COOKIE_NAME).toBe("app_session_id")` where COOKIE_NAME was a
+ * local const declared two lines above. None of the seven tests imported
+ * `googleOAuthRoutes` at all, so the actual login flow was untested — and the two
+ * that touched the mock failed anyway, because `mockReset: true`
+ * (vitest.config.ts) strips a spy's implementation before every test, and the
+ * OAuth2Client mock was an implementation set at module scope.
+ *
+ * This version drives the real handlers. What matters here is security, so that
+ * is what is pinned: the CSRF `state` guard, the PKCE challenge, single-use
+ * transaction cookies, and the `google_` openId prefix that keeps Google
+ * identities from colliding with Manus ones.
+ */
 
-// Mock google-auth-library
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import crypto from "crypto";
+
+// ---------------------------------------------------------------------------
+// Recorders. Plain objects/functions — not vi.fn() — so `mockReset: true`
+// cannot strip the implementations out from under the tests.
+// ---------------------------------------------------------------------------
+
+let authUrlOptions: Record<string, unknown> | null = null;
+let getTokenArgs: unknown = null;
+let verifyArgs: unknown = null;
+let upserted: Array<Record<string, unknown>> = [];
+let sessionTokenFor: string | null = null;
+/** Set to make the token exchange fail. */
+let tokenExchangeError: Error | null = null;
+/** Payload the ID token verifies to; null means "no payload". */
+let idTokenPayload: Record<string, unknown> | null = null;
+
 vi.mock("google-auth-library", () => ({
-  OAuth2Client: vi.fn().mockImplementation(() => ({
-    generateAuthUrl: vi.fn().mockReturnValue(
-      "https://accounts.google.com/o/oauth2/v2/auth?client_id=test&scope=email+profile"
-    ),
-    getToken: vi.fn().mockResolvedValue({
-      tokens: {
-        id_token: "mock_id_token",
-        access_token: "mock_access_token",
-      },
-    }),
-    verifyIdToken: vi.fn().mockResolvedValue({
-      getPayload: () => ({
-        sub: "google_123456",
-        email: "test@example.com",
-        name: "Test User",
-        picture: "https://example.com/photo.jpg",
-      }),
-    }),
-  })),
+  OAuth2Client: class {
+    generateAuthUrl(opts: Record<string, unknown>) {
+      authUrlOptions = opts;
+      const q = new URLSearchParams({
+        client_id: "test_client_id",
+        state: String(opts.state ?? ""),
+        code_challenge: String(opts.code_challenge ?? ""),
+        code_challenge_method: String(opts.code_challenge_method ?? ""),
+      });
+      return `https://accounts.google.com/o/oauth2/v2/auth?${q.toString()}`;
+    }
+    async getToken(args: unknown) {
+      getTokenArgs = args;
+      if (tokenExchangeError) throw tokenExchangeError;
+      return { tokens: { id_token: "mock_id_token", access_token: "mock_access_token" } };
+    }
+    async verifyIdToken(args: unknown) {
+      verifyArgs = args;
+      return { getPayload: () => idTokenPayload };
+    }
+  },
 }));
 
-describe("Google OAuth Configuration", () => {
-  beforeAll(() => {
+vi.mock("./db", () => ({
+  upsertUser: async (row: Record<string, unknown>) => {
+    upserted.push(row);
+  },
+}));
+
+vi.mock("./_core/sdk", () => ({
+  sdk: {
+    createSessionToken: async (openId: string) => {
+      sessionTokenFor = openId;
+      return `session_for_${openId}`;
+    },
+    authenticateRequest: async () => {
+      throw new Error("not authenticated");
+    },
+  },
+}));
+
+// ---------------------------------------------------------------------------
+// A tiny Express double: collects handlers by path, records what they emit.
+// ---------------------------------------------------------------------------
+
+type Handler = (req: any, res: any) => unknown;
+
+function mkRes() {
+  const cookies: Array<{ name: string; value: string; options: Record<string, unknown> }> = [];
+  const cleared: string[] = [];
+  const out = {
+    cookies,
+    cleared,
+    redirectedTo: null as string | null,
+    statusCode: null as number | null,
+    json: null as unknown,
+    cookie(name: string, value: string, options: Record<string, unknown> = {}) {
+      cookies.push({ name, value, options });
+      return out;
+    },
+    clearCookie(name: string) {
+      cleared.push(name);
+      return out;
+    },
+    redirect(status: number, url: string) {
+      out.statusCode = status;
+      out.redirectedTo = url;
+      return out;
+    },
+    status(code: number) {
+      out.statusCode = code;
+      return out;
+    },
+  };
+  (out as any).json = (body: unknown) => {
+    (out as any).jsonBody = body;
+    return out;
+  };
+  return out as typeof out & { jsonBody?: unknown };
+}
+
+const mkReq = (over: Record<string, unknown> = {}) => ({
+  protocol: "https",
+  headers: { host: "penna.no" },
+  query: {},
+  cookies: {},
+  ...over,
+});
+
+async function routes(): Promise<Record<string, Handler>> {
+  const table: Record<string, Handler> = {};
+  const app = { get: (path: string, h: Handler) => { table[path] = h; } };
+  const { registerGoogleOAuthRoutes } = await import("./routes/googleOAuthRoutes");
+  registerGoogleOAuthRoutes(app as never);
+  return table;
+}
+
+const cookieValue = (res: ReturnType<typeof mkRes>, name: string) =>
+  res.cookies.find((c) => c.name === name)?.value;
+
+describe("Google OAuth routes", () => {
+  beforeEach(() => {
     process.env.GOOGLE_CLIENT_ID = "test_client_id";
     process.env.GOOGLE_CLIENT_SECRET = "test_client_secret";
-    vi.clearAllMocks();
+    authUrlOptions = null;
+    getTokenArgs = null;
+    verifyArgs = null;
+    upserted = [];
+    sessionTokenFor = null;
+    tokenExchangeError = null;
+    idTokenPayload = {
+      sub: "123456789",
+      email: "test@example.com",
+      name: "Test User",
+      picture: "https://example.com/photo.jpg",
+    };
   });
 
-  it("should have GOOGLE_CLIENT_ID configured", () => {
-    try {
-      expect(typeof process.env.GOOGLE_CLIENT_ID).toBe("string");
-    } catch (error) {
-      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
-    }
+  describe("starting the flow", () => {
+    it("sets single-use state and PKCE-verifier cookies and binds both to the auth URL", async () => {
+      const r = await routes();
+      const res = mkRes();
+      await r["/api/auth/login/google"](mkReq(), res);
+
+      const state = cookieValue(res, "g_oauth_state");
+      const verifier = cookieValue(res, "g_oauth_verifier");
+      expect(state).toBeTruthy();
+      expect(verifier).toBeTruthy();
+
+      // The state in the URL is the state in the cookie — otherwise the callback
+      // comparison can never succeed and login is simply broken.
+      expect(authUrlOptions?.state).toBe(state);
+
+      // PKCE: the challenge must be the S256 hash of the verifier we stored, not
+      // the verifier itself (sending the verifier defeats the whole exchange).
+      const expected = crypto.createHash("sha256").update(verifier!).digest("base64url");
+      expect(authUrlOptions?.code_challenge).toBe(expected);
+      expect(authUrlOptions?.code_challenge_method).toBe("S256");
+      expect(authUrlOptions?.code_challenge).not.toBe(verifier);
+
+      expect(res.statusCode).toBe(302);
+      expect(res.redirectedTo).toContain("accounts.google.com");
+    });
+
+    it("expires the transaction cookies quickly and keeps them httpOnly", async () => {
+      const r = await routes();
+      const res = mkRes();
+      await r["/api/auth/login/google"](mkReq(), res);
+
+      for (const name of ["g_oauth_state", "g_oauth_verifier"]) {
+        const c = res.cookies.find((x) => x.name === name)!;
+        expect(c.options.httpOnly).toBe(true);
+        expect(c.options.maxAge).toBe(10 * 60 * 1000);
+      }
+    });
+
+    it("mints a fresh state per attempt", async () => {
+      const r = await routes();
+      const a = mkRes();
+      const b = mkRes();
+      await r["/api/auth/login/google"](mkReq(), a);
+      await r["/api/auth/login/google"](mkReq(), b);
+      expect(cookieValue(a, "g_oauth_state")).not.toBe(cookieValue(b, "g_oauth_state"));
+      expect(cookieValue(a, "g_oauth_verifier")).not.toBe(cookieValue(b, "g_oauth_verifier"));
+    });
+
+    it("returns the same URL as JSON on the fetch entry point", async () => {
+      const r = await routes();
+      const res = mkRes();
+      await r["/api/auth/login"](mkReq(), res);
+      expect((res.jsonBody as { url: string }).url).toContain("accounts.google.com");
+      expect(cookieValue(res, "g_oauth_state")).toBeTruthy();
+    });
   });
 
-  it("should have GOOGLE_CLIENT_SECRET configured", () => {
-    try {
-      expect(typeof process.env.GOOGLE_CLIENT_SECRET).toBe("string");
-    } catch (error) {
-      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
-    }
+  describe("callback CSRF guard", () => {
+    it("rejects a callback whose state does not match the cookie", async () => {
+      const r = await routes();
+      const res = mkRes();
+      await r["/api/auth/callback/google"](
+        mkReq({ query: { code: "c", state: "forged" }, cookies: { g_oauth_state: "real" } }),
+        res,
+      );
+
+      expect(res.redirectedTo).toBe("/login?error=state_mismatch");
+      expect(getTokenArgs).toBeNull(); // the code was never exchanged
+      expect(upserted).toHaveLength(0);
+    });
+
+    it("rejects a callback with no state cookie at all", async () => {
+      const r = await routes();
+      const res = mkRes();
+      await r["/api/auth/callback/google"](mkReq({ query: { code: "c", state: "anything" } }), res);
+      expect(res.redirectedTo).toBe("/login?error=state_mismatch");
+      expect(getTokenArgs).toBeNull();
+    });
+
+    it("rejects a callback with a cookie but no returned state", async () => {
+      const r = await routes();
+      const res = mkRes();
+      await r["/api/auth/callback/google"](
+        mkReq({ query: { code: "c" }, cookies: { g_oauth_state: "real" } }),
+        res,
+      );
+      expect(res.redirectedTo).toBe("/login?error=state_mismatch");
+      expect(getTokenArgs).toBeNull();
+    });
+
+    it("clears both transaction cookies even when it rejects", async () => {
+      const r = await routes();
+      const res = mkRes();
+      await r["/api/auth/callback/google"](
+        mkReq({ query: { code: "c", state: "forged" }, cookies: { g_oauth_state: "real" } }),
+        res,
+      );
+      // Single-use: leaving them set would let the same state be replayed.
+      expect(res.cleared).toContain("g_oauth_state");
+      expect(res.cleared).toContain("g_oauth_verifier");
+    });
+
+    it("redirects on a Google-side error without exchanging anything", async () => {
+      const r = await routes();
+      const res = mkRes();
+      await r["/api/auth/callback/google"](mkReq({ query: { error: "access_denied" } }), res);
+      expect(res.redirectedTo).toBe("/login?error=auth_failed");
+      expect(getTokenArgs).toBeNull();
+    });
   });
 
-  it("should generate Google OAuth URL with correct parameters", async () => {
-    try {
-      const { OAuth2Client } = await import("google-auth-library");
-      const client = new OAuth2Client("test_id", "test_secret", "http://localhost:3000/callback");
-      const url = client.generateAuthUrl({
-        access_type: "offline",
-        scope: ["https://www.googleapis.com/auth/userinfo.email"],
-        prompt: "consent",
-      });
+  describe("successful callback", () => {
+    const ok = { query: { code: "the_code", state: "s1" }, cookies: { g_oauth_state: "s1", g_oauth_verifier: "v1" } };
 
-      expect(url).toContain("accounts.google.com");
-      expect(url).toContain("client_id=test");
-    } catch (error) {
-      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
-    }
-  });
+    it("exchanges the code bound to the stored PKCE verifier", async () => {
+      const r = await routes();
+      await r["/api/auth/callback/google"](mkReq(ok), mkRes());
+      expect(getTokenArgs).toEqual({ code: "the_code", codeVerifier: "v1" });
+    });
 
-  it("should handle Google token exchange", async () => {
-    try {
-      const { OAuth2Client } = await import("google-auth-library");
-      const client = new OAuth2Client("test_id", "test_secret", "http://localhost:3000/callback");
-      const { tokens } = await client.getToken("mock_code");
+    it("verifies the ID token against our own client id", async () => {
+      const r = await routes();
+      await r["/api/auth/callback/google"](mkReq(ok), mkRes());
+      // Skipping the audience check would accept a token minted for another app.
+      expect(verifyArgs).toEqual({ idToken: "mock_id_token", audience: "test_client_id" });
+    });
 
-      expect(tokens.id_token).toBe("mock_id_token");
-      expect(tokens.access_token).toBe("mock_access_token");
-    } catch (error) {
-      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
-    }
-  });
+    it("prefixes the Google subject with google_ so it cannot collide with a Manus openId", async () => {
+      const r = await routes();
+      await r["/api/auth/callback/google"](mkReq(ok), mkRes());
+      expect(upserted).toHaveLength(1);
+      expect(upserted[0].openId).toBe("google_123456789");
+      expect(upserted[0].loginMethod).toBe("google");
+      expect(sessionTokenFor).toBe("google_123456789");
+    });
 
-  it("should verify Google ID token and extract user info", async () => {
-    try {
-      const { OAuth2Client } = await import("google-auth-library");
-      const client = new OAuth2Client("test_id", "test_secret", "http://localhost:3000/callback");
-      const ticket = await client.verifyIdToken({
-        idToken: "mock_id_token",
-        audience: "test_id",
-      });
-      const payload = ticket.getPayload();
+    it("sets the shared session cookie and lands on the dashboard", async () => {
+      const r = await routes();
+      const res = mkRes();
+      await r["/api/auth/callback/google"](mkReq(ok), res);
 
-      expect(payload?.sub).toBe("google_123456");
-      expect(payload?.email).toBe("test@example.com");
-      expect(payload?.name).toBe("Test User");
-    } catch (error) {
-      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
-    }
-  });
+      const session = res.cookies.find((c) => c.name === "app_session_id");
+      expect(session?.value).toBe("session_for_google_123456789");
+      expect(session?.options.httpOnly).toBe(true);
+      expect(res.redirectedTo).toBe("/dashboard");
+    });
 
-  it("should prefix Google user ID with google_ to avoid collision", () => {
-    try {
-      const googleId = "123456789";
-      const openId = `google_${googleId}`;
-      expect(openId).toBe("google_123456789");
-      expect(openId.startsWith("google_")).toBe(true);
-    } catch (error) {
-      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
-    }
-  });
+    it("falls back to the email local-part when Google sends no name", async () => {
+      idTokenPayload = { sub: "42", email: "ola.nordmann@example.no" };
+      const r = await routes();
+      await r["/api/auth/callback/google"](mkReq(ok), mkRes());
+      expect(upserted[0].name).toBe("ola.nordmann");
+    });
 
-  it("should use same COOKIE_NAME as Manus OAuth", () => {
-    try {
-      // The cookie name used by Google OAuth must match the existing session cookie
-      const COOKIE_NAME = "app_session_id";
-      expect(COOKIE_NAME).toBe("app_session_id");
-    } catch (error) {
-      expect(error).toBeUndefined(); // honest: unexpected throw fails the test
-    }
+    it("creates no session when the token has no subject", async () => {
+      idTokenPayload = { email: "x@y.no" }; // no `sub`
+      const r = await routes();
+      const res = mkRes();
+      await r["/api/auth/callback/google"](mkReq(ok), res);
+
+      expect(upserted).toHaveLength(0);
+      expect(sessionTokenFor).toBeNull();
+      expect(res.cookies.find((c) => c.name === "app_session_id")).toBeUndefined();
+      expect(res.redirectedTo).toBe("/login?error=auth_failed");
+    });
+
+    it("creates no session when the exchange fails", async () => {
+      tokenExchangeError = new Error("invalid_grant");
+      const r = await routes();
+      const res = mkRes();
+      await r["/api/auth/callback/google"](mkReq(ok), res);
+
+      expect(upserted).toHaveLength(0);
+      expect(res.cookies.find((c) => c.name === "app_session_id")).toBeUndefined();
+      expect(res.redirectedTo).toBe("/login?error=auth_failed");
+    });
   });
 });

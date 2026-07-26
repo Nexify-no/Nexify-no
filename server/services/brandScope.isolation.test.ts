@@ -9,6 +9,8 @@ import { and, eq } from "drizzle-orm";
 import { MySqlDialect } from "drizzle-orm/mysql-core";
 import { brandProfiles, drafts, ideas, posts } from "../../drizzle/schema";
 import { ownedBy, unclassified } from "./brandScope";
+// One shared compiler, rather than a private copy per test file.
+import { sqlOf } from "../testing/fakeDb";
 
 /**
  * PR #79 — brand data ownership.
@@ -25,7 +27,6 @@ import { ownedBy, unclassified } from "./brandScope";
  */
 
 const dialect = new MySqlDialect();
-const sqlOf = (q: Parameters<MySqlDialect["sqlToQuery"]>[0]) => dialect.sqlToQuery(q).sql;
 
 describe("ownedBy — the brand filter itself", () => {
   it("matches one brand exactly, with no NULL fallback", () => {

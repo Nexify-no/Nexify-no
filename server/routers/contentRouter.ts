@@ -427,47 +427,49 @@ export const contentRouter = router({
       const db = await getDb();
       if (!db) throw new Error("Database not available");
       const { posts } = await import("../../drizzle/schema");
-      const { sql } = await import("drizzle-orm");
-      
-      // Get posts from last 7 days
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      
+      const { and, eq, gte } = await import("drizzle-orm");
+
+      // The chart shows 7 buckets: the 6 previous days plus today. Bucket by
+      // calendar DATE, not by weekday name — keying on the name made the window
+      // and the buckets disagree: the query started at now-7d, whose weekday is
+      // the same as today's, so a post from a week ago was counted as activity
+      // today. Anchor the query on the start of the first bucket instead.
+      const dayNames = ['Søn', 'Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør'];
+      const dateKey = (d: Date) =>
+        `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+
+      const windowStart = new Date();
+      windowStart.setDate(windowStart.getDate() - 6);
+      windowStart.setHours(0, 0, 0, 0);
+
       const recentPosts = await db
         .select({
           createdAt: posts.createdAt,
         })
         .from(posts)
-        .where(
-          sql`${posts.userId} = ${ctx.user.id} AND ${posts.createdAt} >= ${sevenDaysAgo.getTime()}`
-        );
-      
-      // Group by day
-      const activityMap = new Map<string, number>();
-      const dayNames = ['Søn', 'Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør'];
-      
-      // Initialize last 7 days with 0
+        // A Date, not `getTime()`. The old raw-SQL filter bound the epoch
+        // milliseconds (a 13-digit integer) against a `timestamp` column, which
+        // MySQL cannot read as a datetime — so the window never actually applied
+        // and the query returned the user's entire post history. Every other
+        // date filter in the codebase binds a Date; this one now does too.
+        .where(and(eq(posts.userId, ctx.user.id), gte(posts.createdAt, windowStart)));
+
+      // One bucket per date in the window, oldest first, all starting at 0.
+      const activityMap = new Map<string, { day: string; posts: number }>();
       for (let i = 6; i >= 0; i--) {
         const date = new Date();
         date.setDate(date.getDate() - i);
-        const dayName = dayNames[date.getDay()];
-        activityMap.set(dayName, 0);
+        activityMap.set(dateKey(date), { day: dayNames[date.getDay()], posts: 0 });
       }
-      
-      // Count posts per day
-      recentPosts.forEach(post => {
-        const date = new Date(post.createdAt);
-        const dayName = dayNames[date.getDay()];
-        activityMap.set(dayName, (activityMap.get(dayName) || 0) + 1);
-      });
-      
-      // Convert to array format for chart
-      const activityData = Array.from(activityMap.entries()).map(([day, posts]) => ({
-        day,
-        posts,
-      }));
-      
-      return activityData;
+
+      for (const post of recentPosts) {
+        // A row outside the window (clock skew, a stale read) must not create an
+        // eighth bucket — the chart renders exactly these seven.
+        const bucket = activityMap.get(dateKey(new Date(post.createdAt)));
+        if (bucket) bucket.posts += 1;
+      }
+
+      return Array.from(activityMap.values());
     }),
     
     delete: protectedProcedure
