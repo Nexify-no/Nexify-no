@@ -11,6 +11,7 @@ import { useState } from "react";
 import { AlertTriangle, Building2, Check, ChevronDown, Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { AddBrandWizard } from "@/components/AddBrandWizard";
 
 export function BrandSelector() {
   const utils = trpc.useUtils();
@@ -19,8 +20,11 @@ export function BrandSelector() {
   const list = trpc.brands.list.useQuery(undefined, { enabled, staleTime: 60 * 1000 });
   const [open, setOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [adding, setAdding] = useState(false);
+  // PR #80: "Legg til merkevare" is now a journey that starts from the website
+  // address, not a bare name field. The old inline form created a brand with no
+  // Merkehjerne at all, so the new brand's first generated post had nothing to
+  // ground itself in.
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   const setActive = trpc.brands.setActive.useMutation({
     onSuccess: async () => {
@@ -29,14 +33,6 @@ export function BrandSelector() {
       await utils.invalidate();
       setSwitching(false);
       setOpen(false);
-    },
-    onError: (e) => { setSwitching(false); toast.error(e.message); },
-  });
-  const create = trpc.brands.create.useMutation({
-    onSuccess: async () => {
-      await utils.invalidate();
-      setSwitching(false); setOpen(false); setAdding(false); setNewName("");
-      toast.success("Merkevare opprettet");
     },
     onError: (e) => { setSwitching(false); toast.error(e.message); },
   });
@@ -114,41 +110,19 @@ export function BrandSelector() {
             </button>
           ))}
           <div className="border-t mt-1 pt-1">
-            {adding ? (
-              <form
-                className="flex items-center gap-1 p-1"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const name = newName.trim();
-                  if (!name) return;
-                  setSwitching(true);
-                  create.mutate({ name });
-                }}
-              >
-                <input
-                  autoFocus
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  placeholder="Navn på merkevaren"
-                  className="flex-1 min-w-0 rounded-md border px-2 py-1.5 text-sm bg-background"
-                />
-                <button type="submit" className="rounded-md border px-2 py-1.5 text-sm hover:bg-muted" aria-label="Legg til">
-                  <Plus className="h-4 w-4" />
-                </button>
-              </form>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setAdding(true)}
-                className="w-full flex items-center gap-2 rounded-md px-2.5 py-2 text-sm text-muted-foreground hover:bg-muted"
-              >
-                <Plus className="h-4 w-4" />
-                Legg til merkevare
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => { setOpen(false); setWizardOpen(true); }}
+              className="w-full flex items-center gap-2 rounded-md px-2.5 py-2 text-sm text-muted-foreground hover:bg-muted"
+            >
+              <Plus className="h-4 w-4" />
+              Legg til merkevare
+            </button>
           </div>
         </div>
       )}
+
+      <AddBrandWizard open={wizardOpen} onClose={() => setWizardOpen(false)} />
     </div>
   );
 }

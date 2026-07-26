@@ -54,6 +54,13 @@ export async function loadBrandHints(userId: number): Promise<BrandHints | null>
       ownedBy(brandProfiles.userId, brandProfiles.brandId, userId, brandId),
       eq(brandProfiles.status, "ready"),
     ))
+    // PR #80: oldest first, deliberately. When brandId is null — multi-brand off,
+    // or getActiveBrandIdIfEnabled swallowed a transient DB error — ownedBy
+    // degrades to user_id alone, and an account can now hold a draft brand's
+    // unreviewed profile. That row is always the newest, so an unordered LIMIT 1
+    // could hand the draft's tone, facts and colours to every AI tool as the
+    // brand voice.
+    .orderBy(brandProfiles.id)
     .limit(1);
   if (!bp) return null;
   return {

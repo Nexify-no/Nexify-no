@@ -89,6 +89,7 @@ describe("no call site reintroduces the NULL fallback", () => {
     "server/db.ts",
     "server/services/postManagementService.ts",
     "server/services/merkehjerne/brandContext.ts",
+    "server/services/merkehjerne/analyzeIntoBrand.ts",
     "server/routers/brandRouter.ts",
     "server/routers/contentRouter.ts",
     "server/routers/plannedContentRouter.ts",
@@ -143,11 +144,33 @@ describe("legacy adoption never guesses", () => {
 
 describe("a Merkehjerne mutation touches at most one row", () => {
   const src = readFileSync("server/routers/brandRouter.ts", "utf8");
+  // PR #80 moved the analysis writes into a shared service so the URL journey
+  // and brand.analyze cannot drift; the invariant now spans both files.
+  const writeSites = [
+    "server/routers/brandRouter.ts",
+    "server/services/merkehjerne/analyzeIntoBrand.ts",
+  ];
 
   it("bounds every brand_profiles update with limit(1)", () => {
-    const updates = src.match(/\.update\(brandProfiles\)[\s\S]*?;/g) ?? [];
-    expect(updates.length).toBeGreaterThanOrEqual(4);
-    for (const u of updates) expect(u).toContain(".limit(1)");
+    // Slice each statement by its own start, not by the next semicolon — a `;`
+    // inside a comment would otherwise truncate the match and pass vacuously.
+    const statements = writeSites.flatMap((path) => {
+      const text = readFileSync(path, "utf8");
+      const out: string[] = [];
+      for (let i = text.indexOf(".update(brandProfiles)"); i !== -1; i = text.indexOf(".update(brandProfiles)", i + 1)) {
+        const rest = text.slice(i + 1);
+        const nextStatement = Math.min(
+          ...[".update(", ".select(", ".insert(", ".delete("]
+            .map((m) => rest.indexOf(m))
+            .filter((n) => n !== -1)
+            .concat([rest.length]),
+        );
+        out.push(rest.slice(0, nextStatement));
+      }
+      return out;
+    });
+    expect(statements.length).toBeGreaterThanOrEqual(4);
+    for (const st of statements) expect(st).toContain(".limit(1)");
   });
 
   it("orders every limited update and its readback identically", () => {
@@ -160,8 +183,12 @@ describe("a Merkehjerne mutation touches at most one row", () => {
     expect(ordered.length).toBe(limited.length);
   });
 
-  it("scopes the profile by exact (user, brand)", () => {
-    expect(src).toMatch(/eq\(brandProfiles\.userId, userId\), eq\(brandProfiles\.brandId, brandId\)/);
+  it("scopes the profile by exact (user, brand) at every write site", () => {
+    for (const path of writeSites) {
+      expect(readFileSync(path, "utf8"), path)
+        .toMatch(/eq\(brandProfiles\.userId, userId\), eq\(brandProfiles\.brandId, brandId\)/);
+    }
+    void src;
   });
 });
 

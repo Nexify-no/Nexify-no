@@ -60,9 +60,11 @@ export const plannedContentRouter = router({
           const { getActiveBrandIdIfEnabled } = await import("../services/brands");
           const activeId = await getActiveBrandIdIfEnabled(ctx.user.id);
           // PR #79: exact (user, brand) match — no NULL fallback.
+          // PR #80: oldest first — see brandContext.ts. An unordered LIMIT 1 on the
+          // degraded user-only scope could return a draft brand's profile.
           const [bp] = await db.select().from(brandProfiles).where(
             ownedBy(brandProfiles.userId, brandProfiles.brandId, ctx.user.id, activeId)
-          ).limit(1);
+          ).orderBy(brandProfiles.id).limit(1);
           brandName = bp?.companyName ?? "";
 
           const sub = await getUserSubscription(ctx.user.id);
@@ -110,10 +112,24 @@ export const plannedContentRouter = router({
     const activeBrandId = await getActiveBrandIdIfEnabled(userId);
     const [brand] = await db.select().from(brandProfiles).where(
       ownedBy(brandProfiles.userId, brandProfiles.brandId, userId, activeBrandId)
-    ).limit(1);
+    ).orderBy(brandProfiles.id).limit(1);
     if (!brand || brand.status !== "ready") {
       throw new TRPCError({ code: "BAD_REQUEST", message: "Bygg Merkehjernen din først — planen lages fra bedriftens profil." });
     }
+    // PR #80 note — deliberately NOT gating on `brand.confirmedAt` here.
+    //
+    // "Nothing is generated before the Merkehjerne is confirmed" is enforced
+    // structurally instead: a brand created by the URL journey stays `draft`
+    // until confirm, `listBrands` returns only active brands, and
+    // getActiveBrandId can therefore never hand a draft to any generator. That
+    // covers every entry point at once.
+    //
+    // A `confirmedAt` check here would have been both weaker and harmful: weaker
+    // because content, repurpose, coach and images read the profile through
+    // loadBrandHints and would still have been ungated; harmful because
+    // brand.update and brand.setFacts reset confirmedAt to null, so editing one
+    // word of an existing brand's writing style would have blocked plan creation
+    // for accounts that were working fine a minute earlier.
 
     const profileVersion = brand.updatedAt ? Math.floor(new Date(brand.updatedAt).getTime() / 1000) : 0;
     const hasCases = Array.isArray(brand.facts) && (brand.facts as unknown[]).length > 0;

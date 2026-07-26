@@ -207,7 +207,8 @@ export const brands = mysqlTable("brands", {
   websiteUrl: varchar("website_url", { length: 1000 }),
   industry: varchar("industry", { length: 255 }),
   description: text("description"),
-  brandStatus: mysqlEnum("brand_status", ["active", "archived"]).default("active").notNull(),
+  /** `draft` = created by the URL journey, awaiting Merkehjerne confirmation (PR #80). */
+  brandStatus: mysqlEnum("brand_status", ["draft", "active", "archived"]).default("active").notNull(),
   brandProfileVersion: int("brand_profile_version").default(0).notNull(),
   visualIdentityVersion: int("visual_identity_version").default(0).notNull(),
   timeZone: varchar("time_zone", { length: 64 }).default("Europe/Oslo").notNull(),

@@ -122,7 +122,8 @@ export const contentRouter = router({
             const [bp] = await db.select().from(brandProfiles).where(and(
               ownedBy(brandProfiles.userId, brandProfiles.brandId, ctx.user.id, genBrandId),
               eq(brandProfiles.status, "ready"),
-            )).limit(1);
+            // PR #80: oldest first — see brandContext.ts.
+            )).orderBy(brandProfiles.id).limit(1);
             if (bp) brandProfile = {
               companyName: bp.companyName, industry: bp.industry, summary: bp.summary,
               offers: bp.offers, audiences: bp.audiences, customerProblems: bp.customerProblems,
