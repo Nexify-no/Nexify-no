@@ -305,6 +305,7 @@ export async function claimPublication(input: {
         ? adHocKey(input.platform, input.content)
         : `srv-adhoc-${input.platform}-${bucket}`);
 
+  const finalKey = key.slice(0, 64);
   try {
     const [inserted] = await db.insert(publications).values({
       accountId: input.accountId,
@@ -314,12 +315,35 @@ export async function claimPublication(input: {
       platform: input.platform,
       destinationId: input.destination?.destinationId ?? null,
       destinationName: input.destination?.destinationName ?? null,
-      idempotencyKey: key.slice(0, 64),
+      idempotencyKey: finalKey,
       status: "pending",
     }).$returningId();
     return inserted?.id ?? null;
   } catch {
-    // UNIQUE(account_id, idempotency_key) — this exact publish already ran.
+    // UNIQUE(account_id, idempotency_key) collided. That is USUALLY a duplicate —
+    // but the server key is (post, platform, 60s bucket), so retrying a FAILED
+    // publish inside the same minute collided too and told the user "Dette
+    // innlegget er allerede publisert." about a post that never went out. Their
+    // only recovery from a failure is to press the button again.
+    //
+    // assertNotDuplicatePublish has already refused any pending or published
+    // attempt before we get here, so a row we find now can only be a failed one:
+    // reuse it.
+    const [prior] = await db
+      .select({ id: publications.id, status: publications.status })
+      .from(publications)
+      .where(and(
+        eq(publications.accountId, input.accountId),
+        eq(publications.idempotencyKey, finalKey),
+      ))
+      .limit(1);
+    if (prior && prior.status === "failed") {
+      await db
+        .update(publications)
+        .set({ status: "pending", errorMessage: null })
+        .where(eq(publications.id, prior.id));
+      return prior.id;
+    }
     throw new Error("Dette innlegget er allerede publisert.");
   }
 }

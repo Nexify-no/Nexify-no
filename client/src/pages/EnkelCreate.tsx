@@ -17,6 +17,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { ActiveBrandHeader } from "@/components/ActiveBrandHeader";
 import {
   ArrowLeft, ArrowRight, CheckCircle2, Loader2, Sparkles,
   Users, HeartHandshake, Image as ImageIcon, MessageCircle, Tag, Layers,
@@ -53,14 +54,26 @@ export default function EnkelCreate() {
   const brandQuery = trpc.brand.get.useQuery(undefined, { enabled: flagsQuery.data?.enabled === true });
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  // PR #84: ONE primary action.
+  //
+  // Asking for a goal, a frequency and a platform before anything happens made a
+  // three-screen form out of "write me four weeks of content". The defaults are
+  // the answers most people give — mixed goal, 3 per week, LinkedIn — so the
+  // button works immediately and the wizard becomes optional refinement for the
+  // people who want it.
+  const [customising, setCustomising] = useState(false);
   const [goal, setGoal] = useState<Goal | null>(null);
   const [perWeek, setPerWeek] = useState<PerWeek>(3);
   const [platform, setPlatform] = useState<Platform>("linkedin");
   const idempotencyKey = useRef(`enkel-${(globalThis.crypto?.randomUUID?.() ?? String(Date.now()) + Math.random().toString(36).slice(2))}`);
 
+  // Enabled on the SIMPLE path too. Gating it on `step === 3` meant the whole point
+  // of the preview — "what this costs of your remaining monthly quota, before
+  // anything is generated" — was unreachable for anyone who just pressed the big
+  // button, so a user with 3 posts left queued a 12-post plan with no warning.
   const previewQuery = trpc.plan.preview.useQuery(
     { goal: (goal ?? "mixed") as Goal, platform, postsPerWeek: perWeek },
-    { enabled: step === 3 && !!goal },
+    { enabled: flagsQuery.data?.enabled === true },
   );
 
   const createPlan = trpc.plan.create.useMutation({
@@ -103,10 +116,74 @@ export default function EnkelCreate() {
     );
   }
 
+  const effectiveGoal: Goal = goal ?? "mixed";
+  const overBudget =
+    previewQuery.data?.postsRemaining != null
+    && previewQuery.data.postsRemaining < previewQuery.data.contentQuotaNeeded;
+
+  // ── The whole page, for anyone who does not want to configure anything ──
+  if (!customising) {
+    return (
+      <main className="container max-w-2xl py-6 md:py-8" lang="nb">
+        <ActiveBrandHeader subtitle="Innholdet lages fra denne merkevarens Merkehjerne" />
+
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold tracking-tight">Lag din 4-ukers innholdsplan</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Penna skriver fire uker med innlegg fra Merkehjernen din. Du velger etterpå hva som
+            publiseres — ingenting går ut automatisk.
+          </p>
+        </div>
+
+        {overBudget && (
+          <p className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400" role="status">
+            Planen er større enn det du har igjen denne måneden ({previewQuery.data?.postsRemaining} av{" "}
+            {previewQuery.data?.contentQuotaNeeded} innlegg). Vi lager så mange vi kan — resten kan du
+            lage neste periode.
+          </p>
+        )}
+
+        {createPlan.isError && (
+          <p className="mb-3 text-sm text-destructive" role="alert">{createPlan.error.message}</p>
+        )}
+
+        <Button
+          className="w-full min-h-14 text-base"
+          // Also disabled while the Merkehjerne check is in flight: the gate below
+          // is `!brandQuery.isLoading && !brandReady`, so a fast click surfaced the
+          // raw server error instead of the "build your Merkehjerne first" screen.
+          disabled={createPlan.isPending || brandQuery.isLoading}
+          onClick={() => createPlan.mutate({
+            goal: effectiveGoal, platform, postsPerWeek: perWeek, idempotencyKey: idempotencyKey.current,
+          })}
+        >
+          {createPlan.isPending
+            ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden="true" />Lager innholdet …</>
+            : <><Sparkles className="mr-2 h-5 w-5" aria-hidden="true" />Lag 4 ukers innhold</>}
+        </Button>
+
+        <button
+          type="button"
+          onClick={() => setCustomising(true)}
+          disabled={createPlan.isPending}
+          className="mx-auto mt-4 block text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
+        >
+          Tilpass mål, kanal og hyppighet
+        </button>
+
+        <p className="mt-6 text-center text-xs text-muted-foreground">
+          Standard: {perWeek} innlegg i uka på {PLATFORMS.find((p) => p.id === platform)?.label}, blandet innhold.
+        </p>
+      </main>
+    );
+  }
+
   return (
     <main className="container max-w-2xl py-6 md:py-8" lang="nb">
+      <ActiveBrandHeader subtitle="Innholdet lages fra denne merkevarens Merkehjerne" />
+
       <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight">Lag din 4-ukers innholdsplan</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Tilpass innholdsplanen</h1>
         <p className="text-sm text-muted-foreground mt-1">Steg {step} av 3</p>
         <div className="mt-3 flex gap-1.5" aria-hidden="true">
           {[1, 2, 3].map((s) => (
@@ -263,8 +340,8 @@ export default function EnkelCreate() {
         <Button
           variant="ghost"
           className="min-h-11"
-          onClick={() => setStep((s) => (s > 1 ? ((s - 1) as 1 | 2 | 3) : s))}
-          disabled={step === 1 || createPlan.isPending}
+          onClick={() => { if (step > 1) setStep((s) => (s - 1) as 1 | 2 | 3); else setCustomising(false); }}
+          disabled={createPlan.isPending}
         >
           <ArrowLeft className="h-4 w-4 mr-1" aria-hidden="true" />Tilbake
         </Button>

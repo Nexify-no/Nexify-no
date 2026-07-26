@@ -176,8 +176,19 @@ export async function getPostForUser(planId: number, postId: number, userId: num
 
 export async function listPlansForUser(userId: number, workspaceId: number) {
   const db = await requireDb();
+  // PR #84: scoped to the ACTIVE brand.
+  //
+  // /innholdsplan takes the newest plan for the USER, so with this unscoped a
+  // Ballong plan appeared while the header said "Du jobber i Penna" — and the new
+  // per-card Publiser nå would have sent it out through Penna's channel.
+  const { activeBrandId, ownedBy } = await import("./services/brandScope");
+  const brandId = await activeBrandId(userId);
   return db.select().from(contentPlans)
-    .where(and(eq(contentPlans.userId, userId), eq(contentPlans.workspaceId, workspaceId), isNull(contentPlans.deletedAt)))
+    .where(and(
+      ownedBy(contentPlans.userId, contentPlans.brandId, userId, brandId),
+      eq(contentPlans.workspaceId, workspaceId),
+      isNull(contentPlans.deletedAt),
+    ))
     .orderBy(sql`${contentPlans.createdAt} DESC`);
 }
 
@@ -603,6 +614,28 @@ export async function editPostContent(planId: number, postId: number, userId: nu
     verificationIssues,
     verifiedAt: new Date(),
   }).where(and(eq(plannedPosts.id, postId), eq(plannedPosts.userId, userId)));
+
+  // PR #84: if this post has already been saved as a draft, keep that copy in
+  // sync. Otherwise editing after pressing Planlegg silently diverged: the plan
+  // row held the fix, the saved post still held the text the user was fixing, and
+  // that older text is what publishing would have sent.
+  if (post.savedPostId != null) {
+    const { posts: postsTable } = await import("../drizzle/schema");
+    await db.update(postsTable)
+      .set({
+        generatedContent: clean,
+        verificationStatus,
+        verificationIssues,
+        verifiedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(postsTable.id, post.savedPostId),
+        eq(postsTable.userId, userId),
+        // Never rewrite something already out in the world.
+        eq(postsTable.status, "draft"),
+      ));
+  }
   return true;
 }
 
@@ -675,9 +708,9 @@ export async function saveApprovedAsDrafts(
     // tightened does not carry the post through.
     if (post.verificationStatus === "high_risk") { skipped++; continue; }
     const draft = plannedPostToDraft({
-      userId: post.userId, platform: post.platform, content: post.content, reason: post.reason,
-      imageUrl: post.imageUrl, imageStatus: post.imageStatus, imageGenerationId: post.imageGenerationId,
-      postGenerationId: post.postGenerationId,
+      userId: post.userId, brandId: post.brandId, platform: post.platform, content: post.content,
+      reason: post.reason, imageUrl: post.imageUrl, imageStatus: post.imageStatus,
+      imageGenerationId: post.imageGenerationId, postGenerationId: post.postGenerationId,
     });
     // The verdict travels WITH the post. Without this a flagged claim became
     // publishable simply by changing table.
@@ -695,6 +728,62 @@ export async function saveApprovedAsDrafts(
     else if (newId) await db.delete(postsTable).where(eq(postsTable.id, newId)); // lost claim → drop duplicate
   }
   return { saved, skipped };
+}
+
+/**
+ * Save ONE planned post as a real draft and return its id (PR #84).
+ *
+ * The Enkel card offers "Publiser nå" and "Planlegg", and both need a `posts` row:
+ * publishing and scheduling are defined on saved posts, not on plan rows. Saving
+ * the whole plan just to act on one card is the wrong granularity — the user
+ * picked one post.
+ *
+ * Reuses the existing row when the post has already been saved, so pressing
+ * Planlegg twice does not create a second draft.
+ */
+export async function saveOnePlannedPost(
+  planId: number,
+  plannedPostId: number,
+  userId: number,
+): Promise<{ postId: number | null; blocked: "high_risk" | "not_ready" | null }> {
+  const db = await requireDb();
+  const post = await getPostForUser(planId, plannedPostId, userId);
+  if (!post) return { postId: null, blocked: "not_ready" };
+  if (post.savedPostId != null) return { postId: post.savedPostId, blocked: null };
+  if (post.generationStatus !== "done" || !post.content) return { postId: null, blocked: "not_ready" };
+  // PR #83's rule, applied to the single-post path too: an undocumented claim must
+  // not reach "Mine innlegg", where nothing remembers why it was flagged.
+  if (post.verificationStatus === "high_risk") return { postId: null, blocked: "high_risk" };
+
+  const { posts: postsTable } = await import("../drizzle/schema");
+  const draft = plannedPostToDraft({
+    userId: post.userId, brandId: post.brandId, platform: post.platform, content: post.content,
+    reason: post.reason, imageUrl: post.imageUrl, imageStatus: post.imageStatus,
+    imageGenerationId: post.imageGenerationId, postGenerationId: post.postGenerationId,
+  });
+  const [inserted] = await db.insert(postsTable).values({
+    ...draft,
+    verificationStatus: post.verificationStatus,
+    verificationIssues: post.verificationIssues ?? [],
+    verifiedAt: post.verifiedAt ?? new Date(),
+  } as typeof draft).$returningId();
+  const newId = inserted?.id ?? 0;
+  if (!newId) return { postId: null, blocked: "not_ready" };
+
+  // Claim the link. A lost race means someone else saved it first — use theirs and
+  // drop ours, rather than leaving two drafts of the same post.
+  const upd = await db.update(plannedPosts)
+    .set({ savedPostId: newId, approvalStatus: "approved" })
+    .where(and(
+      eq(plannedPosts.id, plannedPostId),
+      eq(plannedPosts.userId, userId),
+      isNull(plannedPosts.savedPostId),
+    ));
+  if (affected(upd) > 0) return { postId: newId, blocked: null };
+
+  await db.delete(postsTable).where(eq(postsTable.id, newId));
+  const again = await getPostForUser(planId, plannedPostId, userId);
+  return { postId: again?.savedPostId ?? null, blocked: null };
 }
 
 /** Real worker deps wired to planStore + generateContent (pure; persists nothing itself). */

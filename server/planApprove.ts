@@ -37,6 +37,8 @@ export function canBulkApprove(post: ApprovablePost): boolean {
 
 export interface PlannedPostForDraft {
   userId: number;
+  /** The plan's brand. Required so the draft is never unowned — see PR #79. */
+  brandId?: number | null;
   platform: "linkedin" | "facebook" | "instagram";
   content: string | null;
   reason: string | null;
@@ -48,6 +50,7 @@ export interface PlannedPostForDraft {
 
 export interface DraftPostInsert {
   userId: number;
+  brandId: number | null;
   platform: "linkedin" | "facebook" | "instagram";
   tone: string;
   rawInput: string;
@@ -69,6 +72,14 @@ export function plannedPostToDraft(post: PlannedPostForDraft): DraftPostInsert {
   const hasImage = post.imageStatus === "completed" && !!post.imageUrl;
   return {
     userId: post.userId,
+    // PR #84: carry the PLAN's brand onto the draft.
+    //
+    // Without it the row went in with brand_id NULL, which is exactly what PR #79
+    // set out to eliminate — and worse than before, because resolvePublishBrand
+    // then falls back to "whichever brand is active", so a Ballong plan could be
+    // published through Penna's LinkedIn. It also made the draft invisible in
+    // "Mine innlegg", which filters on brand_id with no NULL fallback.
+    brandId: post.brandId ?? null,
     platform: post.platform,
     tone: "professional",
     rawInput: (post.reason && post.reason.trim()) || "Innholdsplan",
