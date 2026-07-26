@@ -132,9 +132,18 @@ export async function handleTelegramWebhook(req: Request, res: Response) {
       const content = response.choices[0].message.content;
       const generatedContent = typeof content === 'string' ? content : '';
 
-      // Save to database
+      // Save to database.
+      // Multi-brand (MB1): stamp the user's ACTIVE brand so Telegram-created
+      // posts land under the brand they were writing for.
+      let tgBrandId: number | null = null;
+      try {
+        const { getActiveBrandIdIfEnabled } = await import("./services/brands");
+        tgBrandId = await getActiveBrandIdIfEnabled(link[0].userId);
+      } catch { /* leave unscoped rather than failing the write */ }
+
       await db.insert(posts).values({
         userId: link[0].userId,
+        brandId: tgBrandId,
         platform: "linkedin" as const,
         tone: "professional",
         rawInput: text,

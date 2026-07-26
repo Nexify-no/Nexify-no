@@ -34,8 +34,17 @@ export async function createPost(
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
+  // Multi-brand (MB1): stamp the author's ACTIVE brand so the post shows up
+  // under the right brand. No-op when the flag is off; never blocks the write.
+  let brandId: number | null = null;
+  try {
+    const { getActiveBrandIdIfEnabled } = await import("../services/brands");
+    brandId = await getActiveBrandIdIfEnabled(userId);
+  } catch { /* leave unscoped rather than failing the write */ }
+
   const result = await db.insert(posts).values({
     userId,
+    brandId,
     platform,
     tone,
     rawInput,

@@ -296,6 +296,9 @@ export const telegramRouter = router({
         // Create duplicate
         const [newPost] = await db.insert(posts).values({
           userId: ctx.user.id,
+          // Multi-brand (MB1): a duplicate belongs to the SAME brand as its
+          // original — never to whatever brand happens to be active now.
+          brandId: originalPost.brandId ?? null,
           platform: originalPost.platform,
           tone: originalPost.tone,
           rawInput: originalPost.rawInput,
