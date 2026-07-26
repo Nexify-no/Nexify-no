@@ -72,10 +72,14 @@ export async function ensureDefaultBrand(accountId: number): Promise<number> {
     brandId = activeIsOwned ? (me!.active as number) : existing[0].id;
   } else {
     // Seed the default brand from the account's existing Merkehjerne when present.
+    // Oldest first: with PR #80 an account can hold a draft brand's unreviewed
+    // profile, and that row is always the newest. Unordered, this seed could
+    // name the default brand after a site the user never confirmed.
     const [bp] = await db
       .select()
       .from(brandProfiles)
       .where(eq(brandProfiles.userId, accountId))
+      .orderBy(brandProfiles.id)
       .limit(1);
     await db.insert(brands).values({
       accountId,
