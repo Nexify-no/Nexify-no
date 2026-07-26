@@ -8,7 +8,7 @@
 // previous brand is ever shown, and shows a brandLoading state meanwhile.
 
 import { useState } from "react";
-import { Building2, Check, ChevronDown, Loader2, Plus } from "lucide-react";
+import { AlertTriangle, Building2, Check, ChevronDown, Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 
@@ -41,7 +41,38 @@ export function BrandSelector() {
     onError: (e) => { setSwitching(false); toast.error(e.message); },
   });
 
-  if (!enabled || !list.data) return null;
+  if (!enabled) return null;
+
+  // Feature is on but the list could not be loaded. Rendering nothing here is
+  // what made the switcher vanish with no explanation — say so instead, and offer
+  // a retry. The message stays generic: server errors are never shown raw.
+  if (list.isError) {
+    return (
+      <div className="px-3 pb-2">
+        <div className="flex items-center gap-2 rounded-lg border border-destructive/40 px-3 py-2 text-xs text-muted-foreground">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
+          <span className="flex-1">Kunne ikke laste merkevarer.</span>
+          <button
+            type="button"
+            onClick={() => list.refetch()}
+            className="font-medium text-foreground underline underline-offset-2"
+          >
+            Prøv igjen
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (list.isLoading) {
+    return (
+      <div className="px-3 pb-2">
+        <div className="h-9 w-full animate-pulse rounded-lg border bg-muted/50" aria-hidden="true" />
+      </div>
+    );
+  }
+
+  if (!list.data) return null;
   const { brands, activeBrandId } = list.data;
   const active = brands.find((b) => b.id === activeBrandId) ?? brands[0];
   if (!active) return null;

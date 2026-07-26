@@ -546,6 +546,26 @@ async function startServer() {
     createExpressMiddleware({
       router: appRouter,
       createContext,
+      // Observability: the errorFormatter redacts INTERNAL_SERVER_ERROR for the
+      // client (correct — no stack traces or driver text on the wire), but without
+      // this hook the real cause was never written anywhere. A 500 on brands.list
+      // silently hid the brand switcher with ZERO log lines to work from.
+      //
+      // We log the driver's error CODE and SQL state, not the full message: MySQL
+      // echoes column values back in messages like "Duplicate entry '...'", and
+      // those belong in an error tracker, not in stdout.
+      onError({ error, path, type }) {
+        if (error.code !== "INTERNAL_SERVER_ERROR") return;
+        const cause = error.cause as
+          | { code?: string; errno?: number; sqlState?: string; name?: string }
+          | undefined;
+        console.error(
+          `[tRPC] ${type} ${path ?? "<unknown path>"} failed:`,
+          cause?.code ?? cause?.name ?? error.name,
+          cause?.errno != null ? `errno=${cause.errno}` : "",
+          cause?.sqlState ? `sqlState=${cause.sqlState}` : "",
+        );
+      },
     })
   );
 
