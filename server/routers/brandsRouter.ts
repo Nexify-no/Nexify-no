@@ -73,6 +73,34 @@ export const brandsRouter = router({
       return { brand: created, activeBrandId: created.id };
     }),
 
+  /**
+   * PR #79 — "Uklassifisert".
+   *
+   * Rows that predate multi-brand and could not be adopted unambiguously (the
+   * account already had several brands). They are deliberately invisible inside
+   * every brand; this is the one place they are reachable, so the user can say
+   * which brand they belong to.
+   */
+  unclassified: protectedProcedure.query(async ({ ctx }) => {
+    requireMultiBrand();
+    const { countUnclassified } = await import("../services/brandScope");
+    const counts = await countUnclassified(ctx.user.id);
+    return { items: counts, total: counts.reduce((n, c) => n + c.count, 0) };
+  }),
+
+  /** Assign this account's unowned rows to one brand. Cannot move owned rows. */
+  classify: protectedProcedure
+    .input(z.object({
+      brandId: z.number().int().positive(),
+      keys: z.array(z.string().min(1).max(40)).min(1).optional(),
+    }).strict())
+    .mutation(async ({ ctx, input }) => {
+      requireMultiBrand();
+      await requireOwnBrand(ctx.user.id, input.brandId);
+      const { assignUnclassified } = await import("../services/brandScope");
+      return assignUnclassified(ctx.user.id, input.brandId, input.keys);
+    }),
+
   setActive: protectedProcedure
     .input(z.object({ brandId: z.number().int().positive() }).strict())
     .mutation(async ({ ctx, input }) => {

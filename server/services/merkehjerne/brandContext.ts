@@ -29,17 +29,31 @@ export type BrandHints = {
   brandColors: string[] | null;
 };
 
-/** Load the user's READY Merkehjerne as compact hints, or null. Touches the DB. */
+/**
+ * Load the ACTIVE brand's READY Merkehjerne as compact hints, or null.
+ *
+ * PR #79 — this function is where the leak was loudest: it fed every AI tool
+ * (content, repurpose, coach, images) and matched on `user_id` alone, so
+ * whichever profile row came back first became the voice, facts and colours for
+ * ALL of the account's brands. It now matches (user_id, brand_id) exactly. An
+ * unowned profile is not used as a fallback — no hints is the correct answer,
+ * and the caller degrades to generic output rather than another brand's words.
+ */
 export async function loadBrandHints(userId: number): Promise<BrandHints | null> {
   const { getDb } = await import("../../db");
   const db = await getDb();
   if (!db) return null;
   const { brandProfiles } = await import("../../../drizzle/schema");
   const { and, eq } = await import("drizzle-orm");
+  const { activeBrandId, ownedBy } = await import("../brandScope");
+  const brandId = await activeBrandId(userId);
   const [bp] = await db
     .select()
     .from(brandProfiles)
-    .where(and(eq(brandProfiles.userId, userId), eq(brandProfiles.status, "ready")))
+    .where(and(
+      ownedBy(brandProfiles.userId, brandProfiles.brandId, userId, brandId),
+      eq(brandProfiles.status, "ready"),
+    ))
     .limit(1);
   if (!bp) return null;
   return {

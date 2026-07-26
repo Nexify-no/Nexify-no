@@ -116,7 +116,13 @@ export const contentRouter = router({
           if (db) {
             const { brandProfiles } = await import("../../drizzle/schema");
             const { and, eq } = await import("drizzle-orm");
-            const [bp] = await db.select().from(brandProfiles).where(and(eq(brandProfiles.userId, ctx.user.id), eq(brandProfiles.status, "ready"))).limit(1);
+            const { activeBrandId, ownedBy } = await import("../services/brandScope");
+            // PR #79: generate for the ACTIVE brand only — exact (user, brand).
+            const genBrandId = await activeBrandId(ctx.user.id);
+            const [bp] = await db.select().from(brandProfiles).where(and(
+              ownedBy(brandProfiles.userId, brandProfiles.brandId, ctx.user.id, genBrandId),
+              eq(brandProfiles.status, "ready"),
+            )).limit(1);
             if (bp) brandProfile = {
               companyName: bp.companyName, industry: bp.industry, summary: bp.summary,
               offers: bp.offers, audiences: bp.audiences, customerProblems: bp.customerProblems,
@@ -543,18 +549,17 @@ export const contentRouter = router({
       const db = await getDb();
       if (!db) throw new Error("Database not available");
       const { posts } = await import("../../drizzle/schema");
-      const { and, eq, isNull, or } = await import("drizzle-orm");
       const { getActiveBrandIdIfEnabled } = await import("../services/brands");
+      const { ownedBy } = await import("../services/brandScope");
 
-      // Calendar shows the ACTIVE brand's posts (MB1). Legacy rows without a
-      // brand stay visible so nothing disappears after the migration.
+      // Calendar shows the ACTIVE brand's posts, and only those.
+      // PR #79: the old `OR brand_id IS NULL` put every unowned post on every
+      // brand's calendar at once.
       const brandId = await getActiveBrandIdIfEnabled(ctx.user.id);
       const userPosts = await db
         .select()
         .from(posts)
-        .where(brandId == null
-          ? eq(posts.userId, ctx.user.id)
-          : and(eq(posts.userId, ctx.user.id), or(eq(posts.brandId, brandId), isNull(posts.brandId))));
+        .where(ownedBy(posts.userId, posts.brandId, ctx.user.id, brandId));
 
       return userPosts;
     }),

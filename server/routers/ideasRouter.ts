@@ -19,10 +19,15 @@ export const ideasRouter = router({
         const db = await getDb();
         if (!db) throw new Error("Database not available");
         const { ideas } = await import("../../drizzle/schema");
-        const { eq, desc } = await import("drizzle-orm");
-        
+        const { desc } = await import("drizzle-orm");
+        const { activeBrandId, ownedBy } = await import("../services/brandScope");
+
+        // PR #79: ideas belong to one brand. Selecting Penna must not list a
+        // single Ballong idea, and unowned legacy ideas are not shown here at
+        // all — they live under "Uklassifisert" until the user classifies them.
+        const brandId = await activeBrandId(ctx.user.id);
         const results = await db.select().from(ideas)
-          .where(eq(ideas.userId, ctx.user.id))
+          .where(ownedBy(ideas.userId, ideas.brandId, ctx.user.id, brandId))
           .orderBy(desc(ideas.createdAt));
         
         // Filter by status if not "all"
@@ -55,9 +60,15 @@ export const ideasRouter = router({
         const db = await getDb();
         if (!db) throw new Error("Database not available");
         const { ideas } = await import("../../drizzle/schema");
-        
+        const { requireWriteBrandId } = await import("../services/brandScope");
+
+        // PR #79: with multi-brand on, this throws rather than writing an
+        // ownerless row.
+        const brandId = await requireWriteBrandId(ctx.user.id);
+
         const result = await db.insert(ideas).values({
           userId: ctx.user.id,
+          brandId,
           ideaText: input.ideaText,
           source: input.source,
           tags: input.tags ? JSON.stringify(input.tags) : null,
@@ -134,7 +145,7 @@ export const ideasRouter = router({
         // Mark as in_progress (will be marked as used after post is created)
         await db.update(ideas)
           .set({ status: "in_progress" })
-          .where(eq(ideas.id, input.id));
+          .where(and(eq(ideas.id, input.id), eq(ideas.userId, ctx.user.id)));
         
         return { 
           success: true, 
@@ -173,9 +184,13 @@ export const ideasRouter = router({
       const db = await getDb();
       if (!db) throw new Error("Database not available");
       const { ideas } = await import("../../drizzle/schema");
-      const { eq } = await import("drizzle-orm");
-      
-      const allIdeas = await db.select().from(ideas).where(eq(ideas.userId, ctx.user.id));
+      const { activeBrandId, ownedBy } = await import("../services/brandScope");
+
+      // PR #79: counters are per brand too — a Penna badge counting Ballong
+      // ideas is the same leak, just smaller.
+      const brandId = await activeBrandId(ctx.user.id);
+      const allIdeas = await db.select().from(ideas)
+        .where(ownedBy(ideas.userId, ideas.brandId, ctx.user.id, brandId));
       
       return {
         total: allIdeas.length,

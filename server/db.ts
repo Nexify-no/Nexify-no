@@ -4,7 +4,7 @@
  * Unauthorized copying, distribution, or use is strictly prohibited.
  */
 
-import { desc, eq, and, or, isNull, count, gte, lte, lt, sql, isNotNull, inArray } from "drizzle-orm";
+import { desc, eq, and, count, gte, lte, lt, sql, isNotNull, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import * as schema from "../drizzle/schema";
 import { sanitizeHtml } from "./_core/sanitizeHtml";
@@ -544,9 +544,17 @@ export async function seedBrandProfileFromOnboarding(userId: number, data: {
     .where(eq(brandProfiles.userId, userId))
     .limit(1);
   if (existing) return false; // keep any existing Merkehjerne intact
+  // PR #79: the seed belongs to the account's active brand. Inserting it
+  // unowned made it readable from every brand at once.
+  let seedBrandId: number | null = null;
+  try {
+    const { getActiveBrandIdIfEnabled } = await import("./services/brands");
+    seedBrandId = await getActiveBrandIdIfEnabled(userId);
+  } catch { /* multi-brand off or unavailable — seed stays account-wide */ }
   const now = new Date();
   await db.insert(brandProfiles).values({
     userId,
+    brandId: seedBrandId,
     ...buildOnboardingBrandSeed(data),
     analyzedAt: now,
     confirmedAt: now,
@@ -630,16 +638,36 @@ export async function createPost(post: InsertPost): Promise<Post> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  // Multi-brand (MB1): stamp the author's ACTIVE brand when the caller didn't
-  // pass one, so every new post belongs to exactly one brand. No-op when the
-  // feature is off, and never blocks the write.
+  // Multi-brand: stamp the author's ACTIVE brand when the caller didn't pass
+  // one, so every new post belongs to exactly one brand. No-op when the feature
+  // is off.
+  //
+  // PR #79: with multi-brand ON, a post whose brand cannot be determined is NOT
+  // saved. The previous behaviour — swallow the error, insert with brand_id
+  // NULL — is what manufactured the unowned rows that then appeared under every
+  // brand. Refusing the write is the safe failure: the user sees an error and
+  // picks a brand, instead of silently creating cross-brand content.
+  // Callers with an irreversible side effect (a post already live on LinkedIn)
+  // must resolve the brand BEFORE that side effect and pass it in explicitly,
+  // so this guard can never strand a published post.
   let values = post;
   if (post.brandId == null && post.userId != null) {
-    try {
-      const { getActiveBrandIdIfEnabled } = await import("./services/brands");
-      const brandId = await getActiveBrandIdIfEnabled(post.userId);
-      if (brandId != null) values = { ...post, brandId };
-    } catch { /* keep the post unscoped rather than failing the write */ }
+    const { getActiveBrandIdIfEnabled } = await import("./services/brands");
+    // One retry: getActiveBrandIdIfEnabled swallows its own errors and returns
+    // null, so a transient pool hiccup is indistinguishable from "no brand".
+    // Retrying keeps a blip from surfacing as "velg en merkevare".
+    let brandId = await getActiveBrandIdIfEnabled(post.userId);
+    if (brandId == null) brandId = await getActiveBrandIdIfEnabled(post.userId);
+
+    if (brandId != null) {
+      values = { ...post, brandId };
+    } else {
+      const { ENV } = await import("./_core/env");
+      if (ENV.featureMultiBrand) {
+        throw new Error("Innlegget kan ikke lagres uten merkevare. Velg en merkevare og prøv igjen.");
+      }
+      // Multi-brand OFF: brand_id is meaningless, keep the previous behaviour.
+    }
   }
 
   const [result] = await db.insert(posts).values(values).$returningId();
@@ -648,9 +676,13 @@ export async function createPost(post: InsertPost): Promise<Post> {
 }
 
 /**
- * Posts for a user. When `brandId` is given (multi-brand, MB1) only that brand's
- * posts are returned — legacy rows with a NULL brand_id stay visible so nothing
- * disappears after the migration.
+ * Posts for a user. When `brandId` is given (multi-brand) ONLY that brand's
+ * posts are returned.
+ *
+ * PR #79: the old filter widened this with `OR brand_id IS NULL` so unowned
+ * legacy rows would "stay visible". They stayed visible inside every brand at
+ * once — that is the leak. Unowned rows are now reached through the
+ * "Uklassifisert" surface instead (see services/brandScope.ts).
  */
 export async function getUserPosts(userId: number, brandId?: number | null): Promise<Post[]> {
   const db = await getDb();
@@ -658,7 +690,7 @@ export async function getUserPosts(userId: number, brandId?: number | null): Pro
 
   const where = brandId == null
     ? eq(posts.userId, userId)
-    : and(eq(posts.userId, userId), or(eq(posts.brandId, brandId), isNull(posts.brandId)));
+    : and(eq(posts.userId, userId), eq(posts.brandId, brandId));
 
   return db.select().from(posts).where(where).orderBy(desc(posts.createdAt));
 }

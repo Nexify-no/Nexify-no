@@ -19,6 +19,8 @@ import { and, eq, isNull } from "drizzle-orm";
 import {
   brands,
   brandProfiles,
+  drafts,
+  ideas,
   posts,
   scheduledPosts,
   contentPlans,
@@ -56,7 +58,18 @@ export async function ensureDefaultBrand(accountId: number): Promise<number> {
   let brandId: number;
 
   if (existing.length > 0) {
-    brandId = existing[0].id;
+    // PR #79: adopt into the brand the user is actually looking at, not blindly
+    // the oldest one. With the NULL fallback gone, stamping an unowned
+    // Merkehjerne onto the oldest brand while a different brand is active made
+    // the profile read back as missing — an empty Merkehjerne page and AI
+    // output silently degraded to generic.
+    const [me] = await db
+      .select({ active: users.activeBrandId })
+      .from(users)
+      .where(eq(users.id, accountId))
+      .limit(1);
+    const activeIsOwned = me?.active != null && existing.some((b) => b.id === me.active);
+    brandId = activeIsOwned ? (me!.active as number) : existing[0].id;
   } else {
     // Seed the default brand from the account's existing Merkehjerne when present.
     const [bp] = await db
@@ -117,21 +130,30 @@ export async function ensureDefaultBrand(accountId: number): Promise<number> {
     await db.update(brandProfiles).set({ brandId }).where(eq(brandProfiles.id, oldest.id));
   });
 
-  // The remaining tables have no per-brand uniqueness, so a blanket update is safe.
-  await adopt("posts", () => db.update(posts).set({ brandId })
-    .where(and(eq(posts.userId, accountId), isNull(posts.brandId))));
-  await adopt("scheduled_posts", () => db.update(scheduledPosts).set({ brandId })
-    .where(and(eq(scheduledPosts.userId, accountId), isNull(scheduledPosts.brandId))));
-  await adopt("content_plans", () => db.update(contentPlans).set({ brandId })
-    .where(and(eq(contentPlans.userId, accountId), isNull(contentPlans.brandId))));
-  await adopt("planned_posts", () => db.update(plannedPosts).set({ brandId })
-    .where(and(eq(plannedPosts.userId, accountId), isNull(plannedPosts.brandId))));
-  await adopt("content_schedule", () => db.update(contentSchedule).set({ brandId })
-    .where(and(eq(contentSchedule.userId, accountId), isNull(contentSchedule.brandId))));
-
-  // Social connection: safe to adopt ONLY while the account has exactly one brand.
+  // PR #79 — adoption is only safe when the answer is unambiguous.
+  //
+  // An account with ONE brand: every unowned row can only have meant that brand,
+  // so adopt it. An account with SEVERAL brands: we do not know, and guessing is
+  // how Ballong's posts ended up under Penna. Those rows stay NULL and surface
+  // under "Uklassifisert" for the user to assign (services/brandScope.ts).
   const all = await listBrands(accountId);
-  if (all.length === 1) {
+  const unambiguous = all.length === 1;
+
+  if (unambiguous) {
+    await adopt("posts", () => db.update(posts).set({ brandId })
+      .where(and(eq(posts.userId, accountId), isNull(posts.brandId))));
+    await adopt("ideas", () => db.update(ideas).set({ brandId })
+      .where(and(eq(ideas.userId, accountId), isNull(ideas.brandId))));
+    await adopt("drafts", () => db.update(drafts).set({ brandId })
+      .where(and(eq(drafts.userId, accountId), isNull(drafts.brandId))));
+    await adopt("scheduled_posts", () => db.update(scheduledPosts).set({ brandId })
+      .where(and(eq(scheduledPosts.userId, accountId), isNull(scheduledPosts.brandId))));
+    await adopt("content_plans", () => db.update(contentPlans).set({ brandId })
+      .where(and(eq(contentPlans.userId, accountId), isNull(contentPlans.brandId))));
+    await adopt("planned_posts", () => db.update(plannedPosts).set({ brandId })
+      .where(and(eq(plannedPosts.userId, accountId), isNull(plannedPosts.brandId))));
+    await adopt("content_schedule", () => db.update(contentSchedule).set({ brandId })
+      .where(and(eq(contentSchedule.userId, accountId), isNull(contentSchedule.brandId))));
     await adopt("linkedin_connections", () => db.update(linkedinConnections).set({ brandId })
       .where(and(eq(linkedinConnections.userId, accountId), isNull(linkedinConnections.brandId))));
   }

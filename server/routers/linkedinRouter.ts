@@ -322,6 +322,15 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
             .limit(1);
           if (row.length > 0 && (row[0] as any).imageUrl) imageUrl = (row[0] as any).imageUrl;
         }
+        // PR #79: the owning brand is resolved ABOVE, before anything is sent
+        // to LinkedIn. Assert it here — failing while nothing has happened yet
+        // is far better than failing after the post is live, where a rejected
+        // local save loses the record and invites a duplicate republish.
+        const { ENV: _brandEnv } = await import("../_core/env");
+        if (_brandEnv.featureMultiBrand && publishBrandId == null) {
+          throw new Error("Velg en merkevare før du publiserer.");
+        }
+
         const result = await createLinkedInPost(
           activeToken,
           connection[0].personUrn,
@@ -342,6 +351,7 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
         } else {
           const saved = await createPost({
             userId: ctx.user.id,
+            brandId: publishBrandId,
             platform: "linkedin",
             tone: "professional",
             rawInput: "Publisert direkte til LinkedIn",

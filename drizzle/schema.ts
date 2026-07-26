@@ -327,7 +327,9 @@ export const linkedinConnections = mysqlTable("linkedin_connections", {
   expiresAt: timestamp("expires_at").notNull(), // Access token expiration (60 days)
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  brandIdx: index("idx_linkedin_connections_brand").on(table.brandId),
+}));
 
 export type LinkedInConnection = typeof linkedinConnections.$inferSelect;
 export type InsertLinkedInConnection = typeof linkedinConnections.$inferInsert;
@@ -644,7 +646,9 @@ export const contentSchedule = mysqlTable("content_schedule", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  brandIdx: index("idx_content_schedule_brand").on(table.brandId),
+}));
 
 export type ContentSchedule = typeof contentSchedule.$inferSelect;
 export type InsertContentSchedule = typeof contentSchedule.$inferInsert;
@@ -862,6 +866,8 @@ export type InsertLifecycleEmail = typeof lifecycleEmails.$inferInsert;
 export const ideas = mysqlTable("ideas", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("user_id").notNull(),
+  /** Owning brand (PR #79). NULL only on legacy rows awaiting classification. */
+  brandId: int("brand_id"),
   ideaText: text("idea_text").notNull(),
   source: mysqlEnum("source", ["manual", "voice", "trend", "competitor"]).default("manual").notNull(),
   tags: text("tags"), // JSON array of tags
@@ -872,6 +878,7 @@ export const ideas = mysqlTable("ideas", {
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 }, (table) => ({
   userIdIdx: index("idx_ideas_user_id").on(table.userId),
+  brandIdx: index("idx_ideas_brand").on(table.brandId),
 }));
 
 export type Idea = typeof ideas.$inferSelect;
@@ -885,6 +892,8 @@ export type InsertIdea = typeof ideas.$inferInsert;
 export const drafts = mysqlTable("drafts", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("user_id").notNull(),
+  /** Owning brand (PR #79). NULL only on legacy rows awaiting classification. */
+  brandId: int("brand_id"),
   /** Which page/form this draft is for */
   pageType: mysqlEnum("page_type", ["generate", "repurpose", "series", "ab_test", "engagement"]).notNull(),
   /** JSON string containing all form field values */
@@ -896,6 +905,7 @@ export const drafts = mysqlTable("drafts", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
   userIdIdx: index("idx_drafts_user_id").on(table.userId),
+  brandIdx: index("idx_drafts_brand").on(table.brandId),
 }));
 
 export type Draft = typeof drafts.$inferSelect;
@@ -1992,6 +2002,7 @@ export const plannedPosts = mysqlTable("planned_posts", {
   planIdx: index("idx_planned_posts_plan").on(table.contentPlanId),
   wsIdx: index("idx_planned_posts_ws").on(table.workspaceId),
   claimIdx: index("idx_planned_posts_claim").on(table.contentPlanId, table.generationStatus, table.nextAttemptAt, table.lockExpiresAt),
+  brandIdx: index("idx_planned_posts_brand").on(table.brandId),
 }));
 
 export type PlannedPost = typeof plannedPosts.$inferSelect;

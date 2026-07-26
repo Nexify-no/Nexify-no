@@ -645,6 +645,13 @@
       "when": 1785283200000,
       "tag": "0091_image_brand_binding",
       "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "5",
+      "when": 1785369600000,
+      "tag": "0092_brand_ownership_hardening",
+      "breakpoints": true
     }
   ]
 }

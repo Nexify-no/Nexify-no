@@ -5,7 +5,7 @@
 
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, eq, isNull, or } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { brandProfiles } from "../../drizzle/schema";
 import { getDb, hasAnalysisQuota, chargeAnalysisQuota } from "../db";
@@ -72,18 +72,25 @@ async function activeBrand(accountId: number): Promise<number | null> {
   return getActiveBrandIdIfEnabled(accountId);
 }
 
-/** Scope a brand_profiles row to (user, brand) — legacy NULL-brand rows included. */
+/**
+ * Scope a brand_profiles row to exactly (user, brand).
+ *
+ * PR #79: this used to include `OR brand_id IS NULL`, which meant analysing one
+ * brand could read — and then overwrite — an unowned Merkehjerne that every
+ * other brand was also reading. Merkehjerne is now fetched by user_id AND
+ * brand_id, exact match only.
+ */
 function ownProfile(userId: number, brandId: number | null) {
   return brandId == null
     ? eq(brandProfiles.userId, userId)
-    : and(eq(brandProfiles.userId, userId), or(eq(brandProfiles.brandId, brandId), isNull(brandProfiles.brandId)));
+    : and(eq(brandProfiles.userId, userId), eq(brandProfiles.brandId, brandId));
 }
 
 export const brandRouter = router({
   get: protectedProcedure.query(async ({ ctx }) => {
     const db = await requireDb();
     const brandId = await activeBrand(ctx.user.id);
-    const [profile] = await db.select().from(brandProfiles).where(ownProfile(ctx.user.id, brandId)).limit(1);
+    const [profile] = await db.select().from(brandProfiles).where(ownProfile(ctx.user.id, brandId)).orderBy(brandProfiles.id).limit(1);
     return profile ?? null;
   }),
 
@@ -96,6 +103,7 @@ export const brandRouter = router({
         .select()
         .from(brandProfiles)
         .where(ownProfile(ctx.user.id, brandId))
+        .orderBy(brandProfiles.id)
         .limit(1);
       const now = Date.now();
       if (existing?.status === "analyzing" && now - existing.updatedAt.getTime() < ACTIVE_SCAN_WINDOW_MS) {
@@ -149,9 +157,12 @@ export const brandRouter = router({
             lastError: null,
             analyzedAt: new Date(),
           })
-          .where(and(ownProfile(ctx.user.id, brandId), eq(brandProfiles.analysisId, analysisId)));
+          .where(and(ownProfile(ctx.user.id, brandId), eq(brandProfiles.analysisId, analysisId)))
+          // PR #79: one Merkehjerne per mutation, never a fan-out across brands.
+          .orderBy(brandProfiles.id)
+          .limit(1);
 
-        const [saved] = await db.select().from(brandProfiles).where(ownProfile(ctx.user.id, await activeBrand(ctx.user.id))).limit(1);
+        const [saved] = await db.select().from(brandProfiles).where(ownProfile(ctx.user.id, await activeBrand(ctx.user.id))).orderBy(brandProfiles.id).limit(1);
         if (!saved) throw new Error("brand_profile_missing_after_analysis");
         if (result.unchanged) {
           logMerkehjerneEvent("brand_analysis_skipped_unchanged", { userId: ctx.user.id, durationMs: Date.now() - startedAt });
@@ -179,7 +190,10 @@ export const brandRouter = router({
         await db
           .update(brandProfiles)
           .set({ status: "failed", lastError: failure.message })
-          .where(and(ownProfile(ctx.user.id, brandId), eq(brandProfiles.analysisId, analysisId)));
+          .where(and(ownProfile(ctx.user.id, brandId), eq(brandProfiles.analysisId, analysisId)))
+          // PR #79: one Merkehjerne per mutation, never a fan-out across brands.
+          .orderBy(brandProfiles.id)
+          .limit(1);
         logMerkehjerneEvent("brand_analysis_failed", {
           userId: ctx.user.id,
           errorCode: error && typeof error === "object" && "code" in error
@@ -196,8 +210,14 @@ export const brandRouter = router({
     await db
       .update(brandProfiles)
       .set({ ...input, confirmedAt: null })
-      .where(and(ownProfile(ctx.user.id, await activeBrand(ctx.user.id)), eq(brandProfiles.status, "ready")));
-    const [saved] = await db.select().from(brandProfiles).where(ownProfile(ctx.user.id, await activeBrand(ctx.user.id))).limit(1);
+      .where(and(ownProfile(ctx.user.id, await activeBrand(ctx.user.id)), eq(brandProfiles.status, "ready")))
+      // PR #79: one Merkehjerne per mutation, never a fan-out across brands.
+      // ORDER BY makes the target deterministic — with multi-brand OFF an
+      // account can still hold several unowned rows, and an unordered LIMIT
+      // would update one row while the readback below returned another.
+      .orderBy(brandProfiles.id)
+      .limit(1);
+    const [saved] = await db.select().from(brandProfiles).where(ownProfile(ctx.user.id, await activeBrand(ctx.user.id))).orderBy(brandProfiles.id).limit(1);
     if (!saved) throw new TRPCError({ code: "NOT_FOUND", message: "Opprett Merkehjernen først." });
     logMerkehjerneEvent("brand_profile_edited", { userId: ctx.user.id, trigger: "fields" });
     return saved;
@@ -209,8 +229,14 @@ export const brandRouter = router({
     await db
       .update(brandProfiles)
       .set({ facts: input.facts, confirmedAt: null })
-      .where(and(ownProfile(ctx.user.id, await activeBrand(ctx.user.id)), eq(brandProfiles.status, "ready")));
-    const [saved] = await db.select().from(brandProfiles).where(ownProfile(ctx.user.id, await activeBrand(ctx.user.id))).limit(1);
+      .where(and(ownProfile(ctx.user.id, await activeBrand(ctx.user.id)), eq(brandProfiles.status, "ready")))
+      // PR #79: one Merkehjerne per mutation, never a fan-out across brands.
+      // ORDER BY makes the target deterministic — with multi-brand OFF an
+      // account can still hold several unowned rows, and an unordered LIMIT
+      // would update one row while the readback below returned another.
+      .orderBy(brandProfiles.id)
+      .limit(1);
+    const [saved] = await db.select().from(brandProfiles).where(ownProfile(ctx.user.id, await activeBrand(ctx.user.id))).orderBy(brandProfiles.id).limit(1);
     if (!saved) throw new TRPCError({ code: "NOT_FOUND", message: "Opprett Merkehjernen først." });
     logMerkehjerneEvent("brand_profile_edited", { userId: ctx.user.id, trigger: "facts" });
     return saved;
@@ -222,8 +248,14 @@ export const brandRouter = router({
     await db
       .update(brandProfiles)
       .set({ confirmedAt: new Date() })
-      .where(and(ownProfile(ctx.user.id, await activeBrand(ctx.user.id)), eq(brandProfiles.status, "ready")));
-    const [saved] = await db.select().from(brandProfiles).where(ownProfile(ctx.user.id, await activeBrand(ctx.user.id))).limit(1);
+      .where(and(ownProfile(ctx.user.id, await activeBrand(ctx.user.id)), eq(brandProfiles.status, "ready")))
+      // PR #79: one Merkehjerne per mutation, never a fan-out across brands.
+      // ORDER BY makes the target deterministic — with multi-brand OFF an
+      // account can still hold several unowned rows, and an unordered LIMIT
+      // would update one row while the readback below returned another.
+      .orderBy(brandProfiles.id)
+      .limit(1);
+    const [saved] = await db.select().from(brandProfiles).where(ownProfile(ctx.user.id, await activeBrand(ctx.user.id))).orderBy(brandProfiles.id).limit(1);
     if (!saved) throw new TRPCError({ code: "NOT_FOUND", message: "Opprett Merkehjernen først." });
     logMerkehjerneEvent("brand_profile_confirmed", { userId: ctx.user.id });
     return saved;

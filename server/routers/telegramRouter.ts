@@ -167,9 +167,12 @@ export const telegramRouter = router({
         const db = await getDb();
         if (!db) throw new Error("Database not available");
 
-        // Add to idea bank
+        // Add to idea bank. PR #79: stamped with the active brand so it lands
+        // in one brand's Idébank instead of appearing under all of them.
+        const { requireWriteBrandId } = await import("../services/brandScope");
         await db.insert(ideas).values({
           userId: ctx.user.id,
+          brandId: await requireWriteBrandId(ctx.user.id),
           ideaText: input.rawInput,
           source: "manual",
           status: "new",
@@ -222,8 +225,12 @@ export const telegramRouter = router({
         if (!db) throw new Error("Database not available");
 
         // Add all ideas to idea bank
+        // PR #79: every idea gets an owning brand — no ownerless bulk inserts.
+        const { requireWriteBrandId: requireBrand } = await import("../services/brandScope");
+        const bulkBrandId = await requireBrand(ctx.user.id);
         const ideaValues = input.items.map(item => ({
           userId: ctx.user.id,
+          brandId: bulkBrandId,
           ideaText: item.rawInput,
           source: "manual" as const,
           status: "new" as const,
