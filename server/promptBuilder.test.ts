@@ -38,15 +38,19 @@ describe("buildContentPrompt", () => {
   });
 
   it("includes a personal-voice section only when a voice profile is supplied", () => {
+    // Assert on the section HEADING, not the bare phrase: the grounding block
+    // says "— if a Personal voice section is present —" unconditionally, so
+    // `not.toContain("Personal voice")` matches the *reference* to the section
+    // and fails even though no section was emitted.
     const without = buildContentPrompt({ topic: "x", platform: "linkedin" }).system;
-    expect(without).not.toContain("Personal voice");
+    expect(without).not.toContain("## Personal voice");
 
     const withVoice = buildContentPrompt({
       topic: "x",
       platform: "linkedin",
       voiceProfile: { profileSummary: "Direct, witty, short sentences." },
     }).system;
-    expect(withVoice).toContain("Personal voice");
+    expect(withVoice).toContain("## Personal voice");
     expect(withVoice).toContain("Direct, witty, short sentences.");
   });
 

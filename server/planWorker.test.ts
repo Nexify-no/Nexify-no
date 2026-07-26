@@ -40,7 +40,9 @@ describe("planWorker.runPlanTick", () => {
   it("processes claimed posts, saves incrementally, finalizes and releases", async () => {
     const { deps, saved, state } = mkDeps();
     const r = await runPlanTick(deps, "w1", 5);
-    expect(r).toEqual({ claimed: true, processed: 2, failed: 0 });
+    // `images` joined the summary when image generation was added to the tick;
+    // these fake deps generate none.
+    expect(r).toEqual({ claimed: true, processed: 2, failed: 0, images: 0 });
     expect(saved).toHaveLength(2);
     expect(state()).toEqual({ finalized: true, released: true });
   });

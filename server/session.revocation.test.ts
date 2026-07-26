@@ -11,9 +11,14 @@ const OPEN_ID = "email_test123";
 // Mutable user record the mocked db returns; tokenVersion starts at 0, then bumps.
 const userRow: any = { id: 1, openId: OPEN_ID, name: "T", email: "t@e.no", role: "user", activeBrandId: null, tokenVersion: 0 };
 
-vi.mock("../db", () => ({
-  getUserByOpenId: vi.fn(async () => userRow),
-  upsertUser: vi.fn(async () => {}),
+// "./db", not "../db": this file lives in server/, so "../db" pointed at a
+// non-existent module at the repo root and the mock never applied — the test
+// reached the real database and died with "Failed to sync user info".
+// Plain functions, not vi.fn(): the suite runs with `mockReset: true`, which
+// strips implementations from spies before every test.
+vi.mock("./db", () => ({
+  getUserByOpenId: async () => userRow,
+  upsertUser: async () => {},
 }));
 
 async function mintToken(tv: number): Promise<string> {

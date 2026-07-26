@@ -16,8 +16,60 @@ import { z } from "zod";
 // LAZILY inside each procedure (below) to keep it off the server boot path.
 // products.ts is light config + types and stays eager.
 import { STRIPE_PRODUCTS, type ProductKey } from "../stripe/products";
+import { getPlan } from "@shared/pricing";
 import { getUserSubscription, updateSubscription, getUserPosts } from "../db";
 import { TRPCError } from "@trpc/server";
+
+/**
+ * The tier a subscription actually grants, derived from the plan row it points at.
+ *
+ * ONE definition, used by every procedure that answers "what is this customer
+ * entitled to". `getCurrentSubscription` derived the tier from the plan while
+ * `getSubscriptionUsage` used a Stripe heuristic that collapsed every paying
+ * customer to "PRO" — so the billing page said Premium and the quota it enforced
+ * was Pro's, and `limits.ENTERPRISE` was unreachable dead code.
+ */
+async function tierForSubscription(
+  subscription: { status?: string | null; planId?: number | null } | null,
+): Promise<"FREE" | "PRO" | "ENTERPRISE"> {
+  if (!subscription || subscription.status !== "active" || !subscription.planId) return "FREE";
+
+  const { getDb } = await import("../db");
+  const db = await getDb();
+  // No database to check against is not grounds for granting a paid tier.
+  if (!db) return "FREE";
+
+  const { subscriptionPlans } = await import("../../drizzle/schema");
+  const { eq } = await import("drizzle-orm");
+  const [plan] = await db
+    .select()
+    .from(subscriptionPlans)
+    .where(eq(subscriptionPlans.id, subscription.planId))
+    .limit(1);
+
+  const nameToTier: Record<string, "FREE" | "PRO" | "ENTERPRISE"> = {
+    Gratis: "FREE",
+    Pro: "PRO",
+    Premium: "ENTERPRISE",
+  };
+  // An unrecognised PAID plan keeps paid features working rather than silently
+  // demoting someone who is being charged.
+  return nameToTier[plan?.name ?? ""] ?? "PRO";
+}
+
+/**
+ * Monthly allowances per tier, taken from the single pricing source of truth so
+ * the quota enforced can never drift from the price advertised.
+ */
+const TIER_LIMITS = {
+  FREE: { posts: getPlan("FREE").postsPerMonth, platforms: 4, aiImages: 0 },
+  PRO: { posts: getPlan("PRO").postsPerMonth, platforms: 4, aiImages: getPlan("PRO").postsPerMonth },
+  ENTERPRISE: {
+    posts: getPlan("PREMIUM").postsPerMonth,
+    platforms: 4,
+    aiImages: getPlan("PREMIUM").postsPerMonth,
+  },
+} as const;
 
 export const paymentRouter = router({
   /**
@@ -180,20 +232,7 @@ export const paymentRouter = router({
         };
       }
 
-      // Derive the tier from the actual plan row (not a stripe heuristic that
-      // reported every paid user as "PRO" and never recognised Premium).
-      let tier = "FREE";
-      if (subscription.status === "active" && subscription.planId) {
-        const { getDb } = await import("../db");
-        const db = await getDb();
-        if (db) {
-          const { subscriptionPlans } = await import("../../drizzle/schema");
-          const { eq } = await import("drizzle-orm");
-          const [plan] = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.id, subscription.planId)).limit(1);
-          const nameToTier: Record<string, string> = { Gratis: "FREE", Pro: "PRO", Premium: "ENTERPRISE" };
-          tier = nameToTier[plan?.name ?? ""] ?? "PRO";
-        }
-      }
+      const tier = await tierForSubscription(subscription);
 
       return {
         tier,
@@ -339,35 +378,32 @@ export const paymentRouter = router({
       const subscription = await getUserSubscription(ctx.user.id);
 
       if (!subscription) {
+        // These MUST be the same numbers as the FREE branch below. They were not:
+        // this branch handed a brand-new account 5 posts and 1 platform while a
+        // lapsed one got 2 and 4, so the allowance depended on whether a row
+        // happened to exist.
         return {
-          tier: "FREE",
+          tier: "FREE" as const,
           postsUsed: 0,
-          postsLimit: 5,
+          postsLimit: TIER_LIMITS.FREE.posts,
           platformsUsed: 0,
-          platformsLimit: 1,
+          platformsLimit: TIER_LIMITS.FREE.platforms,
           aiImagesUsed: 0,
-          aiImagesLimit: 0,
+          aiImagesLimit: TIER_LIMITS.FREE.aiImages,
         };
       }
 
-      // Determine tier based on subscription status
-      const tier = subscription.stripeSubscriptionId && subscription.status === "active" ? "PRO" : "FREE";
-
-      // Post limits mirror @shared/pricing (FREE=2, PRO=15, PREMIUM=30).
-      const limits = {
-        FREE: { posts: 2, platforms: 4, aiImages: 0 },
-        PRO: { posts: 15, platforms: 4, aiImages: 15 },
-        ENTERPRISE: { posts: 30, platforms: 4, aiImages: 30 },
-      };
-
-      const tierLimits = limits[tier as keyof typeof limits] || limits.FREE;
+      // Same derivation as getCurrentSubscription — the billing page and the
+      // quota must not be able to disagree about what the customer bought.
+      const tier = await tierForSubscription(subscription);
+      const tierLimits = TIER_LIMITS[tier];
 
       // Calculate platform connections and AI images used
       // These can be calculated from posts table
       const userPosts = await getUserPosts(ctx.user.id);
       const uniquePlatforms = new Set(userPosts.map((p: any) => p.platform)).size;
       const aiImagesUsed = userPosts.filter((p: any) => p.imageUrl).length;
-      
+
       return {
         tier: tier,
         postsUsed: subscription.postsGenerated,

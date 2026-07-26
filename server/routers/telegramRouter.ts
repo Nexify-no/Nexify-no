@@ -6,7 +6,26 @@
 
 // Extracted from server/routers.ts (app-layer feature router).
 import { protectedProcedure, router } from "../_core/trpc";
+import crypto from "crypto";
 import { z } from "zod";
+
+/**
+ * An account-linking credential: whoever sends this code to the bot is treated as
+ * the owner of the account. It must be unguessable.
+ *
+ * `Math.random()` is a predictable PRNG — observing a few codes narrows the
+ * generator's state, and the codes are only ~10 minutes apart. The webhook
+ * matches `text.length === 8 && /^[A-Z0-9]+$/`, so the format is fixed at 8
+ * characters of that alphabet; the source of randomness is not.
+ */
+const LINK_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I/O/0/1
+function generateSecureLinkCode(): string {
+  let code = "";
+  for (let i = 0; i < 8; i++) {
+    code += LINK_CODE_ALPHABET[crypto.randomInt(LINK_CODE_ALPHABET.length)];
+  }
+  return code;
+}
 
 export const telegramRouter = router({
     // Generate link code for connecting Telegram account
@@ -17,8 +36,7 @@ export const telegramRouter = router({
       const db = await getDb();
       if (!db) throw new Error("Database not available");
 
-      // Generate random 8-character code
-      const linkCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+      const linkCode = generateSecureLinkCode();
       const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
       // Check if user already has a link
@@ -33,10 +51,15 @@ export const telegramRouter = router({
           .set({ linkCode, linkCodeExpiry: expiry })
           .where(eq(telegramLinks.userId, ctx.user.id));
       } else {
-        // Create new link entry
+        // Create new link entry.
+        // telegram_user_id is NOT NULL UNIQUE (drizzle/0014), so the placeholder
+        // cannot be a shared "" — the SECOND user ever to request a code would
+        // collide on the unique index and get a duplicate-key error instead of a
+        // link code. Telegram ids are numeric, so this prefix cannot clash with a
+        // real one, and the webhook overwrites it on a successful link.
         await db.insert(telegramLinks).values({
           userId: ctx.user.id,
-          telegramUserId: "", // Will be filled when user sends code
+          telegramUserId: `pending:${ctx.user.id}`,
           linkCode,
           linkCodeExpiry: expiry,
           isActive: false,

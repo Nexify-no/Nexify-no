@@ -126,8 +126,19 @@ describe("content generation context isolation", () => {
   });
 
   it("buildContentPrompt is pure: prompts for two topics share no context, and stat angle no longer invites fabrication", () => {
-    const a = buildContentPrompt({ topic: "AlphaSubject", platform: "linkedin", keywords: ["akw"], angle: "shocking_stat" }).system;
-    const b = buildContentPrompt({ topic: "BetaSubject", platform: "linkedin", keywords: ["bkw"] }).system;
+    // The topic is anchored on the USER turn, keywords on the system turn — so
+    // isolation has to be asserted over the whole prompt, not `system` alone.
+    // (Checking `system` for the topic can never pass, and made the negative
+    // assertions vacuous.)
+    const pa = buildContentPrompt({ topic: "AlphaSubject", platform: "linkedin", keywords: ["akw"], angle: "shocking_stat" });
+    const pb = buildContentPrompt({ topic: "BetaSubject", platform: "linkedin", keywords: ["bkw"] });
+    // Rebuild A *after* B so the "A does not mention B" direction is a real check
+    // on shared state rather than a statement about the order of two consts.
+    const pa2 = buildContentPrompt({ topic: "AlphaSubject", platform: "linkedin", keywords: ["akw"], angle: "shocking_stat" });
+    expect(`${pa2.system}\n${pa2.user}`).toBe(`${pa.system}\n${pa.user}`);
+
+    const a = `${pa2.system}\n${pa2.user}`;
+    const b = `${pb.system}\n${pb.user}`;
     expect(a).toContain("AlphaSubject");
     expect(a).not.toContain("BetaSubject");
     expect(a).not.toContain("bkw");

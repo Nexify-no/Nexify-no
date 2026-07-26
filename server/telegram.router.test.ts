@@ -4,173 +4,322 @@
  * Unauthorized copying, distribution, or use is strictly prohibited.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { TrpcContext } from "./_core/context";
+/**
+ * telegram.generateLinkCode / getStatus / disconnect / getRecentPosts /
+ * generateAlternatives.
+ *
+ * Rewritten: the module-scope `vi.fn().mockReturnThis()` db mock is stripped by
+ * `mockReset: true` (vitest.config.ts) before every test, so all five procedures
+ * threw "Database not available"; and every assertion was
+ * `expect(result).toBeDefined()`, which cannot distinguish a working link code
+ * from a broken one.
+ *
+ * generateLinkCode is the interesting one: it is an account-linking credential,
+ * so the shape, the expiry and — above all — the update-vs-insert branch matter.
+ * Getting that branch wrong means a second call creates a second row and the bot
+ * matches the stale code.
+ */
 
-// Mock database
-const mockDb = {
-  select: vi.fn().mockReturnThis(),
-  from: vi.fn().mockReturnThis(),
-  where: vi.fn().mockReturnThis(),
-  orderBy: vi.fn().mockReturnThis(),
-  limit: vi.fn().mockReturnThis(),
-  insert: vi.fn().mockReturnThis(),
-  values: vi.fn().mockReturnThis(),
-  update: vi.fn().mockReturnThis(),
-  set: vi.fn().mockReturnThis(),
-  delete: vi.fn().mockReturnThis(),
-  execute: vi.fn().mockResolvedValue([]),
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { desc } from "drizzle-orm";
+import { posts as postsTable } from "../drizzle/schema";
+import { createFakeDb, queryOf, sqlOf, type FakeDb } from "./testing/fakeDb";
+import { mkCtx } from "./testing/ctx";
+
+let fake: FakeDb;
+/** What the mocked LLM returns as message content. */
+let llmContent: unknown;
+let llmMessages: unknown;
+
+// Spread the real module: `caller()` imports the WHOLE router graph, and other
+// routers (e.g. paymentRouter) import named db helpers eagerly. A factory that
+// exported only getDb left those bindings undefined for the whole file — fine
+// until someone adds a case that touches one, then an unreadable
+// "x is not a function". Only getDb is overridden.
+vi.mock("./db", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./db")>()),
+  getDb: async () => fake.db,
+}));
+
+// Plain function, not a spy: `mockReset: true` would strip the implementation.
+vi.mock("./_core/llm", () => ({
+  invokeLLM: async (args: { messages: unknown }) => {
+    llmMessages = args.messages;
+    return { choices: [{ message: { content: llmContent } }] };
+  },
+}));
+
+async function caller(userId = 1) {
+  const { appRouter } = await import("./routers");
+  return appRouter.createCaller(mkCtx(userId));
+}
+
+const LINK = {
+  id: 1,
+  userId: 1,
+  telegramUserId: "tg-1",
+  telegramUsername: "olanordmann",
+  telegramFirstName: "Ola",
+  linkCode: "OLDCODE1",
+  linkCodeExpiry: new Date("2020-01-01T00:00:00Z"),
+  isActive: true,
+  linkedAt: new Date("2026-01-01T00:00:00Z"),
 };
 
-// Mock imports before any other imports
-vi.mock("./db", () => ({
-  getDb: vi.fn().mockResolvedValue(mockDb),
-}));
-
-vi.mock("./_core/llm", () => ({
-  invokeLLM: vi.fn().mockResolvedValue({
-    choices: [{
-      message: {
-        content: JSON.stringify({
-          alt1: "Profesjonell versjon av innlegget",
-          alt2: "Personlig versjon av innlegget",
-          alt3: "Kort og engasjerende versjon"
-        })
-      }
-    }]
-  }),
-}));
-
-describe("Telegram Router", () => {
-  const mockUser = {
-    id: 1,
-    openId: "test-open-id",
-    name: "Test User",
-    email: "test@example.com",
-    role: "user" as const,
-    loginMethod: null,
-    avatarUrl: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    lastSignedIn: new Date(), passwordHash: null, emailVerified: null, twoFactorSecret: null, twoFactorEnabled: 0, twoFactorBackupCodes: null, activeBrandId: null, tokenVersion: 0,
-  };
-
-  const mockContext: TrpcContext = {
-    user: mockUser,
-    req: {} as any,
-    res: {} as any,
-  };
-
-  beforeEach(async () => {
-    vi.clearAllMocks();
-    // Reset mock chain
-    mockDb.select.mockReturnThis();
-    mockDb.from.mockReturnThis();
-    mockDb.where.mockReturnThis();
-    mockDb.orderBy.mockReturnThis();
-    mockDb.limit.mockReturnThis();
-    mockDb.insert.mockReturnThis();
-    mockDb.values.mockReturnThis();
-    mockDb.update.mockReturnThis();
-    mockDb.set.mockReturnThis();
-    mockDb.delete.mockReturnThis();
-    mockDb.execute.mockResolvedValue([]);
+describe("telegram.generateLinkCode", () => {
+  beforeEach(() => {
+    fake = createFakeDb({ rows: { telegram_links: [] } });
   });
 
-  describe("generateLinkCode", () => {
-    it("should generate a valid link code", async () => {
-      mockDb.limit.mockResolvedValueOnce([]); // No existing link
-      mockDb.values.mockResolvedValueOnce(undefined);
+  it("returns an 8-character code the webhook will recognise, with a ten-minute expiry", async () => {
+    // The caller is resolved BEFORE the clock reading: `caller()` imports the
+    // whole router graph, which takes seconds on a cold run, and measuring the
+    // expiry across that import made the upper bound flaky.
+    const c = await caller();
+    const before = Date.now();
+    const r = await c.telegram.generateLinkCode();
 
-      try {
-        const { appRouter } = await import("./routers");
-        const caller = appRouter.createCaller(mockContext);
-        const result = await caller.telegram.generateLinkCode();
-        
-        expect(result).toHaveProperty("linkCode");
-        expect(result).toHaveProperty("expiresAt");
-      } catch (error) {
-        // Test passes if router is properly initialized
-        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
-      }
+    // telegramWebhook.ts gates on exactly `text.length === 8 && /^[A-Z0-9]+$/`;
+    // a code outside that shape is silently unusable.
+    expect(r.linkCode).toMatch(/^[A-Z0-9]{8}$/);
+
+    const ttl = r.expiresAt.getTime() - before;
+    expect(ttl).toBeGreaterThan(9 * 60 * 1000);
+    expect(ttl).toBeLessThanOrEqual(10 * 60 * 1000 + 1000);
+  });
+
+  it("draws the code from a CSPRNG, not Math.random", async () => {
+    // This is an account-linking credential: whoever sends it to the bot is
+    // treated as the owner. Math.random's state is recoverable from a handful of
+    // outputs, and codes are minted minutes apart.
+    const spy = vi.spyOn(Math, "random");
+    const c = await caller();
+    await c.telegram.generateLinkCode();
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("avoids characters that are ambiguous when read off a screen", async () => {
+    const c = await caller();
+    const codes: string[] = [];
+    for (let i = 0; i < 40; i++) {
+      fake = createFakeDb({ rows: { telegram_links: [] } });
+      codes.push((await c.telegram.generateLinkCode()).linkCode);
+    }
+    // 0/O and 1/I in a code the user retypes into Telegram is a support ticket.
+    expect(codes.join("")).not.toMatch(/[O0I1]/);
+  });
+
+  it("inserts an inactive placeholder row when the user has no link yet", async () => {
+    await (await caller(7)).telegram.generateLinkCode();
+
+    const insert = fake.onlyOp("insert", "telegram_links");
+    const v = insert.values as Record<string, unknown>;
+    expect(v.userId).toBe(7);
+    expect(v.isActive).toBe(false); // not linked until the user sends the code
+    expect(v.linkCode).toMatch(/^[A-Z0-9]{8}$/);
+    expect(fake.opsOf("update", "telegram_links")).toHaveLength(0);
+
+    // telegram_user_id is NOT NULL UNIQUE (drizzle/0014), so the placeholder must
+    // be per-user. A shared "" meant the second user ever to ask for a code hit a
+    // duplicate-key error instead of getting one.
+    expect(v.telegramUserId).not.toBe("");
+    expect(v.telegramUserId).toContain("7");
+  });
+
+  it("gives two different users placeholders that cannot collide on the unique index", async () => {
+    await (await caller(7)).telegram.generateLinkCode();
+    const first = fake.onlyOp("insert", "telegram_links").values as Record<string, unknown>;
+
+    fake = createFakeDb({ rows: { telegram_links: [] } });
+    await (await caller(8)).telegram.generateLinkCode();
+    const second = fake.onlyOp("insert", "telegram_links").values as Record<string, unknown>;
+
+    expect(first.telegramUserId).not.toBe(second.telegramUserId);
+  });
+
+  it("updates the existing row instead of inserting a second one", async () => {
+    fake = createFakeDb({ rows: { telegram_links: [LINK] } });
+    const r = await (await caller()).telegram.generateLinkCode();
+
+    // A second row would leave two live codes for one account and the bot would
+    // match whichever it read first.
+    expect(fake.opsOf("insert", "telegram_links")).toHaveLength(0);
+    const set = fake.onlyOp("update", "telegram_links").set as Record<string, unknown>;
+    expect(set.linkCode).toBe(r.linkCode);
+    expect(set.linkCodeExpiry).toEqual(r.expiresAt);
+  });
+
+  it("does not resurrect a disconnected link while re-coding it", async () => {
+    fake = createFakeDb({ rows: { telegram_links: [{ ...LINK, isActive: false }] } });
+    await (await caller()).telegram.generateLinkCode();
+
+    const set = fake.onlyOp("update", "telegram_links").set as Record<string, unknown>;
+    expect("isActive" in set).toBe(false);
+  });
+
+  it("scopes the lookup and the update to the caller", async () => {
+    fake = createFakeDb({ rows: { telegram_links: [LINK] } });
+    await (await caller(42)).telegram.generateLinkCode();
+
+    for (const op of [
+      fake.onlyOp("select", "telegram_links"),
+      fake.onlyOp("update", "telegram_links"),
+    ]) {
+      const { sql, params } = queryOf(op.where);
+      expect(sql).toContain("user_id");
+      expect(params).toContain(42);
+    }
+  });
+
+  it("mints a different code each time", async () => {
+    const a = await (await caller()).telegram.generateLinkCode();
+    fake = createFakeDb({ rows: { telegram_links: [] } });
+    const b = await (await caller()).telegram.generateLinkCode();
+    expect(a.linkCode).not.toBe(b.linkCode);
+  });
+});
+
+describe("telegram.getStatus", () => {
+  it("reports not connected when there is no link row", async () => {
+    fake = createFakeDb({ rows: { telegram_links: [] } });
+    const r = await (await caller()).telegram.getStatus();
+    expect(r).toEqual({ connected: false });
+  });
+
+  it("reports the linked account when the link is active", async () => {
+    fake = createFakeDb({ rows: { telegram_links: [LINK] } });
+    const r = await (await caller()).telegram.getStatus();
+    expect(r).toEqual({
+      connected: true,
+      telegramUsername: "olanordmann",
+      telegramFirstName: "Ola",
+      linkedAt: LINK.linkedAt,
     });
   });
 
-  describe("getStatus", () => {
-    it("should return status object", async () => {
-      try {
-        const { appRouter } = await import("./routers");
-        const caller = appRouter.createCaller(mockContext);
-        const result = await caller.telegram.getStatus();
-        
-        expect(result).toBeDefined();
-      } catch (error) {
-        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
-      }
+  it("reports not connected for a pending row that only holds a code", async () => {
+    // A row exists as soon as a code is generated. Treating "row exists" as
+    // "connected" would show a confirmed Telegram link that does not exist.
+    fake = createFakeDb({
+      rows: {
+        telegram_links: [
+          { ...LINK, isActive: false, telegramUserId: "", telegramUsername: null, linkedAt: null },
+        ],
+      },
+    });
+    const r = await (await caller()).telegram.getStatus();
+    expect(r.connected).toBe(false);
+  });
+
+  it("reads only the caller's row", async () => {
+    fake = createFakeDb({ rows: { telegram_links: [] } });
+    await (await caller(42)).telegram.getStatus();
+    const { sql, params } = queryOf(fake.onlyOp("select", "telegram_links").where);
+    expect(sql).toContain("user_id");
+    expect(params).toContain(42);
+  });
+});
+
+describe("telegram.disconnect", () => {
+  beforeEach(() => {
+    fake = createFakeDb();
+  });
+
+  it("deletes the caller's link row and nothing else", async () => {
+    const r = await (await caller(42)).telegram.disconnect();
+    expect(r).toEqual({ success: true });
+
+    expect(fake.ops.map((o) => `${o.kind}:${o.table}`)).toEqual(["delete:telegram_links"]);
+    const { sql, params } = queryOf(fake.onlyOp("delete", "telegram_links").where);
+    expect(sql).toContain("user_id");
+    expect(params).toEqual([42]);
+  });
+
+  it("does not delete the user's posts", async () => {
+    await (await caller()).telegram.disconnect();
+    expect(fake.opsOf("delete", "posts")).toHaveLength(0);
+  });
+});
+
+describe("telegram.getRecentPosts", () => {
+  it("returns the caller's posts, newest first, capped at ten", async () => {
+    const rows = Array.from({ length: 3 }, (_, i) => ({ id: i + 1, userId: 1 }));
+    fake = createFakeDb({ rows: { posts: rows } });
+
+    const r = await (await caller(1)).telegram.getRecentPosts();
+    expect(r).toEqual(rows);
+
+    const read = fake.onlyOp("select", "posts");
+    expect(read.limit).toBe(10);
+    // Compile the ORDER BY rather than just asserting it exists — `toBeDefined()`
+    // passes for `asc(createdAt)` too, which is the opposite of "newest first".
+    expect(sqlOf(read.orderBy)).toBe(sqlOf(desc(postsTable.createdAt)));
+
+    const { sql, params } = queryOf(read.where);
+    expect(sql).toContain("user_id");
+    expect(params).toEqual([1]);
+  });
+
+  it("returns an empty list rather than throwing when there are no posts", async () => {
+    fake = createFakeDb({ rows: { posts: [] } });
+    const r = await (await caller()).telegram.getRecentPosts();
+    expect(r).toEqual([]);
+  });
+});
+
+describe("telegram.generateAlternatives", () => {
+  beforeEach(() => {
+    fake = createFakeDb();
+    llmMessages = null;
+    llmContent = JSON.stringify({
+      alt1: "Profesjonell versjon",
+      alt2: "Personlig versjon",
+      alt3: "Kort og engasjerende",
     });
   });
 
-  describe("disconnect", () => {
-    it("should delete telegram link", async () => {
-      mockDb.delete.mockResolvedValueOnce(undefined);
-
-      try {
-        const { appRouter } = await import("./routers");
-        const caller = appRouter.createCaller(mockContext);
-        const result = await caller.telegram.disconnect();
-        
-        expect(result).toBeDefined();
-      } catch (error) {
-        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
-      }
+  it("returns exactly the three alternatives, in order", async () => {
+    const r = await (await caller()).telegram.generateAlternatives({
+      postId: 1,
+      rawInput: "Test post content",
     });
+    expect(r.alternatives).toEqual([
+      "Profesjonell versjon",
+      "Personlig versjon",
+      "Kort og engasjerende",
+    ]);
   });
 
-  describe("getRecentPosts", () => {
-    it("should call getRecentPosts without errors", async () => {
-      mockDb.select.mockResolvedValueOnce([]);
-
-      try {
-        const { appRouter } = await import("./routers");
-        const caller = appRouter.createCaller(mockContext);
-        const result = await caller.telegram.getRecentPosts();
-        
-        expect(result).toBeDefined();
-      } catch (error) {
-        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
-      }
+  it("passes the user's idea through to the model and asks for Norwegian", async () => {
+    await (await caller()).telegram.generateAlternatives({
+      postId: 1,
+      rawInput: "Spesialtegn: @#$%",
     });
+
+    const messages = llmMessages as Array<{ role: string; content: string }>;
+    expect(messages[0].role).toBe("system");
+    expect(messages[0].content).toContain("norsk");
+    expect(messages[1].content).toContain("Spesialtegn: @#$%");
   });
 
-  describe("generateAlternatives", () => {
-    it("should generate 3 alternative versions of a post", async () => {
-      try {
-        const { appRouter } = await import("./routers");
-        const caller = appRouter.createCaller(mockContext);
-        const result = await caller.telegram.generateAlternatives({
-          postId: 1,
-          rawInput: "Test post content"
-        });
-        
-        expect(result).toBeDefined();
-      } catch (error) {
-        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
-      }
-    });
+  it("accepts an already-parsed object as well as a JSON string", async () => {
+    // invokeLLM's content is typed loosely; a provider returning an object used
+    // to be re-stringified and re-parsed, which must stay lossless.
+    llmContent = { alt1: "a", alt2: "b", alt3: "c" };
+    const r = await (await caller()).telegram.generateAlternatives({ postId: 1, rawInput: "x" });
+    expect(r.alternatives).toEqual(["a", "b", "c"]);
+  });
 
-    it("should handle different raw inputs", async () => {
-      try {
-        const { appRouter } = await import("./routers");
-        const caller = appRouter.createCaller(mockContext);
-        const result = await caller.telegram.generateAlternatives({
-          postId: 1,
-          rawInput: "Another test with special chars: @#$%"
-        });
-        
-        expect(result).toBeDefined();
-      } catch (error) {
-        expect(error).toBeUndefined(); // honest: unexpected throw fails the test
-      }
-    });
+  it("fails loudly when the model does not return JSON", async () => {
+    llmContent = "beklager, jeg kan ikke";
+    await expect(
+      (await caller()).telegram.generateAlternatives({ postId: 1, rawInput: "x" }),
+    ).rejects.toThrow();
+  });
+
+  it("does not read or write the database", async () => {
+    await (await caller()).telegram.generateAlternatives({ postId: 1, rawInput: "x" });
+    expect(fake.ops).toHaveLength(0);
   });
 });
