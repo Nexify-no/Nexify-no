@@ -5,11 +5,18 @@
  */
 
 // Extracted from server/routers.ts (app-layer feature router).
-import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
+import { adminProcedure, router } from "../_core/trpc";
 
 export const schedulerRouter = router({
-    // Manually trigger scheduled posts processing (for testing)
-    triggerNow: protectedProcedure.mutation(async () => {
+    // Manually run one pass of the scheduled-post publisher.
+    //
+    // ADMIN ONLY, and it has to be. `processScheduledPostsInner` is not scoped to
+    // the caller: it runs a global UPDATE over `scheduledPosts` and then publishes
+    // every due row to ITS OWN owner's LinkedIn. As a protectedProcedure, any
+    // signed-in user on the free tier could force-publish other customers' posts
+    // and mutate their rows on demand. Same reasoning as triggerLifecycleEmails
+    // below — a whole-platform operation is never a normal user's to trigger.
+    triggerNow: adminProcedure.mutation(async () => {
       const { triggerScheduledPosts } = await import('../schedulerService');
       await triggerScheduledPosts();
       return { success: true, message: 'Scheduled posts processing triggered' };

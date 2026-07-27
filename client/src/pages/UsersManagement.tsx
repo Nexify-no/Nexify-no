@@ -8,7 +8,7 @@ import { useState } from "react";
 import { UserEditModal } from "@/components/UserEditModal";
 import { ActivityLog } from "@/components/ActivityLog";
 import { exportToExcel, exportToCSV, formatUsersForExport, generateFilename } from "@/lib/exportUtils";
-import { Download, Activity } from "lucide-react";
+import { Download, Activity, ShieldOff, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
@@ -63,36 +63,38 @@ export function UsersManagement() {
   );
 
   // Mutations
-  trpc.admin.updateUserRole.useMutation({
-    onSuccess: () => {
-      toast.success("User role updated successfully");
-      refetchUsers();
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to update user role");
-    },
-  });
-
+  // (A second, identical trpc.admin.updateUserRole.useMutation used to sit here
+  // with its result discarded — a live subscription nobody could fire.)
   const deleteUserMutation = trpc.admin.deleteUser.useMutation({
-    onSuccess: () => {
-      toast.success("User deleted successfully");
+    onSuccess: (res) => {
+      toast.success(`Brukeren er slettet (${res.purgedTables} tabeller ryddet)`);
       refetchUsers();
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to delete user");
+      toast.error(error.message || "Kunne ikke slette brukeren");
     },
   });
 
-  const updateUserMutation = trpc.admin.updateUserRole.useMutation({
+  const updateUserMutation = trpc.admin.updateUser.useMutation({
     onSuccess: () => {
-      toast.success("User updated successfully");
+      toast.success("Brukeren er oppdatert");
       setEditModalOpen(false);
       setSelectedUser(null);
       refetchUsers();
     },
     onError: (error) => {
-      toast.error(error.message || "Failed to update user");
+      // The server's message is the useful one here — "you cannot remove your own
+      // admin access", "this is the last administrator" — so show it verbatim.
+      toast.error(error.message || "Kunne ikke oppdatere brukeren");
     },
+  });
+
+  const setStatusMutation = trpc.admin.setUserStatus.useMutation({
+    onSuccess: (_d, vars) => {
+      toast.success(vars.status === "suspended" ? "Kontoen er sperret" : "Kontoen er gjenåpnet");
+      refetchUsers();
+    },
+    onError: (error) => toast.error(error.message || "Kunne ikke endre status"),
   });
 
   // Export handlers
@@ -124,10 +126,13 @@ export function UsersManagement() {
   };
 
   // Save user changes
-  const handleSaveUser = async (data: any) => {
+  const handleSaveUser = async (data: { userId: string | number; name?: string; role?: string }) => {
+    // Forward the name too. It was collected by the dialog and silently dropped
+    // here, while the user was told "updated successfully".
     await updateUserMutation.mutateAsync({
-      userId: data.userId,
-      role: data.role,
+      userId: Number(data.userId),
+      name: data.name,
+      role: data.role as "admin" | "user" | undefined,
     });
   };
 
@@ -394,13 +399,45 @@ export function UsersManagement() {
                           >
                             <Activity className="h-4 w-4" />
                           </Button>
+                          {u.status === "suspended" ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              title="Gjenåpne kontoen"
+                              onClick={() => setStatusMutation.mutate({ userId: u.id, status: "active" })}
+                              disabled={setStatusMutation.isPending}
+                            >
+                              <ShieldCheck className="h-4 w-4" />
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              title="Sperr kontoen (reversibelt)"
+                              onClick={() => {
+                                const reason = prompt(`Hvorfor sperres ${u.email}?`) ?? undefined;
+                                setStatusMutation.mutate({ userId: u.id, status: "suspended", reason });
+                              }}
+                              disabled={setStatusMutation.isPending}
+                            >
+                              <ShieldOff className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button
                             variant="destructive"
                             size="sm"
+                            title="Slett permanent — sletter ALT innhold brukeren eier"
                             onClick={() => {
-                              if (confirm("Are you sure you want to delete this user?")) {
-                                deleteUserMutation.mutate({ userId: u.id });
-                              }
+                              // Typing the email is the confirmation. This delete
+                              // now cascades across every table that carries a
+                              // user_id, so an off-by-one row click must not be
+                              // enough to trigger it.
+                              const typed = prompt(
+                                `Dette sletter kontoen OG alt innholdet permanent.\n\n` +
+                                  `Skriv inn e-postadressen for å bekrefte:\n${u.email}`
+                              );
+                              if (!typed) return;
+                              deleteUserMutation.mutate({ userId: u.id, confirmEmail: typed.trim() });
                             }}
                             disabled={deleteUserMutation.isPending}
                           >

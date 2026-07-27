@@ -6,6 +6,7 @@
 
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
+import { trpc } from "@/lib/trpc";
 import { useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ import {
   Users,
   BarChart3,
   Settings,
-  Shield,
+
   MessageSquare,
   TrendingUp,
   CreditCard,
@@ -46,14 +47,24 @@ export function AdminHub() {
     }
   }, [user, setLocation]);
 
-  // TODO: Fetch real admin statistics from trpc.admin.getStats when available
+  // Real numbers. These four cards were hardcoded zeros under a
+  // `// TODO: Fetch real admin statistics from trpc.admin.getStats when available`
+  // — and `admin.getStats` never existed. The data was one route away the whole
+  // time: system.getAdminStats and support.getStats are both real queries.
+  //
+  // "Active sessions" is deliberately gone rather than shown as 0: nothing in
+  // this product counts live sessions, so any number here would be invented.
+  // Users active in the last 30 days is a real figure, so that is what it says.
+  const isAdmin = (user as any)?.role === "admin";
+  const { data: sysStats } = trpc.system.getAdminStats.useQuery(undefined, { enabled: isAdmin });
+  const { data: userStats } = trpc.admin.getUserStats.useQuery(undefined, { enabled: isAdmin });
+  const { data: ticketStats } = trpc.support.getStats.useQuery(undefined, { enabled: isAdmin });
 
-  // Admin statistics (static for now)
   const displayStats = {
-    totalUsers: 0,
-    openTickets: 0,
-    activeSessions: 0,
-    totalRevenue: 0,
+    totalUsers: sysStats?.totalUsers ?? 0,
+    openTickets: ticketStats?.open ?? 0,
+    activeUsers30d: userStats?.activeUsers ?? 0,
+    monthlyRevenue: sysStats?.monthlyRevenue ?? 0,
   };
 
   const adminFeatures: AdminFeature[] = [
@@ -97,24 +108,19 @@ export function AdminHub() {
       badge: "Active",
       badgeColor: "bg-orange-100 text-orange-800",
     },
+    // The "Security Settings" (/admin/security) and "Payment Management"
+    // (/admin/payments) tiles used to live here. Neither route is declared in
+    // App.tsx, so both landed on the 404 page. A tile that goes nowhere is worse
+    // than a missing tile — it reads as a feature that is broken rather than one
+    // that was never built. Revenue and subscriptions live on /admin/analytics.
     {
-      id: "security",
-      title: "Security Settings",
-      description: "Manage security policies and access",
-      icon: <Shield className="w-6 h-6" />,
-      path: "/admin/security",
-      color: "bg-red-50 border-red-200",
-      badge: "Secure",
-      badgeColor: "bg-red-100 text-red-800",
-    },
-    {
-      id: "payments",
-      title: "Payment Management",
-      description: "View payments and billing information",
+      id: "revenue",
+      title: "Inntekt og abonnement",
+      description: "MRR, aktive abonnement per plan",
       icon: <CreditCard className="w-6 h-6" />,
-      path: "/admin/payments",
+      path: "/admin/analytics",
       color: "bg-emerald-50 border-emerald-200",
-      badge: displayStats.totalRevenue ? `$${displayStats.totalRevenue}` : "0",
+      badge: displayStats.monthlyRevenue ? `${displayStats.monthlyRevenue} kr/mnd` : "0 kr",
       badgeColor: "bg-emerald-100 text-emerald-800",
     },
     {
@@ -190,8 +196,11 @@ export function AdminHub() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Active Sessions</p>
-                  <p className="text-3xl font-bold mt-1">{displayStats.activeSessions || 0}</p>
+                  {/* Not "Active Sessions" — nothing in this product counts live
+                      sessions, so that card could only ever have shown a made-up
+                      number. Users signed in within 30 days is real. */}
+                  <p className="text-sm text-gray-600">Aktive brukere (30 d)</p>
+                  <p className="text-3xl font-bold mt-1">{displayStats.activeUsers30d}</p>
                 </div>
                 <Activity className="w-8 h-8 text-purple-500 opacity-50" />
               </div>
@@ -202,8 +211,10 @@ export function AdminHub() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Total Revenue</p>
-                  <p className="text-3xl font-bold mt-1">${displayStats.totalRevenue || 0}</p>
+                  {/* Kroner per month, not dollars total. The old card rendered
+                      a hardcoded 0 with a $ in front of it. */}
+                  <p className="text-sm text-gray-600">Inntekt per måned</p>
+                  <p className="text-3xl font-bold mt-1">{displayStats.monthlyRevenue} kr</p>
                 </div>
                 <CreditCard className="w-8 h-8 text-emerald-500 opacity-50" />
               </div>
@@ -252,21 +263,23 @@ export function AdminHub() {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              {/* This was three hardcoded lines of JSX — "New user registered /
+                  2 hours ago", "Payment received / 1 day ago" — that never
+                  changed, for any deployment, ever. There is no platform-wide
+                  activity feed behind it. Per-user activity IS real
+                  (admin.getUserActivity), so point at that instead of inventing
+                  a feed. */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">New user registered</span>
-                  <span className="text-xs text-gray-500">2 hours ago</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Support ticket created</span>
-                  <span className="text-xs text-gray-500">4 hours ago</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Payment received</span>
-                  <span className="text-xs text-gray-500">1 day ago</span>
-                </div>
-                <Button variant="outline" className="w-full mt-3">
-                  View All Activity
+                <p className="text-sm text-gray-600">
+                  Det finnes ingen plattformdekkende aktivitetsstrøm ennå. Aktivitet per bruker er
+                  reell og ligger på brukersiden.
+                </p>
+                <Button
+                  variant="outline"
+                  className="w-full mt-3"
+                  onClick={() => setLocation("/admin/users")}
+                >
+                  Åpne brukere
                 </Button>
               </div>
             </CardContent>
@@ -281,22 +294,21 @@ export function AdminHub() {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              {/* "Operational / Healthy / Active" were literal strings behind no
+                  health check at all — they would have read green through a total
+                  outage. The only honest signal available here is whether this
+                  page's own queries came back, so that is what is shown. */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">API Status</span>
-                  <Badge className="bg-green-100 text-green-800">Operational</Badge>
+                  <span className="text-sm text-gray-600">Database (denne siden)</span>
+                  <Badge className={sysStats ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-700"}>
+                    {sysStats ? "Svarer" : "Laster …"}
+                  </Badge>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Database</span>
-                  <Badge className="bg-green-100 text-green-800">Healthy</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Cache</span>
-                  <Badge className="bg-green-100 text-green-800">Active</Badge>
-                </div>
-                <Button variant="outline" className="w-full mt-3">
-                  View Monitoring
-                </Button>
+                <p className="text-xs text-gray-500">
+                  Ingen ekte helsesjekk er koblet til ennå. Statusen over sier bare om spørringene
+                  på denne siden kom tilbake.
+                </p>
               </div>
             </CardContent>
           </Card>

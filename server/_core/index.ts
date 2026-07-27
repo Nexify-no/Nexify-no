@@ -211,6 +211,27 @@ async function startServer() {
     next();
   });
 
+  // The same, for the non-tRPC admin REST routes.
+  //
+  // Without this, `/api/admin/monitoring/*` was unreachable BY ANYONE: those
+  // handlers check `req.user?.role === "admin"`, but the middleware above is
+  // path-scoped to /api/trpc, so req.user was always undefined and every request
+  // 403'd — including a real admin's. The /admin/monitoring page has therefore
+  // been showing a red error banner and retrying every 30 seconds, forever.
+  //
+  // It failed closed, so this was a dead feature rather than an open door; the
+  // authorisation check inside each handler is what actually guards the data,
+  // and it still runs.
+  app.use("/api/admin", async (req, _res, next) => {
+    try {
+      const { sdk } = await import("./sdk");
+      (req as any).user = await sdk.authenticateRequest(req);
+    } catch {
+      (req as any).user = null;
+    }
+    next();
+  });
+
   // Usage/latency metrics per authenticated request (now that req.user is set)
   app.use("/api/trpc", trackUsage);
 

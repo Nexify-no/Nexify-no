@@ -41,12 +41,16 @@ export function SupportTickets() {
     },
   });
 
-  // Add reply mutation
+  // `useUtils()` at the TOP LEVEL. It used to be called inside this onSuccess —
+  // a React hook invoked outside render, which throws the moment a reply
+  // succeeds. Same bug as AdminSupport had, but on the path customers use.
+  const utils = trpc.useUtils();
+
   const addReplyMutation = trpc.support.addReply.useMutation({
     onSuccess: () => {
       setReplyText("");
       if (selectedTicketId) {
-        trpc.useUtils().support.getTicketDetails.invalidate({ ticketId: selectedTicketId });
+        utils.support.getTicketDetails.invalidate({ ticketId: selectedTicketId });
       }
     },
   });

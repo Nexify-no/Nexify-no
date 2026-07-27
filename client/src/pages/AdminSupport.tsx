@@ -33,30 +33,35 @@ export function AdminSupport() {
       { enabled: (user as any)?.role === "admin" }
     );
 
-  // Fetch selected ticket details
-  const { data: ticketDetail } = 
-    trpc.support.getTicketDetails.useQuery(
-      { ticketId: selectedTicketId || 0 },
-      { enabled: !!selectedTicketId }
-    );
+  // `useUtils()` at the TOP LEVEL. It used to be called inside the two onSuccess
+  // callbacks below — a React hook invoked outside render, which violates the
+  // rules of hooks and throws the moment a status change or a reply succeeds. So
+  // every successful admin action on a ticket crashed the page.
+  const utils = trpc.useUtils();
 
-  // Update ticket status mutation
+  // The ADMIN procedure, not the owner-scoped one. This page used to call
+  // support.getTicketDetails / support.addReply, both of which check that the
+  // ticket belongs to ctx.user — so an admin opening any ticket that was not
+  // their own got "Ticket not found". getTicketWithUser / addAdminReply exist
+  // for exactly this and were never wired up.
+  const { data: ticketDetail } = trpc.support.getTicketWithUser.useQuery(
+    { ticketId: selectedTicketId || 0 },
+    { enabled: !!selectedTicketId }
+  );
+
+  const invalidateTicket = () => {
+    refetchTickets();
+    if (selectedTicketId) {
+      utils.support.getTicketWithUser.invalidate({ ticketId: selectedTicketId });
+    }
+  };
+
   const updateStatusMutation = trpc.support.updateTicketStatus.useMutation({
-    onSuccess: () => {
-      refetchTickets();
-      if (selectedTicketId) {
-        trpc.useUtils().support.getTicketDetails.invalidate({ ticketId: selectedTicketId });
-      }
-    },
+    onSuccess: invalidateTicket,
   });
 
-  // Add reply mutation
-  const addReplyMutation = trpc.support.addReply.useMutation({
-    onSuccess: () => {
-      if (selectedTicketId) {
-        trpc.useUtils().support.getTicketDetails.invalidate({ ticketId: selectedTicketId });
-      }
-    },
+  const addReplyMutation = trpc.support.addAdminReply.useMutation({
+    onSuccess: invalidateTicket,
   });
 
   // Get statistics

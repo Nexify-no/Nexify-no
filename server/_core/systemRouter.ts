@@ -53,6 +53,33 @@ export const systemRouter = router({
       } as const;
     }),
 
+  /**
+   * Which integrations are actually configured.
+   *
+   * Booleans only — never the values. The admin settings page used to render a
+   * text field for an OpenAI key next to the claim "These settings are stored
+   * securely" and "API keys are encrypted", while storing nothing at all: both
+   * handlers were a single `toast.info()`. The security reasoning in those
+   * comments was right (a key must never round-trip through the browser); the
+   * page just needed to stop pretending. This is what it can honestly show.
+   */
+  getConfigStatus: adminProcedure.query(async () => {
+    const { ENV } = await import("./env");
+    const { isEmailConfigured } = await import("./email");
+    return {
+      email: isEmailConfigured(),
+      openai: Boolean(ENV.forgeApiKey),
+      database: Boolean(ENV.databaseUrl),
+      stripe: Boolean(process.env.STRIPE_SECRET_KEY),
+      sentry: Boolean(process.env.SENTRY_DSN),
+      redis: Boolean(process.env.REDIS_URL),
+      featureMultiBrand: ENV.featureMultiBrand,
+      featureEnkelPlan: ENV.featureEnkelPlan,
+      contentModel: ENV.contentModel,
+      isProduction: ENV.isProduction,
+    };
+  }),
+
   getAdminStats: adminProcedure.query(async () => {
     const { getAdminStats } = await import("../db");
     return await getAdminStats();

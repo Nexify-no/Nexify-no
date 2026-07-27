@@ -22,6 +22,19 @@ export function initializeSendGrid(): void {
 }
 
 /**
+ * Is outbound email actually configured?
+ *
+ * `sendEmail` returns `false` and logs a warning when it is not — it never
+ * throws. That is the right default for automated lifecycle mail (a missing key
+ * must not crash the scheduler), but it is the wrong default for a human
+ * pressing Send: they would be told 200 messages went out when the transport was
+ * never wired up. The admin path checks this first and refuses instead.
+ */
+export function isEmailConfigured(): boolean {
+  return Boolean(process.env.SENDGRID_API_KEY);
+}
+
+/**
  * Send a simple email
  */
 export async function sendEmail(

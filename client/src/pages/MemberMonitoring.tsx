@@ -28,14 +28,27 @@ export default function MemberMonitoring() {
   const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [, setFilters] = useState<MemberFiltersState | null>(null);
+  // The filter value used to be thrown away: `const [, setFilters] = ...`. The
+  // panel collected a search term, a role and a status, and none of it ever
+  // reached the query — typing a name did nothing, visibly.
+  const [filters, setFilters] = useState<MemberFiltersState | null>(null);
 
-  // Fetch members list - always called
-  const { data: membersData, isLoading: membersLoading } = trpc.memberMonitoring.getMembersList.useQuery({
-    page,
-    limit,
-    sortBy: "lastActive",
-  });
+  const { data: membersData, isLoading: membersLoading, refetch: refetchMembers } =
+    trpc.memberMonitoring.getMembersList.useQuery({
+      page,
+      limit,
+      sortBy: "lastActive",
+      search: filters?.search?.trim() || undefined,
+      role: filters?.role && filters.role !== "all" ? filters.role : undefined,
+      // NOT mapped to account status. The filter's "Active/Inactive" is about
+      // member ACTIVITY; `users.status` is about whether an account is banned.
+      // Mapping "inactive" to "suspended" would hand an admin looking for dormant
+      // members the list of people they had banned instead.
+      activity:
+        filters?.status === "active" || filters?.status === "inactive"
+          ? filters.status
+          : undefined,
+    });
 
   // Fetch consumption stats - always called
   const { data: statsData, isLoading: statsLoading } = trpc.memberMonitoring.getConsumptionStats.useQuery();
@@ -160,13 +173,14 @@ export default function MemberMonitoring() {
 
         {/* Filters */}
         <MemberFilters
-          onFiltersChange={setFilters}
-          onReset={() => setFilters(null)}
+          onFiltersChange={(f) => { setFilters(f); setPage(1); }}
+          onReset={() => { setFilters(null); setPage(1); }}
         />
 
         {/* Bulk Actions */}
         <BulkMemberActions
-          selectedCount={selectedMembers.size}
+          selectedIds={Array.from(selectedMembers).map(Number).filter(Number.isFinite)}
+          onDone={() => { setSelectedMembers(new Set()); refetchMembers(); }}
           onSelectAll={(checked) => {
             if (checked && membersData?.members) {
               const newSelected = new Set(selectedMembers);

@@ -18,6 +18,7 @@ import {
   VoiceSample,
   InsertVoiceSample,
   subscriptions,
+  subscriptionPlans,
   Subscription,
   InsertSubscription,
   userPreferences,
@@ -1178,12 +1179,16 @@ export async function getBlogPostBySlug(slug: string): Promise<BlogPost | null> 
   if (!db) return null;
   
   try {
+    // `published = 1` is not optional here. This is reached from a
+    // publicProcedure, and without it an unauthenticated caller who guesses (or
+    // reads from a sitemap/preview link) a slug gets the full body of an
+    // unreleased draft. getAllBlogPosts has always filtered; these two did not.
     const results = await db
       .select()
       .from(blogPosts)
-      .where(eq(blogPosts.slug, slug))
+      .where(and(eq(blogPosts.slug, slug), eq(blogPosts.published, 1)))
       .limit(1);
-    
+
     // Increment view count
     if (results[0]) {
       await db
@@ -1204,10 +1209,12 @@ export async function getBlogPostsByCategory(category: string): Promise<BlogPost
   if (!db) return [];
   
   try {
+    // Category is a closed enum, so without `published = 1` four unauthenticated
+    // calls dump every unreleased draft in the system.
     return await db
       .select()
       .from(blogPosts)
-      .where(eq(blogPosts.category, category as any))
+      .where(and(eq(blogPosts.category, category as any), eq(blogPosts.published, 1)))
       .orderBy(desc(blogPosts.createdAt));
   } catch (error) {
     console.error("[Database] Error fetching blog posts by category:", error);
@@ -1528,42 +1535,116 @@ export async function getAdminStats() {
     
     const [totalPostsResult] = await db.select({ count: sql<number>`count(*)` }).from(posts);
     
-    // Calculate monthly revenue. Prices come from the single source of truth
-    // (shared/pricing.ts) so this can't drift when a plan price changes.
-    const { getPlan, yearlyPerMonthNOK } = await import("@shared/pricing");
-    const proMonthly = getPlan("PRO").monthlyNOK;
-    const proYearlyPerMonth = yearlyPerMonthNOK(proMonthly);
+    /**
+     * Monthly recurring revenue, from the plan each subscription is actually on.
+     *
+     * The previous version had two independent faults that both inflated or
+     * flattened this number, and it is the number the owner reads to decide
+     * whether the business is working:
+     *
+     *  1. It charged EVERY active subscription at the PRO price, whatever tier
+     *     it was. A Premium customer counted as a Pro one; a comped Gratis
+     *     account counted as a paying Pro one.
+     *  2. Yearly billing was detected with `stripeSubscriptionId.includes("yearly")`.
+     *     Stripe subscription ids look like `sub_1P9x...` and never contain the
+     *     word "yearly", so `isYearly` was permanently false — the yearly branch
+     *     was unreachable code.
+     *
+     * Fixed here: it now joins the plan row and reads that plan's real price, so
+     * a Premium customer is counted at the Premium price.
+     *
+     * NOT fixed, and worth knowing before you trust the number: yearly billing
+     * still cannot be detected. The check below compares the subscription's
+     * `stripePriceId` against the plan's `stripePriceIdYearly`, and BOTH sides are
+     * NULL today — `ensureSubscriptionPlans` never writes the Stripe price ids,
+     * nothing writes `subscriptions.stripePriceId`, and `createCheckoutSession`
+     * uses inline `price_data` rather than a reusable Stripe Price. So a yearly
+     * subscriber is still counted at the monthly rate, which OVERSTATES MRR for
+     * them. Wiring the price ids through checkout is what makes this branch live;
+     * until then the number is "monthly-equivalent, assuming everyone pays
+     * monthly". Prices are stored in øre, so divide by 100.
+     */
     const activeSubscriptions = await db
-      .select()
+      .select({
+        id: subscriptions.id,
+        stripePriceId: subscriptions.stripePriceId,
+        planName: subscriptionPlans.name,
+        priceMonthly: subscriptionPlans.priceMonthly,
+        priceYearly: subscriptionPlans.priceYearly,
+        yearlyPriceId: subscriptionPlans.stripePriceIdYearly,
+      })
       .from(subscriptions)
+      .leftJoin(subscriptionPlans, eq(subscriptions.planId, subscriptionPlans.id))
       .where(eq(subscriptions.status, "active"));
 
+    let unpricedSubscriptions = 0;
     const monthlyRevenue = activeSubscriptions.reduce((sum, sub) => {
-      // Assume monthly billing unless the Stripe subscription id marks it yearly.
-      const isYearly = sub.stripeSubscriptionId?.includes("yearly") || false;
-      return sum + (isYearly ? proYearlyPerMonth : proMonthly);
+      const isYearly =
+        Boolean(sub.yearlyPriceId) && sub.stripePriceId === sub.yearlyPriceId;
+
+      // Prices are øre in the database and kroner in this figure.
+      const monthlyKr = (sub.priceMonthly ?? 0) / 100;
+      const yearlyKr = (sub.priceYearly ?? 0) / 100;
+
+      if (isYearly) {
+        if (yearlyKr <= 0) {
+          unpricedSubscriptions += 1;
+          return sum;
+        }
+        return sum + yearlyKr / 12;
+      }
+      if (monthlyKr <= 0) {
+        // A subscription with no plan row, or a free plan. Counting it at Pro's
+        // price is how the old number got its optimism; count it at nothing and
+        // report separately how many there were.
+        unpricedSubscriptions += 1;
+        return sum;
+      }
+      return sum + monthlyKr;
     }, 0);
-    
-    // Get recent subscriptions with user info
+
+    // Recent subscriptions, with the PLAN NAME in the plan column. It used to map
+    // `plan: subscriptions.status`, so every row in the admin table rendered the
+    // literal string "active" under a heading that said Plan.
     const recentSubscriptions = await db
       .select({
         id: subscriptions.id,
         userName: users.name,
         userEmail: users.email,
-        plan: subscriptions.status,
+        plan: subscriptionPlans.name,
+        status: subscriptions.status,
         createdAt: subscriptions.createdAt,
       })
       .from(subscriptions)
       .innerJoin(users, eq(subscriptions.userId, users.id))
+      .leftJoin(subscriptionPlans, eq(subscriptions.planId, subscriptionPlans.id))
       .where(eq(subscriptions.status, "active"))
       .orderBy(desc(subscriptions.createdAt))
       .limit(10);
-    
+
+    // Paying subscribers per tier, so "how many are actually on Premium?" is
+    // answerable without exporting the table.
+    const byTier = await db
+      .select({
+        plan: subscriptionPlans.name,
+        count: sql<number>`count(*)`,
+      })
+      .from(subscriptions)
+      .leftJoin(subscriptionPlans, eq(subscriptions.planId, subscriptionPlans.id))
+      .where(eq(subscriptions.status, "active"))
+      .groupBy(subscriptionPlans.name);
+
     return {
       totalUsers: totalUsersResult?.count || 0,
       proSubscribers: proSubscribersResult?.count || 0,
       totalPosts: totalPostsResult?.count || 0,
       monthlyRevenue: Math.round(monthlyRevenue),
+      /** Active subscriptions we could not price — shown so the MRR is honest. */
+      unpricedSubscriptions,
+      subscriptionsByTier: byTier.map((t) => ({
+        plan: t.plan ?? "Uten plan",
+        count: Number(t.count ?? 0),
+      })),
       recentSubscriptions,
     };
   } catch (error) {

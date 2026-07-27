@@ -193,12 +193,27 @@ export const paymentRouter = router({
   /**
    * Get checkout session details
    */
-  getCheckoutSession: publicProcedure
-    .input(z.object({ sessionId: z.string() }))
-    .query(async ({ input }) => {
+  getCheckoutSession: protectedProcedure
+    .input(z.object({ sessionId: z.string().min(1).max(200) }))
+    .query(async ({ ctx, input }) => {
       try {
         const { getCheckoutSession } = await import("../stripe/stripeService");
         const session = await getCheckoutSession(input.sessionId);
+
+        // The session must belong to the caller. This was a publicProcedure that
+        // returned payment status, subscription id and Stripe customer id for any
+        // session id handed to it — the same pattern stripeRouter.verifyCheckoutSession
+        // already guards against. Session ids leak through browser history, Referer
+        // headers and support tickets; entropy is not an authorisation check.
+        const sessionUserId = parseInt(
+          (session.metadata?.user_id as string) || (session.client_reference_id as string) || ""
+        );
+        if (!sessionUserId || sessionUserId !== ctx.user.id) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Denne betalingsøkten tilhører ikke din konto.",
+          });
+        }
 
         return {
           id: session.id,
@@ -207,6 +222,10 @@ export const paymentRouter = router({
           customerId: typeof session.customer === "string" ? session.customer : session.customer?.id,
         };
       } catch (error) {
+        // Re-throw our own errors unchanged. Without this the FORBIDDEN above is
+        // swallowed by this handler and reported as INTERNAL_SERVER_ERROR, which
+        // tells the caller "we broke" instead of "that is not your session".
+        if (error instanceof TRPCError) throw error;
         console.error("Get checkout session error:", error);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
