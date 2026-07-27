@@ -863,6 +863,52 @@ export const adminRouter = router({
       }
     }),
 
+  // ───────────────────── automated email ─────────────────────
+  //
+  // The scheduled emails — Monday's "ukens innlegg", the customer-journey
+  // sequence, the LinkedIn-expiry warning — had no admin surface at all. You
+  // could not see that they existed, who they reached, or when they last ran,
+  // and the only way to stop one was a code change and a redeploy.
+
+  /** Every automated email, with its schedule, audience and recent volume. */
+  listEmailAutomations: adminProcedure.query(async () => {
+    const { listAutomations, automationSendsSince, weeklyRitualSentThisWeek } = await import(
+      "../services/emailAutomation"
+    );
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    return {
+      automations: await listAutomations(),
+      sentToday: await automationSendsSince(startOfToday),
+      ritualSentThisWeek: await weeklyRitualSentThisWeek(),
+    };
+  }),
+
+  setEmailAutomation: adminProcedure
+    .input(
+      z.object({
+        id: z.enum(["weekly_ritual", "lifecycle_sequence", "linkedin_expiry"]),
+        enabled: z.boolean(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { setAutomationEnabled } = await import("../services/emailAutomation");
+      await setAutomationEnabled(input.id, input.enabled, ctx.user.id);
+      console.log(
+        `[admin] ${ctx.user.id} turned automation ${input.id} ${input.enabled ? "ON" : "OFF"}`
+      );
+      return { success: true };
+    }),
+
+  /** Who the automations actually mailed, newest first. */
+  automationHistory: adminProcedure
+    .input(z.object({ limit: z.number().min(1).max(200).default(50) }))
+    .query(async ({ input }) => {
+      const { recentAutomationSends } = await import("../services/emailAutomation");
+      return { sends: await recentAutomationSends(input.limit) };
+    }),
+
   /** Send history, newest first — one row per recipient. */
   emailHistory: adminProcedure
     .input(z.object({ limit: z.number().min(1).max(200).default(50) }))

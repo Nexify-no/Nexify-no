@@ -2157,12 +2157,18 @@ export async function claimLifecycleEmail(userId: number, emailKey: string): Pro
   }
 }
 
-export async function getWeeklyRitualRecipients(): Promise<{ email: string; name: string }[]> {
+export async function getWeeklyRitualRecipients(): Promise<
+  { userId: number; email: string; name: string }[]
+> {
   const db = await getDb();
   if (!db) return [];
   const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
   const rows = await db
     .select({
+      // userId is needed so the scheduler can claim a once-per-week send per user
+      // before it goes out. Without it the job could only send blindly, which is
+      // how the same email reached customers three times.
+      userId: users.id,
       email: users.email,
       name: users.name,
       emailNotifications: schema.notificationSettings.emailNotifications,
@@ -2180,7 +2186,7 @@ export async function getWeeklyRitualRecipients(): Promise<{ email: string; name
       !!r.email &&
       // Stop re-engagement/marketing emails to accounts that ended their subscription.
       r.subStatus !== "cancelled" && r.subStatus !== "expired")
-    .map((r: any) => ({ email: r.email as string, name: r.name || "" }));
+    .map((r: any) => ({ userId: r.userId as number, email: r.email as string, name: r.name || "" }));
 }
 
 /**
