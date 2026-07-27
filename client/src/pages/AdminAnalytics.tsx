@@ -6,30 +6,21 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
-import { useLocation } from "wouter";
+import { AdminGateScreen, useAdminGate } from "@/components/AdminGate";
 import { Users, TrendingUp, DollarSign, Activity } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { PAGE_DESCRIPTIONS } from "@/lib/pageDescriptions";
 
 export default function AdminAnalytics() {
-  const [, setLocation] = useLocation();
-  const { data: me, isLoading: authLoading } = trpc.auth.me.useQuery();
+  const { state: gate, isAdmin, retry } = useAdminGate();
   const { data: stats, isLoading } = trpc.system.getAdminStats.useQuery(undefined, {
-    enabled: !!me && me.role === "admin",
+    enabled: isAdmin,
   });
 
-  // Only allow admin users
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5">
-        <div className="flex flex-col items-center gap-4"><div className="h-12 w-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin"></div><p className="text-sm text-muted-foreground animate-pulse">Laster...</p></div>
-      </div>
-    );
-  }
-
-  if (!me || me.role !== "admin") {
-    setLocation("/dashboard");
-    return null;
+  // This used to call `setLocation()` in the render body — a router state update
+  // during render, which React warns about and which can loop with wouter.
+  if (gate !== "ok") {
+    return <AdminGateScreen state={gate} onRetry={retry} />;
   }
 
   if (isLoading) {

@@ -90,7 +90,7 @@ export default function IdeaBank() {
   const [newIdeaPlatform, setNewIdeaPlatform] = useState<string>("");
   const [newIdeaTags, setNewIdeaTags] = useState("");
 
-  const { data: me } = trpc.auth.me.useQuery();
+  const { data: me, isLoading: meLoading } = trpc.auth.me.useQuery();
   const { data: subscription } = trpc.user.getSubscription.useQuery(undefined, {
     enabled: !!me,
   });
@@ -172,6 +172,13 @@ export default function IdeaBank() {
   const handleRestore = (id: number) => {
     updateIdea.mutate({ id, status: "new" });
   };
+
+  // `!me` used to cover both "still asking" and "not signed in", so a signed-out
+  // visitor sat on the loading spinner forever instead of being sent to /login.
+  if (!meLoading && !me) {
+    window.location.href = "/login";
+    return null;
+  }
 
   if (!me) {
     return (

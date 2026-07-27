@@ -4,9 +4,8 @@
  * Unauthorized copying, distribution, or use is strictly prohibited.
  */
 
-import { useAuth } from "@/hooks/useAuth";
-import { useLocation } from "wouter";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { AdminGateScreen, useAdminGate } from "@/components/AdminGate";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,23 +13,15 @@ import { trpc } from "@/lib/trpc";
 import { AlertCircle, CheckCircle, Clock, MessageSquare } from "lucide-react";
 
 export function AdminSupport() {
-  const { user } = useAuth();
-  const [, setLocation] = useLocation();
+  const { state: gate, isAdmin, retry } = useAdminGate();
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
   const [filterStatus, setFilterStatus] = useState<string | undefined>(undefined);
-
-  // Redirect if not admin
-  useEffect(() => {
-    if (user && (user as any).role !== "admin") {
-      setLocation("/dashboard");
-    }
-  }, [user, setLocation]);
 
   // Fetch all support tickets
   const { data: ticketsData, isLoading: ticketsLoading, refetch: refetchTickets } = 
     trpc.support.getAllTickets.useQuery(
       undefined,
-      { enabled: (user as any)?.role === "admin" }
+      { enabled: isAdmin }
     );
 
   // `useUtils()` at the TOP LEVEL. It used to be called inside the two onSuccess
@@ -72,16 +63,8 @@ export function AdminSupport() {
     resolved: Array.isArray(ticketsData) ? ticketsData.filter((t: any) => t.status === "resolved").length : 0,
   };
 
-  if (!user || (user as any).role !== "admin") {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold">Access Denied</h1>
-          <p className="text-gray-600 mt-2">You don't have permission to access this page</p>
-        </div>
-      </div>
-    );
+  if (gate !== "ok") {
+    return <AdminGateScreen state={gate} onRetry={retry} />;
   }
 
   const getStatusIcon = (status: string) => {

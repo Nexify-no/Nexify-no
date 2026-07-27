@@ -5,8 +5,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { useAuth } from "@/hooks/useAuth";
-import { useLocation } from "wouter";
+import { AdminGateScreen, useAdminGate } from "@/components/AdminGate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -32,28 +31,21 @@ interface Alert {
 }
 
 export default function AdminMonitoring() {
-  const { user } = useAuth();
-  const [, navigate] = useLocation();
+  const { state: gate, retry } = useAdminGate();
   const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Polling starts only once the gate says this really is an admin. The old
+  // version read `user` on the first render — before the session request had
+  // even been made — and navigated to /login on that null.
   useEffect(() => {
-    if (!user) {
-      navigate("/login");
-      return;
-    }
-
-    if ((user as any).role !== "admin") {
-      navigate("/dashboard");
-      return;
-    }
+    if (gate !== "ok") return;
     fetchData();
     const interval = setInterval(fetchData, 30000); // Refresh every 30 seconds
-
     return () => clearInterval(interval);
-  }, [user, navigate]);
+  }, [gate]);
 
   async function fetchData() {
     try {
@@ -106,8 +98,8 @@ export default function AdminMonitoring() {
     }
   };
 
-  if (!user || (user as any).role !== "admin") {
-    return null;
+  if (gate !== "ok") {
+    return <AdminGateScreen state={gate} onRetry={retry} />;
   }
 
   return (

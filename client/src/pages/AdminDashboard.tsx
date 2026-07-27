@@ -4,9 +4,8 @@
  * Unauthorized copying, distribution, or use is strictly prohibited.
  */
 
-import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
-import { useEffect } from "react";
+import { AdminGateScreen, useAdminGate } from "@/components/AdminGate";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,15 +14,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { AlertCircle, Ticket, Settings } from "lucide-react";
 
 export function AdminDashboard() {
-  const { user } = useAuth();
+  const { state: gate, isAdmin, retry } = useAdminGate();
   const [, setLocation] = useLocation();
-
-  // Redirect non-admins
-  useEffect(() => {
-    if (user && user.role !== "admin") {
-      setLocation("/dashboard");
-    }
-  }, [user, setLocation]);
 
   // Real ticket counts. This used to be `const stats = null;` followed by a
   // ternary on it — so `supportStats` was permanently `undefined`, all four
@@ -33,32 +25,18 @@ export function AdminDashboard() {
   // support.getStats has existed and been real the whole time; it is what
   // /admin/support already reads.
   const { data: supportStats } = trpc.support.getStats.useQuery(undefined, {
-    enabled: user?.role === "admin",
+    enabled: isAdmin,
   });
 
   const { data: allUsers, isLoading: usersLoading } = trpc.admin.getAllUsers.useQuery(
     { page: 1, limit: 100 },
     {
-      enabled: user?.role === "admin",
+      enabled: isAdmin,
     }
   );
 
-  if (!user || user.role !== "admin") {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Access Denied</CardTitle>
-            <CardDescription>You do not have permission to access this page.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => setLocation("/dashboard")} className="w-full">
-              Go to Dashboard
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
+  if (gate !== "ok") {
+    return <AdminGateScreen state={gate} onRetry={retry} />;
   }
 
   // Prepare chart data

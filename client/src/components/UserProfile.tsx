@@ -5,7 +5,7 @@
  */
 
 import React, { useState } from "react";
-import { useAuth, logout } from "@/hooks/useAuth";
+import { useAuth } from "@/_core/hooks/useAuth";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,7 +19,7 @@ import { LogOut, Settings, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function UserProfile() {
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, loading: isLoading, logout } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   if (isLoading) {
@@ -69,7 +69,7 @@ export function UserProfile() {
         <button className="flex items-center gap-2 hover:opacity-80 transition-opacity">
           <Avatar className="w-8 h-8">
             <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
-              {getInitials(user.name, user.email)}
+              {getInitials(user.name ?? undefined, user.email ?? undefined)}
             </AvatarFallback>
           </Avatar>
           <span className="text-sm font-medium hidden sm:inline">

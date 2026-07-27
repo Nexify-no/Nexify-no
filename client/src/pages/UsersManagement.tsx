@@ -9,9 +9,7 @@ import { UserEditModal } from "@/components/UserEditModal";
 import { ActivityLog } from "@/components/ActivityLog";
 import { exportToExcel, exportToCSV, formatUsersForExport, generateFilename } from "@/lib/exportUtils";
 import { Download, Activity, ShieldOff, ShieldCheck } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
-import { useLocation } from "wouter";
-import { getLoginUrl } from "@/const";
+import { AdminGateScreen, useAdminGate } from "@/components/AdminGate";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,16 +19,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/PageHeader";
 import { Breadcrumb } from "@/components/Breadcrumb";
-import { AlertCircle, Users, Loader2, Trash2, Edit2, Search } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Users, Loader2, Trash2, Edit2, Search } from "lucide-react";
 import { toast } from "sonner";
 
 export function UsersManagement() {
-  const { user } = useAuth();
-  useLocation();
-  
-  // Check if user is admin
-  const isAdmin = user && "role" in user && user.role === "admin";
+  const { state: gate, isAdmin, retry } = useAdminGate();
 
   // State
   const [page, setPage] = useState(1);
@@ -136,28 +129,14 @@ export function UsersManagement() {
     });
   };
 
-  if (!user) {
-    window.location.href = getLoginUrl();
-    return null;
-  }
-
-  if (!isAdmin) {
-    return (
-      <div className="min-h-screen bg-background">
-        <PageHeader
-          title="Users Management"
-          description="Manage application users and permissions"
-        />
-        <main className="container py-8">
-          <Alert className="border-red-200 bg-red-50 dark:bg-red-950/20">
-            <AlertCircle className="h-4 w-4 text-red-600" />
-            <AlertDescription className="text-red-800 dark:text-red-200">
-              Only administrators can access this page.
-            </AlertDescription>
-          </Alert>
-        </main>
-      </div>
-    );
+  // This page was unreachable. The guard here used to be a bare `if (!user)`,
+  // and `useAuth` starts at `{ user: null, isLoading: true }` — so on the FIRST
+  // render of every visit it hard-navigated to /login, which saw a valid session
+  // and sent you to /dashboard. Clicking "Users" bounced straight back to the
+  // dashboard, with no error anywhere, for every admin including the owner.
+  // `useAdminGate` refuses to answer until the session request has.
+  if (gate !== "ok") {
+    return <AdminGateScreen state={gate} onRetry={retry} />;
   }
 
   return (
