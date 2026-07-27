@@ -39,7 +39,22 @@ import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { adminSettings, lifecycleEmails, users } from "../../drizzle/schema";
 
-export type AutomationId = "weekly_ritual" | "lifecycle_sequence" | "linkedin_expiry";
+/**
+ * The ids, as a tuple — ONE source of truth, so the type, the registry and the
+ * tRPC input schema cannot drift apart.
+ *
+ * `setEmailAutomation` used to repeat this list in its own `z.enum([...])`.
+ * Adding an automation left that copy behind, and the switch for the new one was
+ * rejected as invalid input by the very endpoint meant to flip it.
+ */
+export const AUTOMATION_IDS = [
+  "weekly_ritual",
+  "lifecycle_sequence",
+  "linkedin_expiry",
+  "subscription_reminder",
+] as const;
+
+export type AutomationId = (typeof AUTOMATION_IDS)[number];
 
 export type Automation = {
   id: AutomationId;
@@ -48,8 +63,20 @@ export type Automation = {
   /** Human-readable schedule; the cron expression lives in schedulerService. */
   schedule: string;
   audience: string;
-  /** Marketing mail honours the per-user opt-out; operational mail does not. */
-  kind: "markedsføring" | "drift";
+  /**
+   * `markedsføring` honours the per-user opt-out; `drift` is operational.
+   * `lovpålagt` is required by law — see `alwaysOn`.
+   */
+  kind: "markedsføring" | "drift" | "lovpålagt";
+  /**
+   * Listed so an admin can SEE it, but never switchable.
+   *
+   * There is a real difference between "we choose to send this" and "we are
+   * required to send this", and the admin page has to show both or it is lying
+   * about what leaves the system. Enforced in `isAutomationEnabled` and
+   * `setAutomationEnabled`, not just hidden in the UI.
+   */
+  alwaysOn?: true;
 };
 
 export const AUTOMATIONS: Automation[] = [
@@ -81,6 +108,28 @@ export const AUTOMATIONS: Automation[] = [
     audience: "Brukere med en LinkedIn-kobling som snart utløper.",
     kind: "drift",
   },
+  {
+    // This one was sending unlisted, so /admin/epost showed three automations
+    // while four were going out. It is listed now — but NOT switchable, and it
+    // does NOT honour the marketing opt-out.
+    //
+    // digitalytelsesloven requires telling a paying customer, at least every six
+    // months, that the subscription is still running and how to cancel. A switch
+    // on it would be a switch on a legal obligation, and the opt-out it would
+    // have honoured is `notification_settings` — the CONTENT-notification
+    // preference (trends, scheduled posts, analytics). Somebody who turned that
+    // off to stop post reminders would have stopped the notice telling them they
+    // are still being charged. The e-mail also carries no unsubscribe link,
+    // because it was never meant to be opt-outable.
+    id: "subscription_reminder",
+    name: "Abonnementet er aktivt",
+    description:
+      "Halvårlig påminnelse om at abonnementet løper og hvordan man sier opp. Lovpålagt (digitalytelsesloven) — kan ikke slås av.",
+    schedule: "Daglig 10:00 (Europe/Oslo) — maks én per abonnement per 6. måned",
+    audience: "Aktive abonnement som ikke er påminnet de siste 182 dagene.",
+    kind: "lovpålagt",
+    alwaysOn: true,
+  },
 ];
 
 const SETTING_PREFIX = "email_automation.";
@@ -91,6 +140,11 @@ const SETTING_PREFIX = "email_automation.";
  * absent would be far worse than one that keeps running.
  */
 export async function isAutomationEnabled(id: AutomationId): Promise<boolean> {
+  // A legally-required notice is not subject to a stored setting. Checked here
+  // rather than only at the write, so a row inserted by hand, by an older build,
+  // or straight into the database cannot switch it off either.
+  if (AUTOMATIONS.find((a) => a.id === id)?.alwaysOn) return true;
+
   const db = await getDb();
   if (!db) return true;
   try {
@@ -112,6 +166,13 @@ export async function setAutomationEnabled(
   enabled: boolean,
   adminUserId: number
 ): Promise<void> {
+  const automation = AUTOMATIONS.find((a) => a.id === id);
+  if (automation?.alwaysOn) {
+    throw new Error(
+      `${automation.name} er lovpålagt og kan ikke slås av (digitalytelsesloven).`
+    );
+  }
+
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const key = SETTING_PREFIX + id;
@@ -213,9 +274,14 @@ export async function listAutomations(): Promise<AutomationStatus[]> {
     .groupBy(lifecycleEmails.emailKey);
 
   return AUTOMATIONS.map((a) => {
+    // `lifecycle_sequence` is the catch-all: its keys are `lifecycle_<step>`,
+    // which share no single prefix. So it takes everything that is not claimed by
+    // a NAMED automation — derived from AUTOMATION_IDS rather than a hand-written
+    // "not weekly_ritual and not linkedin_expiry", which silently double-counted
+    // every id added after it was written.
     const mine = stats.filter((s) =>
       a.id === "lifecycle_sequence"
-        ? !s.key.startsWith("weekly_ritual") && !s.key.startsWith("linkedin_expiry")
+        ? !AUTOMATION_IDS.some((id) => id !== "lifecycle_sequence" && s.key.startsWith(id))
         : s.key.startsWith(a.id)
     );
     const lastSentAt = mine.reduce<Date | null>((acc, s) => {
