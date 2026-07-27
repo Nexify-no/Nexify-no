@@ -34,7 +34,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Mail, Send, AlertTriangle, Users } from "lucide-react";
+import { Mail, Send, AlertTriangle, Users, Clock, Power } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
 type Segment = "all" | "active" | "suspended" | "admins" | "inactive_30d";
@@ -64,6 +65,21 @@ export default function AdminEmail() {
     { enabled: Boolean(isAdmin) }
   );
   const history = trpc.admin.emailHistory.useQuery({ limit: 20 }, { enabled: Boolean(isAdmin) });
+  const automations = trpc.admin.listEmailAutomations.useQuery(undefined, {
+    enabled: Boolean(isAdmin),
+  });
+  const automationLog = trpc.admin.automationHistory.useQuery(
+    { limit: 15 },
+    { enabled: Boolean(isAdmin) }
+  );
+
+  const toggleAutomation = trpc.admin.setEmailAutomation.useMutation({
+    onSuccess: (_d, vars) => {
+      toast.success(vars.enabled ? "Slått på" : "Slått av — neste kjøring hopper over");
+      automations.refetch();
+    },
+    onError: (e) => toast.error(e.message || "Kunne ikke endre"),
+  });
 
   const send = trpc.admin.sendEmail.useMutation({
     onSuccess: (r) => {
@@ -146,6 +162,83 @@ export default function AdminEmail() {
           </p>
         </div>
       )}
+
+      {/* ───── automated email ───── */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Automatiske e-poster
+          </CardTitle>
+          <CardDescription>
+            Disse går ut av seg selv etter en tidsplan. Du kan se hva de er, hvem de treffer, når de
+            sist kjørte — og slå dem av.
+            {automations.data ? ` ${automations.data.sentToday} sendt i dag.` : ""}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {(automations.data?.automations ?? []).map((a) => (
+            <div key={a.id} className="flex items-start justify-between gap-4 p-4 rounded-lg border">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-medium">{a.name}</span>
+                  <Badge variant="outline" className="text-[11px]">{a.kind}</Badge>
+                  {!a.enabled && <Badge variant="destructive" className="text-[11px]">Av</Badge>}
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">{a.description}</p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  <strong>Nar:</strong> {a.schedule}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  <strong>Hvem:</strong> {a.audience}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {a.lastSentAt
+                    ? `Sist sendt ${new Date(a.lastSentAt).toLocaleString("nb-NO")} - `
+                    : "Ingen registrerte utsendinger - "}
+                  {a.sentLast30Days} siste 30 dager
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 pt-1">
+                <Power className="h-4 w-4 text-muted-foreground" />
+                <Switch
+                  checked={a.enabled}
+                  disabled={toggleAutomation.isPending}
+                  onCheckedChange={(checked) =>
+                    toggleAutomation.mutate({ id: a.id, enabled: checked })
+                  }
+                  aria-label={`Sla ${a.enabled ? "av" : "pa"} ${a.name}`}
+                />
+              </div>
+            </div>
+          ))}
+
+          <p className="text-xs text-muted-foreground">
+            Transaksjonelle e-poster - passord, e-postbekreftelse, kvitteringer, svar pa
+            support-saker - star ikke her og kan ikke slas av. En kunde kan ikke reservere seg mot
+            dem, og de skal ikke kunne skrus av ved et uhell.
+          </p>
+
+          {(automationLog.data?.sends.length ?? 0) > 0 && (
+            <details className="mt-2">
+              <summary className="text-sm font-medium cursor-pointer">
+                Siste automatiske utsendinger
+              </summary>
+              <div className="mt-3 space-y-1.5">
+                {automationLog.data!.sends.map((x, i) => (
+                  <div key={i} className="flex items-center justify-between gap-3 text-xs py-1.5 border-b last:border-b-0">
+                    <span className="truncate">{x.email ?? `bruker ${x.userId}`}</span>
+                    <span className="text-muted-foreground shrink-0">{x.emailKey}</span>
+                    <span className="text-muted-foreground shrink-0">
+                      {new Date(x.sentAt).toLocaleString("nb-NO")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
         <Card>

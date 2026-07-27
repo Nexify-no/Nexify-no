@@ -475,13 +475,52 @@ export function startScheduler() {
     try {
       const { getWeeklyRitualRecipients } = await import('./db');
       const { sendWeeklyRitualEmail } = await import('./_core/email');
+      const { isAutomationEnabled, claimAutomationSend, releaseAutomationClaim, isoWeekKey } =
+        await import('./services/emailAutomation');
+
+      if (!(await isAutomationEnabled('weekly_ritual'))) {
+        console.log('[Scheduler:WeeklyRitual] disabled by admin — skipping');
+        return;
+      }
+
       const recipients = await getWeeklyRitualRecipients();
-      console.log(`[Scheduler:WeeklyRitual] sending to ${recipients.length} user(s)`);
+      const weekKey = `weekly_ritual_${isoWeekKey(new Date())}`;
+      console.log(`[Scheduler:WeeklyRitual] ${recipients.length} candidate(s), key=${weekKey}`);
+
+      let sent = 0;
+      let alreadyClaimed = 0;
       for (const r of recipients) {
-        try { await sendWeeklyRitualEmail(r.email, r.name); }
-        catch (e) { console.error('[Scheduler:WeeklyRitual] send failed for', r.email, e); }
+        // CLAIM BEFORE SENDING. This job used to send straight from the recipient
+        // list with nothing recorded, which is only safe if exactly one process
+        // ever runs the cron — and nothing guarantees that. startScheduler()'s
+        // guard is a module-level variable, so it protects one Node process and
+        // no more; a second instance, a staging service pointed at the same
+        // database, or the overlap window of a zero-downtime deploy each sent a
+        // complete second copy. Customers received three.
+        //
+        // The unique key on (user_id, email_key) makes this atomic: the losing
+        // process's insert fails and it skips.
+        if (!r.userId) continue;
+        const claimed = await claimAutomationSend(r.userId, weekKey);
+        if (!claimed) { alreadyClaimed++; continue; }
+
+        try {
+          const ok = await sendWeeklyRitualEmail(r.email, r.name);
+          if (ok) { sent++; }
+          else {
+            // Give the claim back so next week's run — or a retry — is not
+            // permanently blocked by a send that never happened.
+            await releaseAutomationClaim(r.userId, weekKey);
+          }
+        } catch (e) {
+          console.error('[Scheduler:WeeklyRitual] send failed for', r.email, e);
+          await releaseAutomationClaim(r.userId, weekKey);
+        }
         await new Promise((res) => setTimeout(res, 200));
       }
+      console.log(
+        `[Scheduler:WeeklyRitual] sent ${sent}, skipped ${alreadyClaimed} already claimed by another run/instance`
+      );
     } catch (e) {
       console.error('[Scheduler:WeeklyRitual] job failed', e);
     }
@@ -490,8 +529,14 @@ export function startScheduler() {
   // LinkedIn token-expiry reminder — daily 09:00 (Europe/Oslo). Tokens last ~60
   // days with no auto-refresh, so warn before auto-posting silently stops.
   linkedinExpiryTask = cron.schedule('0 9 * * *', async () => {
-    try { await remindExpiringLinkedInTokens(); }
-    catch (e) { console.error('[Scheduler:LinkedInExpiry] job failed', e); }
+    try {
+      const { isAutomationEnabled } = await import('./services/emailAutomation');
+      if (!(await isAutomationEnabled('linkedin_expiry'))) {
+        console.log('[Scheduler:LinkedInExpiry] disabled by admin — skipping');
+        return;
+      }
+      await remindExpiringLinkedInTokens();
+    } catch (e) { console.error('[Scheduler:LinkedInExpiry] job failed', e); }
   }, { timezone: 'Europe/Oslo' });
 
   // Automated customer-journey emails — daily 10:00 (Europe/Oslo). Sends at most
@@ -499,6 +544,11 @@ export function startScheduler() {
   // each step exactly once (see server/services/lifecycleService.ts).
   lifecycleTask = cron.schedule('0 10 * * *', async () => {
     try {
+      const { isAutomationEnabled } = await import('./services/emailAutomation');
+      if (!(await isAutomationEnabled('lifecycle_sequence'))) {
+        console.log('[Scheduler:Lifecycle] disabled by admin — skipping');
+        return;
+      }
       const { runLifecycleEmails } = await import('./services/lifecycleService');
       const summary = await runLifecycleEmails();
       console.log(`[Scheduler:Lifecycle] scanned ${summary.scanned}, sent ${summary.sent}`);
