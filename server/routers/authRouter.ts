@@ -10,9 +10,49 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { getSessionCookieOptions } from "../_core/cookies";
+import type { User } from "../../drizzle/schema";
+
+/**
+ * What the browser is allowed to know about the signed-in account.
+ *
+ * `me` used to be `opts.ctx.user` — the whole `users` row, straight out of the
+ * database. That shipped four secrets to the client on every page load:
+ *
+ *   - `twoFactorSecret`     — the TOTP seed. Anyone who reads one response can
+ *                             generate valid codes for this account forever.
+ *   - `twoFactorBackupCodes` — skips the second factor outright.
+ *   - `passwordHash`        — an offline cracking target.
+ *   - `tokenVersion`        — the session-revocation counter.
+ *
+ * The first two mean the second factor protects nothing: the secret it is
+ * derived from travels in the same response as the session it is meant to
+ * guard, and sits in the query cache, in the browser's memory, and in anything
+ * that records network traffic (error reporters, extensions, a shared screen).
+ *
+ * This is an explicit allow-list, not a delete-list, so a column added to
+ * `users` later is private until somebody deliberately publishes it.
+ */
+function toPublicUser(user: User) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    status: user.status,
+    loginMethod: user.loginMethod,
+    avatarUrl: user.avatarUrl,
+    activeBrandId: user.activeBrandId,
+    // Booleans, never the values behind them.
+    emailVerified: user.emailVerified != null,
+    twoFactorEnabled: Boolean(user.twoFactorEnabled),
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+    lastSignedIn: user.lastSignedIn,
+  };
+}
 
 export const authRouter = router({
-    me: publicProcedure.query(opts => opts.ctx.user),
+    me: publicProcedure.query(({ ctx }) => (ctx.user ? toPublicUser(ctx.user) : null)),
     logout: publicProcedure.mutation(async ({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });

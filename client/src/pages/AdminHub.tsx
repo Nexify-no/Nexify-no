@@ -4,10 +4,9 @@
  * Unauthorized copying, distribution, or use is strictly prohibited.
  */
 
-import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
-import { useEffect } from "react";
+import { AdminGateScreen, useAdminGate } from "@/components/AdminGate";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +18,6 @@ import {
   MessageSquare,
   TrendingUp,
   CreditCard,
-  AlertCircle,
   Zap,
   Clock,
   Activity,
@@ -37,15 +35,8 @@ interface AdminFeature {
 }
 
 export function AdminHub() {
-  const { user } = useAuth();
+  const { state: gate, isAdmin, retry } = useAdminGate();
   const [, setLocation] = useLocation();
-
-  // Redirect if not admin
-  useEffect(() => {
-    if (user && (user as any).role !== "admin") {
-      setLocation("/dashboard");
-    }
-  }, [user, setLocation]);
 
   // Real numbers. These four cards were hardcoded zeros under a
   // `// TODO: Fetch real admin statistics from trpc.admin.getStats when available`
@@ -55,7 +46,6 @@ export function AdminHub() {
   // "Active sessions" is deliberately gone rather than shown as 0: nothing in
   // this product counts live sessions, so any number here would be invented.
   // Users active in the last 30 days is a real figure, so that is what it says.
-  const isAdmin = (user as any)?.role === "admin";
   const { data: sysStats } = trpc.system.getAdminStats.useQuery(undefined, { enabled: isAdmin });
   const { data: userStats } = trpc.admin.getUserStats.useQuery(undefined, { enabled: isAdmin });
   const { data: ticketStats } = trpc.support.getStats.useQuery(undefined, { enabled: isAdmin });
@@ -145,16 +135,8 @@ export function AdminHub() {
     },
   ];
 
-  if (!user || (user as any).role !== "admin") {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold">Access Denied</h1>
-          <p className="text-gray-600 mt-2">You don't have permission to access this page</p>
-        </div>
-      </div>
-    );
+  if (gate !== "ok") {
+    return <AdminGateScreen state={gate} onRetry={retry} />;
   }
 
   return (

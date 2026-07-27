@@ -4,7 +4,6 @@
  * Unauthorized copying, distribution, or use is strictly prohibited.
  */
 
-import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,7 +14,6 @@ import { trpc } from "@/lib/trpc";
 import { AlertCircle, CheckCircle, Clock, Plus, Send } from "lucide-react";
 
 export function SupportTickets() {
-  useAuth();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
   const [formData, setFormData] = useState({ title: "", description: "", priority: "normal" });
