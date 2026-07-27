@@ -7,6 +7,7 @@
 import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { AUTOMATION_IDS } from "../services/emailAutomation";
 
 /**
  * Admin Router - User Management and Analytics
@@ -888,7 +889,7 @@ export const adminRouter = router({
   setEmailAutomation: adminProcedure
     .input(
       z.object({
-        id: z.enum(["weekly_ritual", "lifecycle_sequence", "linkedin_expiry"]),
+        id: z.enum(AUTOMATION_IDS),
         enabled: z.boolean(),
       })
     )

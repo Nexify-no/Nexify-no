@@ -34,7 +34,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Mail, Send, AlertTriangle, Users, Clock, Power } from "lucide-react";
+import { Mail, Send, AlertTriangle, Users, Clock, Power, Lock } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
@@ -172,7 +172,7 @@ export default function AdminEmail() {
           </CardTitle>
           <CardDescription>
             Disse går ut av seg selv etter en tidsplan. Du kan se hva de er, hvem de treffer, når de
-            sist kjørte — og slå dem av.
+            sist kjørte — og slå av de som kan slås av.
             {automations.data ? ` ${automations.data.sentToday} sendt i dag.` : ""}
           </CardDescription>
         </CardHeader>
@@ -183,6 +183,9 @@ export default function AdminEmail() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-medium">{a.name}</span>
                   <Badge variant="outline" className="text-[11px]">{a.kind}</Badge>
+                  {a.alwaysOn && (
+                    <Badge variant="secondary" className="text-[11px]">Kan ikke slås av</Badge>
+                  )}
                   {!a.enabled && <Badge variant="destructive" className="text-[11px]">Av</Badge>}
                 </div>
                 <p className="text-sm text-muted-foreground mt-1">{a.description}</p>
@@ -199,17 +202,26 @@ export default function AdminEmail() {
                   {a.sentLast30Days} siste 30 dager
                 </p>
               </div>
-              <div className="flex items-center gap-2 shrink-0 pt-1">
-                <Power className="h-4 w-4 text-muted-foreground" />
-                <Switch
-                  checked={a.enabled}
-                  disabled={toggleAutomation.isPending}
-                  onCheckedChange={(checked) =>
-                    toggleAutomation.mutate({ id: a.id, enabled: checked })
-                  }
-                  aria-label={`Sla ${a.enabled ? "av" : "pa"} ${a.name}`}
-                />
-              </div>
+              {/* A legally-required notice is shown, but has no switch — see the
+                  `alwaysOn` note in server/services/emailAutomation.ts. The server
+                  refuses the write too; this is not the only line of defence. */}
+              {a.alwaysOn ? (
+                <div className="flex items-center gap-2 shrink-0 pt-1">
+                  <Lock className="h-4 w-4 text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 shrink-0 pt-1">
+                  <Power className="h-4 w-4 text-muted-foreground" />
+                  <Switch
+                    checked={a.enabled}
+                    disabled={toggleAutomation.isPending}
+                    onCheckedChange={(checked) =>
+                      toggleAutomation.mutate({ id: a.id, enabled: checked })
+                    }
+                    aria-label={`Sla ${a.enabled ? "av" : "pa"} ${a.name}`}
+                  />
+                </div>
+              )}
             </div>
           ))}
 

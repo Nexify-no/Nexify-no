@@ -10,6 +10,8 @@
  * Handles authentication and API interactions with LinkedIn
  */
 
+import { safeFetch } from "./_core/urlGuard";
+
 export interface LinkedInCredentials {
   clientId: string;
   clientSecret: string;
@@ -249,12 +251,39 @@ export async function uploadLinkedInImage(
     const imageUrn: string | undefined = initJson?.value?.image;
     if (!uploadUrl || !imageUrn) return null;
 
-    const imgRes = await fetch(imageUrl);
+    // `imageUrl` comes from `posts.image_url`, which a user can set to any https
+    // URL via content.attachImage. Fetching it with bare `fetch` made this an SSRF
+    // hole into whatever the server can reach — and since the scheduler now walks
+    // this path unattended every five minutes, with no user watching the result.
+    // `safeFetch` re-resolves and re-checks the host at every redirect hop.
+    const imgRes = await safeFetch(imageUrl);
     if (!imgRes.ok) {
       console.warn(`[LinkedIn image] source fetch failed (${imgRes.status})`);
       return null;
     }
-    const bytes = new Uint8Array(await imgRes.arrayBuffer());
+
+    // It must actually be an image, and it must fit in memory. LinkedIn's own
+    // limit is 10 MB; without a cap, `arrayBuffer()` on a hostile or mistaken URL
+    // reads the whole response into the process.
+    const contentType = (imgRes.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+    const ALLOWED = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp"];
+    if (!ALLOWED.includes(contentType)) {
+      console.warn(`[LinkedIn image] refused content-type "${contentType}"`);
+      return null;
+    }
+    const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+    const declared = Number(imgRes.headers.get("content-length") ?? "0");
+    if (declared > MAX_IMAGE_BYTES) {
+      console.warn(`[LinkedIn image] refused ${declared} bytes (limit ${MAX_IMAGE_BYTES})`);
+      return null;
+    }
+    const buf = await imgRes.arrayBuffer();
+    // Re-check after reading: content-length is a claim, not a guarantee.
+    if (buf.byteLength > MAX_IMAGE_BYTES) {
+      console.warn(`[LinkedIn image] refused ${buf.byteLength} bytes after read`);
+      return null;
+    }
+    const bytes = new Uint8Array(buf);
     const upRes = await fetch(uploadUrl, {
       method: "PUT",
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -277,7 +306,7 @@ export async function createLinkedInPost(
   content: string,
   authorOverride?: string | null,
   imageUrl?: string | null
-): Promise<{ id: string; url: string }> {
+): Promise<{ id: string; url: string; imageAttached: boolean }> {
   // Prefer an explicit author (e.g. a Company Page urn:li:organization:xxx) when
   // provided; otherwise post as the member. The stored personUrn is the OpenID
   // `sub`, normalised into a full person URN.
@@ -329,7 +358,12 @@ export async function createLinkedInPost(
     ? `https://www.linkedin.com/feed/update/${postUrn}/`
     : "https://www.linkedin.com/feed/";
 
-  return { id: postUrn, url: postUrl };
+  // `imageAttached` is reported, not swallowed. `uploadLinkedInImage` returns null
+  // on every failure — an expired scope, an owner/token mismatch, a CDN blip, a
+  // wrong content-type — and the post then goes out as text. That is the right
+  // trade (losing the picture beats losing the post) but the caller has to be
+  // able to SAY so, or an invisible image loss looks exactly like success.
+  return { id: postUrn, url: postUrl, imageAttached: imageUrn !== null };
 }
 
 /**

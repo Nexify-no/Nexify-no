@@ -6,7 +6,7 @@
 
 import * as cron from 'node-cron';
 import { posts, scheduledPosts, linkedinConnections, users, subscriptions } from '../drizzle/schema';
-import { eq, and, lte, lt, gte, or, isNull } from 'drizzle-orm';
+import { eq, and, lte, lt, gte, or, isNull, isNotNull } from 'drizzle-orm';
 import { createLinkedInPost } from './linkedinService';
 import { getDb as getDatabase, recordPostAnalytics } from './db';
 import { notifyOwner } from './_core/notification';
@@ -157,16 +157,55 @@ async function processScheduledPostsInner() {
 
           const { decryptSecret } = await import('./_core/tokenCrypto');
           const orgToken = (connection as { orgAccessToken?: string | null }).orgAccessToken;
+          // Publishing to a Company Page needs the SEPARATE org token from the
+          // Community-Management app. This used to fall back to the member token
+          // when the org token was missing, while still sending the organization
+          // URN as the author — so LinkedIn 403'd, and the failure read like a
+          // mysterious permissions problem rather than "reconnect the Company
+          // Page". The interactive path already refuses this outright.
+          if (toOrg && !orgToken) {
+            throw new Error(
+              'Company Page-tilkoblingen mangler. Koble til LinkedIn-siden på nytt for å publisere som bedrift.',
+            );
+          }
           const activeToken = toOrg && orgToken
             ? decryptSecret(orgToken) ?? ''
             : decryptSecret(connection.accessToken) ?? '';
+          // The image. This call used to stop at `authorOverride` and omit
+          // `createLinkedInPost`'s fifth argument entirely, so EVERY scheduled
+          // post went out as text — even when its image was finished and stored.
+          // The parameter is optional, so nothing failed and nothing warned; the
+          // post simply appeared on LinkedIn without the picture, and the record
+          // in "Mine innlegg" still showed the image next to it.
+          //
+          // Both other publish paths (linkedinRouter's interactive publish and
+          // publishingService) pass it. This one was the odd one out.
+          //
+          // Pass `post.imageUrl` raw, deliberately. `createLinkedInPost` already
+          // decides what is usable (`/^https?:\/\//`), and routing this through a
+          // stricter local check would mean the SAME post keeps its picture when
+          // published by hand and loses it when scheduled. One predicate, one
+          // behaviour. Note it is NOT gated on `imageStatus`: `content.attachImage`
+          // and `seriesRouter` both write `image_url` without touching that column,
+          // so it sits at its 'none' default for images that plainly exist.
+          const imageUrl = post.imageUrl ?? null;
+
+          let published;
           try {
-            const published = await createLinkedInPost(
+            published = await createLinkedInPost(
               activeToken,
               connection.personUrn,
               post.generatedContent,
               authorOverride,
+              imageUrl,
             );
+            if (imageUrl && !published.imageAttached) {
+              // The reported symptom, from a different cause. Say it out loud
+              // instead of reporting an unqualified success.
+              console.warn(
+                `[Scheduler] Post ${post.id} published WITHOUT its image — LinkedIn upload failed for ${imageUrl}`,
+              );
+            }
             await settlePublication(publicationId, {
               status: 'published',
               providerPostId: published?.id ?? null,
@@ -185,7 +224,12 @@ async function processScheduledPostsInner() {
           const publishedAt = new Date();
           await db.update(scheduledPosts).set({ status: 'published', publishedAt }).where(eq(scheduledPosts.id, sched.id));
           await db.update(posts).set({ status: 'published', publishedAt }).where(eq(posts.id, post.id));
-          await recordPostAnalytics(post.userId, post.id, 'linkedin', publishedAt);
+          // The 5th argument again. `engagementMetricsService` only collects for
+          // rows with a non-null `platform_post_id`, so omitting it here quietly
+          // excluded every scheduled post from engagement data — and therefore
+          // from the personalised "best time to post" that is computed from it.
+          // The interactive path has always passed it.
+          await recordPostAnalytics(post.userId, post.id, 'linkedin', publishedAt, published?.id ?? null);
 
           console.log(`[Scheduler] Published scheduled post ${sched.id} (post ${post.id}) to LinkedIn`);
           await notifyOwner({
@@ -403,35 +447,79 @@ async function remindExpiringLinkedInTokens() {
  * digitalytelsesloven / Forbrukertilsynet. Daily cron; each active subscription is
  * reminded when it has never been reminded or the last reminder is >6 months old.
  */
-async function remindActiveSubscriptions() {
+export async function remindActiveSubscriptions() {
   const db = await getDatabase();
   if (!db) return;
   const sixMonthsAgo = new Date(Date.now() - 182 * 24 * 60 * 60 * 1000);
+
+  // One query, and bounded. This selected the whole due set with no limit and
+  // then fetched each user row separately — an N+1 over an unbounded scan, in a
+  // job that runs daily forever. The join is the shape every other recipient
+  // query in this file already uses.
   const due = await db
-    .select()
+    .select({
+      subId: subscriptions.id,
+      userId: subscriptions.userId,
+      email: users.email,
+      name: users.name,
+    })
     .from(subscriptions)
+    .innerJoin(users, eq(users.id, subscriptions.userId))
     .where(
       and(
         eq(subscriptions.status, 'active'),
+        isNotNull(users.email),
         or(isNull(subscriptions.lastActiveReminderAt), lte(subscriptions.lastActiveReminderAt, sixMonthsAgo)),
       ),
-    );
+    )
+    .limit(500);
   if (due.length === 0) return;
+
   const { sendSubscriptionActiveReminderEmail } = await import('./_core/email');
+  const { claimAutomationSend, releaseAutomationClaim } = await import('./services/emailAutomation');
+
+  // Month key: the obligation is "at least every six months", and
+  // lastActiveReminderAt already enforces the 182-day spacing. This claim exists
+  // for a different reason — it is the only thing that stops TWO PROCESSES from
+  // each sending a copy. `lastActiveReminderAt` is a read-then-write, so two
+  // instances (or the overlap window of a zero-downtime deploy) both read "never
+  // reminded" and both send. That is precisely how the weekly ritual reached
+  // customers three times. The unique key on (user_id, email_key) is the lock.
+  //
+  // It also makes the send visible: /admin/epost derives "last sent" and "sent in
+  // the last 30 days" from these rows, so without a claim the page would report
+  // "no sends recorded" forever while the job was sending.
+  const monthKey = (() => {
+    const d = new Date();
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+  })();
+
   let sent = 0;
-  for (const sub of due) {
+  let alreadyClaimed = 0;
+  for (const row of due) {
+    const emailKey = `subscription_reminder_${monthKey}`;
+    if (!(await claimAutomationSend(row.userId, emailKey))) {
+      alreadyClaimed++;
+      continue;
+    }
     try {
-      const [u] = await db.select().from(users).where(eq(users.id, sub.userId)).limit(1);
-      if (!u?.email) continue;
-      await sendSubscriptionActiveReminderEmail(u.email, u.name || '');
-      await db.update(subscriptions).set({ lastActiveReminderAt: new Date() }).where(eq(subscriptions.id, sub.id));
+      await sendSubscriptionActiveReminderEmail(row.email as string, row.name || '');
+      await db
+        .update(subscriptions)
+        .set({ lastActiveReminderAt: new Date() })
+        .where(eq(subscriptions.id, row.subId));
       sent++;
     } catch (e) {
-      console.error('[Scheduler:SubReminder] failed for user', sub.userId, e);
+      // Release, or one transient SendGrid failure would record a statutory
+      // notice as delivered and skip that customer for the whole month.
+      await releaseAutomationClaim(row.userId, emailKey);
+      console.error('[Scheduler:SubReminder] failed for user', row.userId, e);
     }
     await new Promise((res) => setTimeout(res, 200));
   }
-  console.log(`[Scheduler:SubReminder] reminders sent: ${sent}/${due.length}`);
+  console.log(
+    `[Scheduler:SubReminder] reminders sent: ${sent}/${due.length} (${alreadyClaimed} already claimed)`,
+  );
 }
 
 
@@ -573,10 +661,20 @@ export function startScheduler() {
   });
 
   console.log('[Scheduler] Started - scheduled posts + A/B every 5 min, Competitor Radar hourly, best-times daily 03:30, weekly ritual Mon 08:00, lifecycle daily 10:00');
-  // Subscription-active reminder — daily at 10:00; each active sub reminded ≤ every 6 months.
+  // Subscription-active reminder — daily 10:00 (Europe/Oslo); each active sub
+  // reminded at most every 6 months. It had no time zone (so it ran in whatever
+  // the server's was, drifting an hour twice a year) and no admin switch, which
+  // made it the one automated e-mail invisible on /admin/epost.
   subscriptionReminderTask = cron.schedule('0 10 * * *', async () => {
-    try { await remindActiveSubscriptions(); } catch (e) { console.error('[Scheduler:SubReminder] error', e); }
-  });
+    try {
+      const { isAutomationEnabled } = await import('./services/emailAutomation');
+      if (!(await isAutomationEnabled('subscription_reminder'))) {
+        console.log('[Scheduler:SubReminder] disabled by admin — skipping');
+        return;
+      }
+      await remindActiveSubscriptions();
+    } catch (e) { console.error('[Scheduler:SubReminder] error', e); }
+  }, { timezone: 'Europe/Oslo' });
 }
 
 export function stopScheduler() {
