@@ -319,6 +319,20 @@ class SDKServer {
       throw ForbiddenError("Session has been revoked");
     }
 
+    // Account state (migration 0095). Checked HERE, not in the UI: a suspension
+    // that only hides buttons is decoration — the tRPC API is the product's real
+    // surface. Existing sessions are cut off on their next request, so suspending
+    // takes effect immediately without waiting for a token to expire.
+    const status = ((user as any).status ?? "active") as string;
+    if (status === "suspended") {
+      throw ForbiddenError(
+        "Kontoen din er midlertidig sperret. Ta kontakt med support på info@nexifyhub.no."
+      );
+    }
+    if (status === "deleted") {
+      throw ForbiddenError("Kontoen finnes ikke.");
+    }
+
     await db.upsertUser({
       openId: user.openId,
       lastSignedIn: signedInAt,

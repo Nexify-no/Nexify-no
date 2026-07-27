@@ -148,6 +148,19 @@ export function registerEmailAuthRoutes(app: Express) {
       if (!ok) {
         return res.status(401).json({ error: "Feil e-post eller passord." });
       }
+      // Suspended/deleted accounts (migration 0095). authenticateRequest already
+      // refuses every request from them, so issuing a session here would "work"
+      // and then fail on the next page load with an unrelated-looking error. Say
+      // it once, here, in words the user can act on.
+      const status = ((user as any).status ?? "active") as string;
+      if (status !== "active") {
+        return res.status(403).json({
+          error:
+            status === "suspended"
+              ? "Kontoen din er midlertidig sperret. Ta kontakt med support på info@nexifyhub.no."
+              : "Kontoen finnes ikke.",
+        });
+      }
       // If 2FA is on, do NOT issue a session yet — return a short-lived challenge.
       if ((user as any).twoFactorEnabled) {
         const challenge = await new SignJWT({ purpose: "2fa", uid: user.id, openId: user.openId })

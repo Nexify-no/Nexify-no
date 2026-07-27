@@ -92,6 +92,33 @@ export default function AdminAnalytics() {
         </p>
       </div>
 
+      {/* MRR is now computed from each subscription's own plan row. It used to
+          charge every active subscription at the Pro price and could never detect
+          yearly billing, so this figure was "active subscriptions × Pro price".
+          Anything we cannot price is reported instead of being guessed at. */}
+      {(stats?.unpricedSubscriptions ?? 0) > 0 && (
+        <div className="mb-6 p-4 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-900 dark:bg-amber-950/20 dark:border-amber-900 dark:text-amber-100">
+          {stats?.unpricedSubscriptions} aktive abonnement mangler plan eller pris, og er
+          <strong> ikke</strong> regnet med i inntekten over.
+        </div>
+      )}
+
+      {stats?.subscriptionsByTier && stats.subscriptionsByTier.length > 0 && (
+        <Card className="mb-8">
+          <CardHeader><CardTitle>Aktive abonnement per plan</CardTitle></CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-3">
+              {stats.subscriptionsByTier.map((t) => (
+                <div key={t.plan} className="px-4 py-2 rounded-lg border">
+                  <span className="text-sm text-muted-foreground">{t.plan}</span>
+                  <span className="ml-3 font-semibold">{t.count}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
         {statCards.map((stat) => (
           <Card key={stat.title}>
@@ -128,7 +155,9 @@ export default function AdminAnalytics() {
                     <p className="text-sm text-muted-foreground">{sub.userEmail}</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-medium text-green-600">{sub.plan}</p>
+                    {/* The plan name. This column used to render
+                        `subscriptions.status`, so every row said "active". */}
+                    <p className="font-medium text-green-600">{sub.plan ?? "Uten plan"}</p>
                     <p className="text-sm text-muted-foreground">
                       {new Date(sub.createdAt).toLocaleDateString("nb-NO")}
                     </p>

@@ -25,18 +25,16 @@ export function AdminDashboard() {
     }
   }, [user, setLocation]);
 
-  // Fetch admin statistics (placeholder for now)
-  const stats = null;
-
-  // Note: Support stats would come from support router if implemented
-  const supportStats = stats ? {
-    total: 0,
-    open: 0,
-    inProgress: 0,
-    resolved: 0,
-    closed: 0,
-    urgent: 0,
-  } : undefined;
+  // Real ticket counts. This used to be `const stats = null;` followed by a
+  // ternary on it — so `supportStats` was permanently `undefined`, all four
+  // support tiles read 0 forever, and the "Support Tickets Status" bar chart got
+  // an empty array and displayed "Loading chart data..." for eternity.
+  //
+  // support.getStats has existed and been real the whole time; it is what
+  // /admin/support already reads.
+  const { data: supportStats } = trpc.support.getStats.useQuery(undefined, {
+    enabled: user?.role === "admin",
+  });
 
   const { data: allUsers, isLoading: usersLoading } = trpc.admin.getAllUsers.useQuery(
     { page: 1, limit: 100 },

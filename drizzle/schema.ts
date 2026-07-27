@@ -23,6 +23,21 @@ export const users = mysqlTable("users", {
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  /**
+   * Account state (migration 0095). `suspended` blocks authentication and is
+   * reversible; the user is told why.
+   *
+   * `deleted` is RESERVED and nothing writes it yet — admin.deleteUser is a hard
+   * delete. authenticateRequest already refuses the value so a future soft-delete
+   * needs no further migration, but do not treat it as implemented.
+   *
+   * Before this column existed the only way to stop an account was a hard
+   * `DELETE FROM users`, which orphaned rows in 51 tables that carry `user_id`
+   * with no foreign key.
+   */
+  status: mysqlEnum("status", ["active", "suspended", "deleted"]).default("active").notNull(),
+  suspendedAt: timestamp("suspended_at"),
+  suspendedReason: varchar("suspended_reason", { length: 500 }),
   /** Multi-brand: the brand the user is currently working in (FEATURE_MULTI_BRAND). */
   activeBrandId: int("active_brand_id"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -2031,3 +2046,36 @@ export const plannedPosts = mysqlTable("planned_posts", {
 
 export type PlannedPost = typeof plannedPosts.$inferSelect;
 export type InsertPlannedPost = typeof plannedPosts.$inferInsert;
+
+/**
+ * Audit trail for emails an admin sent by hand (migration 0096).
+ *
+ * One row per RECIPIENT, not per batch. Bulk mail is the only admin action whose
+ * effect is both irreversible and invisible from inside the product — once it
+ * leaves SendGrid there is nothing left to inspect — so "did this customer get
+ * it, when, and did it fail?" has to be answerable here.
+ *
+ * `recipientUserId` is nullable on purpose: the log has to outlive the account
+ * it describes.
+ */
+export const adminEmailSends = mysqlTable("admin_email_sends", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Groups the recipients of a single send. */
+  batchId: varchar("batch_id", { length: 36 }).notNull(),
+  sentByUserId: int("sent_by_user_id").notNull(),
+  recipientUserId: int("recipient_user_id"),
+  recipientEmail: varchar("recipient_email", { length: 320 }).notNull(),
+  subject: varchar("subject", { length: 300 }).notNull(),
+  bodyHtml: text("body_html").notNull(),
+  status: mysqlEnum("status", ["sent", "failed", "skipped"]).notNull(),
+  /** Why it was skipped (opted out) or why it failed. */
+  detail: varchar("detail", { length: 500 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  batchIdx: index("admin_email_sends_batch_idx").on(table.batchId),
+  recipientIdx: index("admin_email_sends_recipient_idx").on(table.recipientUserId),
+  createdIdx: index("admin_email_sends_created_idx").on(table.createdAt),
+}));
+
+export type AdminEmailSend = typeof adminEmailSends.$inferSelect;
+export type InsertAdminEmailSend = typeof adminEmailSends.$inferInsert;

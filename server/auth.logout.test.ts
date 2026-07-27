@@ -45,7 +45,7 @@ function createAuthContext(): { ctx: TrpcContext; clearedCookies: CookieCall[] }
     role: "user",
     createdAt: new Date(),
     updatedAt: new Date(),
-    lastSignedIn: new Date(), passwordHash: null, emailVerified: null, twoFactorSecret: null, twoFactorEnabled: 0, twoFactorBackupCodes: null, activeBrandId: null, tokenVersion: 0,
+    lastSignedIn: new Date(), passwordHash: null, emailVerified: null, twoFactorSecret: null, twoFactorEnabled: 0, twoFactorBackupCodes: null, activeBrandId: null, tokenVersion: 0, status: "active" as const, suspendedAt: null, suspendedReason: null,
   };
 
   const ctx: TrpcContext = {

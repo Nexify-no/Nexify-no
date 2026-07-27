@@ -7,8 +7,8 @@
 import { router, adminProcedure } from "./_core/trpc";
 import { z } from "zod";
 import { getDb } from "./db";
-import { users, posts, subscriptions } from "../drizzle/schema";
-import { eq, gte, desc, and, sql } from "drizzle-orm";
+import { users, posts, subscriptions, subscriptionPlans } from "../drizzle/schema";
+import { eq, gte, lt, desc, asc, and, or, like, sql } from "drizzle-orm";
 
 export const memberMonitoringRouter = router({
   // Get all members with their activity summary
@@ -18,15 +18,51 @@ export const memberMonitoringRouter = router({
         page: z.number().default(1),
         limit: z.number().default(10),
         sortBy: z.enum(["name", "lastActive", "postsGenerated", "joinDate"]).default("lastActive"),
+        search: z.string().trim().max(200).optional(),
+        role: z.enum(["admin", "user"]).optional(),
+        /** Account state — banned or not. */
+        status: z.enum(["active", "suspended"]).optional(),
+        /** Member ACTIVITY — signed in within 30 days, or not. A different question. */
+        activity: z.enum(["active", "inactive"]).optional(),
       })
     )
     .query(async ({ input }: any) => {
       const db = await getDb();
       if (!db) throw new Error("Database connection failed");
-      
+
       const offset = (input.page - 1) * input.limit;
 
-      // Get members list
+      // The filter panel above this table used to be inert: MemberMonitoring
+      // dropped its state on the floor (`const [, setFilters] = useState(...)`)
+      // and this procedure accepted no filter input at all. Typing a name did
+      // nothing, visibly.
+      const where = [] as any[];
+      if (input.search) {
+        where.push(or(like(users.email, `%${input.search}%`), like(users.name, `%${input.search}%`)));
+      }
+      if (input.role) where.push(eq(users.role, input.role));
+      if (input.status) where.push(eq(users.status, input.status));
+      if (input.activity) {
+        // Activity is about lastSignedIn, NOT about users.status. Conflating the
+        // two would answer "show me dormant members" with "here are the people
+        // you banned".
+        const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        where.push(
+          input.activity === "active" ? gte(users.lastSignedIn, cutoff) : lt(users.lastSignedIn, cutoff)
+        );
+      }
+      const whereClause = where.length > 0 ? and(...where) : undefined;
+
+      // `sortBy` was declared, defaulted and passed by the client — and then
+      // never used, because the query had no orderBy. The list came back in
+      // whatever order the storage engine felt like.
+      const orderBy =
+        input.sortBy === "name"
+          ? asc(users.name)
+          : input.sortBy === "joinDate"
+            ? desc(users.createdAt)
+            : desc(users.lastSignedIn);
+
       const members = await db
         .select({
           id: users.id,
@@ -35,15 +71,19 @@ export const memberMonitoringRouter = router({
           createdAt: users.createdAt,
           lastSignedIn: users.lastSignedIn,
           role: users.role,
+          status: users.status,
         })
         .from(users)
+        .where(whereClause)
+        .orderBy(orderBy)
         .limit(input.limit)
         .offset(offset);
 
       // Get total count
       const countResult = await db
         .select({ count: sql<number>`COUNT(*)` })
-        .from(users);
+        .from(users)
+        .where(whereClause);
       const total = countResult[0]?.count || 0;
 
       return {
@@ -133,12 +173,14 @@ export const memberMonitoringRouter = router({
           name: users.name,
           email: users.email,
           status: subscriptions.status,
+          planName: subscriptionPlans.name,
           createdAt: users.createdAt,
           lastSignedIn: users.lastSignedIn,
           postsGenerated: subscriptions.postsGenerated,
         })
         .from(users)
         .leftJoin(subscriptions, eq(users.id, subscriptions.userId))
+        .leftJoin(subscriptionPlans, eq(subscriptions.planId, subscriptionPlans.id))
         .where(eq(users.id, userId));
 
       if (!userWithStats.length) {
@@ -147,8 +189,22 @@ export const memberMonitoringRouter = router({
 
       const userData = userWithStats[0];
 
-      // Calculate quota usage based on subscription status
-      const quota = userData.status === "trial" ? 5 : 100;
+      // Quota from the plan the customer is actually on, via the single pricing
+      // source of truth. Two earlier versions of this line were both wrong: the
+      // original `status === "trial" ? 5 : 100` used numbers that appear nowhere
+      // else in the product, and the first fix read the SUBSCRIPTION status and so
+      // charged a Premium customer against Pro's cap. The plan name is the only
+      // thing that actually says which tier was bought.
+      const { getPlan } = await import("@shared/pricing");
+      const planName = (userData.planName ?? "").trim();
+      const quota =
+        userData.status !== "active"
+          ? getPlan("FREE").postsPerMonth
+          : planName === "Premium"
+            ? getPlan("PREMIUM").postsPerMonth
+            : planName === "Gratis"
+              ? getPlan("FREE").postsPerMonth
+              : getPlan("PRO").postsPerMonth;
       const used = userData.postsGenerated || 0;
       const remaining = Math.max(0, quota - used);
       const percentageUsed = Math.round((used / quota) * 100);
