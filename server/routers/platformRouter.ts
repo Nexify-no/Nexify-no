@@ -10,7 +10,6 @@ import { z } from "zod";
 import {
   LinkedInOAuth,
   TwitterOAuth,
-  InstagramOAuth,
   FacebookOAuth,
   platformManager,
 } from "../services/platformOAuthService";
@@ -30,18 +29,6 @@ const twitterConfig = {
   redirectUri: process.env.TWITTER_REDIRECT_URI || "",
 };
 
-const instagramConfig = {
-  clientId: process.env.INSTAGRAM_CLIENT_ID || "",
-  clientSecret: process.env.INSTAGRAM_CLIENT_SECRET || "",
-  redirectUri: process.env.INSTAGRAM_REDIRECT_URI || "",
-};
-
-const facebookConfig = {
-  clientId: process.env.FACEBOOK_CLIENT_ID || "",
-  clientSecret: process.env.FACEBOOK_CLIENT_SECRET || "",
-  redirectUri: process.env.FACEBOOK_REDIRECT_URI || "",
-};
-
 export const platformRouter = router({
   // Get OAuth authorization URLs
   getLinkedInAuthUrl: publicProcedure
@@ -58,18 +45,105 @@ export const platformRouter = router({
       return { authUrl: oauth.getAuthorizationUrl(input.state) };
     }),
 
-  getInstagramAuthUrl: publicProcedure
-    .input(z.object({ state: z.string() }))
-    .query(({ input }) => {
-      const oauth = new InstagramOAuth(instagramConfig);
-      return { authUrl: oauth.getAuthorizationUrl(input.state) };
-    }),
+  /**
+   * Start the Meta connect flow (Facebook Page + linked Instagram account).
+   *
+   * `protectedProcedure`, and the state is signed HERE rather than accepted from
+   * the caller. The old `getFacebookAuthUrl` was public and took `state` as an
+   * input string, which meant the state carried no proof of who started the flow
+   * — any value round-tripped through Meta unchanged. The callback now verifies
+   * an HMAC-signed state containing this user's id.
+   */
+  getMetaAuthUrl: protectedProcedure.query(async ({ ctx }) => {
+    const { resolveMetaConfig } = await import("../services/metaConfig");
+    // The SAME host the callback will derive from. Meta compares redirect_uri as
+    // a string on both the authorize and the token call, so computing it without
+    // the host here — while the callback computes it with — sent every
+    // preview/staging user to the production callback, on a different database.
+    const config = resolveMetaConfig(ctx.req.get("host"));
+    if (!config) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "Facebook er ikke satt opp på denne installasjonen ennå.",
+      });
+    }
+    const { signOAuthState } = await import("../_core/oauthState");
+    const oauth = new FacebookOAuth(config);
+    return { authUrl: oauth.getAuthorizationUrl(signOAuthState(ctx.user.id)) };
+  }),
 
-  getFacebookAuthUrl: publicProcedure
-    .input(z.object({ state: z.string() }))
-    .query(({ input }) => {
-      const oauth = new FacebookOAuth(facebookConfig);
-      return { authUrl: oauth.getAuthorizationUrl(input.state) };
+  /**
+   * The Pages this user administers, for the picker.
+   *
+   * Uses the stored long-lived USER token — the Page token cannot enumerate
+   * Pages, only act on its own. `connected` marks which one is currently in use.
+   */
+  listMetaPages: protectedProcedure.query(async ({ ctx }) => {
+    const connection = await platformManager.getPlatformConnection(ctx.user.id, "facebook");
+    if (!connection) return { connected: false as const, pages: [] };
+    if (!connection.refreshToken) {
+      // A connection saved before the user token was kept. Publishing still works
+      // with the Page token; switching Pages needs a reconnect.
+      return {
+        connected: true as const,
+        pages: [],
+        needsReconnectToSwitch: true,
+        currentPageId: connection.accountId,
+        currentPageName: connection.accountName,
+      };
+    }
+    const { FacebookOAuth: FB } = await import("../services/platformOAuthService");
+    const pages = await FB.listPages(connection.refreshToken);
+    return {
+      connected: true as const,
+      currentPageId: connection.accountId,
+      currentPageName: connection.accountName,
+      pages: pages.map((p) => ({
+        id: p.id,
+        name: p.name,
+        instagramUsername: p.instagram?.username ?? null,
+        isCurrent: p.id === connection.accountId,
+      })),
+    };
+  }),
+
+  /** Switch which Page (and therefore which Instagram account) is published to. */
+  selectMetaPage: protectedProcedure
+    .input(z.object({ pageId: z.string().min(1) }))
+    .mutation(async ({ input, ctx }) => {
+      const connection = await platformManager.getPlatformConnection(ctx.user.id, "facebook");
+      if (!connection?.refreshToken) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Koble til Facebook på nytt for å bytte side.",
+        });
+      }
+      const { FacebookOAuth: FB } = await import("../services/platformOAuthService");
+      const pages = await FB.listPages(connection.refreshToken);
+      const page = pages.find((p) => p.id === input.pageId);
+      if (!page) {
+        // Not a 404 by accident: the list came from Meta a moment ago, so a miss
+        // means the user lost admin rights on that Page, or is guessing an id.
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Du er ikke administrator for denne siden.",
+        });
+      }
+      await platformManager.saveMetaConnection(ctx.user.id, page, {
+        accessToken: connection.refreshToken,
+        expiresAt: connection.expiresAt,
+      });
+      try {
+        const { syncConnectionsForAccount } = await import("../services/socialDestinations");
+        await syncConnectionsForAccount(ctx.user.id);
+      } catch (error) {
+        console.error("[Meta] Failed to mirror connection onto brands:", error);
+      }
+      return {
+        success: true,
+        pageName: page.name,
+        instagramConnected: Boolean(page.instagram?.id),
+      };
     }),
 
   // Handle OAuth callbacks
@@ -97,40 +171,6 @@ export const platformRouter = router({
         const token = await oauth.exchangeCodeForToken(input.code);
         await platformManager.savePlatformToken(ctx.user.id, "twitter", token);
         return { success: true, message: "Twitter connected successfully" };
-      } catch (error) {
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : "Unknown error",
-        };
-      }
-    }),
-
-  handleInstagramCallback: protectedProcedure
-    .input(z.object({ code: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      try {
-        const oauth = new InstagramOAuth(instagramConfig);
-        const token = await oauth.exchangeCodeForToken(input.code);
-        await platformManager.savePlatformToken(ctx.user.id, "instagram", token);
-        return { success: true, message: "Instagram connected successfully" };
-      } catch (error) {
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : "Unknown error",
-        };
-      }
-    }),
-
-  handleFacebookCallback: protectedProcedure
-    .input(z.object({ code: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      try {
-        const oauth = new FacebookOAuth(facebookConfig);
-        const token = await oauth.exchangeCodeForToken(input.code);
-        // token.accessToken is a PAGE token; store the page id/name with it so
-        // publishing can post directly without a /me/accounts lookup.
-        await platformManager.savePlatformToken(ctx.user.id, "facebook", token, token.accountId, token.accountName);
-        return { success: true, message: "Facebook connected successfully" };
       } catch (error) {
         return {
           success: false,

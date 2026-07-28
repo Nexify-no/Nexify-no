@@ -24,6 +24,7 @@ import { SecuritySettings } from "@/components/settings/SecuritySettings";
 import BillingManagement from "@/components/settings/BillingManagement";
 import UsageStatistics from "@/components/settings/UsageStatistics";
 import UserPreferences from "@/components/settings/UserPreferences";
+import PlatformIntegrations from "@/components/settings/PlatformIntegrations";
 
 function RestartTourButton({ language }: { language: "no" | "en" }) {
   const handleRestart = () => {
@@ -896,56 +897,13 @@ export default function Settings() {
               )}
             </CardContent>
           </Card>
-          {/* Twitter */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                {language === "no" ? "Twitter/X" : "Twitter/X"}
-              </CardTitle>
-              <CardDescription>
-                {language === "no" ? "Koble til Twitter for a publisere innlegg" : "Connect Twitter to publish posts"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button variant="outline" className="w-full" disabled>
-                {language === "no" ? "Koble til Twitter (kommer snart)" : "Connect Twitter (coming soon)"}
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Instagram */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                {language === "no" ? "Instagram" : "Instagram"}
-              </CardTitle>
-              <CardDescription>
-                {language === "no" ? "Koble til Instagram for a publisere innlegg" : "Connect Instagram to publish posts"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button variant="outline" className="w-full" disabled>
-                {language === "no" ? "Koble til Instagram (kommer snart)" : "Connect Instagram (coming soon)"}
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Facebook */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                {language === "no" ? "Facebook" : "Facebook"}
-              </CardTitle>
-              <CardDescription>
-                {language === "no" ? "Koble til Facebook for a publisere innlegg" : "Connect Facebook to publish posts"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button variant="outline" className="w-full" disabled>
-                {language === "no" ? "Koble til Facebook (kommer snart)" : "Connect Facebook (coming soon)"}
-              </Button>
-            </CardContent>
-          </Card>
+          {/* The real connect flows.
+              These three cards used to be hardcoded placeholders with a disabled
+              "(kommer snart)" button — while PlatformIntegrations, the component
+              that actually knows how to connect a platform, was never mounted
+              anywhere. So the working UI existed and was unreachable, and the
+              unreachable UI was what users saw. */}
+          <PlatformIntegrations />
           </TabsContent>
 
           {/* Content Tab */}

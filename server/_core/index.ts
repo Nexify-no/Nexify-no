@@ -19,6 +19,7 @@ import { validateEnv } from "./validateEnv";
 import { initializeSendGrid } from "./email";
 import { registerTelegramWebhook } from "./telegramWebhookRoute";
 import { registerLinkedInCallback } from "./linkedinCallback";
+import { registerMetaCallback } from "./metaCallback";
 import { registerGoogleOAuthRoutes } from "../routes/googleOAuthRoutes";
 import { registerLinkedInLoginRoutes } from "../routes/linkedinLoginRoutes";
 import { registerEmailAuthRoutes } from "../routes/emailAuthRoutes";
@@ -341,6 +342,7 @@ async function startServer() {
   
   // LinkedIn OAuth callback
   registerLinkedInCallback(app);
+  registerMetaCallback(app);
 
   // Sitemap and RSS feed routes
   app.use("/", sitemapRoutes);

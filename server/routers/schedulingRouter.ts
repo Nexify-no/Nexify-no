@@ -95,7 +95,12 @@ export const schedulingRouter = router({
     .input(
       z.object({
         postId: z.number(),
-        platform: z.enum(["linkedin", "twitter", "instagram", "facebook"]),
+        // Only channels the worker can actually publish. "twitter" was accepted
+        // here and never selected by the scheduler's query, so scheduling one
+        // wrote a row that sat at status 'scheduled' forever — no publish, no
+        // error, nothing. Refusing at the door is the honest version; the enum in
+        // the database still allows it for historical rows.
+        platform: z.enum(["linkedin", "facebook", "instagram"]),
         scheduledFor: z.date(),
         timezone: z.string().optional().default("UTC"),
       })
@@ -296,7 +301,10 @@ export const schedulingRouter = router({
     .input(
       z.object({
         postId: z.number(),
-        platform: z.enum(["linkedin", "twitter", "instagram", "facebook"]),
+        // Same list as schedulePost. This mutation writes the same
+        // `scheduled_posts` row, so leaving it wide would keep the silent
+        // black hole open through the "smart schedule" button.
+        platform: z.enum(["linkedin", "facebook", "instagram"]),
         daysAhead: z.number().min(0).max(30).default(1),
       })
     )

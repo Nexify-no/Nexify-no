@@ -6,7 +6,7 @@
 
 import * as cron from 'node-cron';
 import { posts, scheduledPosts, linkedinConnections, users, subscriptions } from '../drizzle/schema';
-import { eq, and, lte, lt, gte, or, isNull, isNotNull } from 'drizzle-orm';
+import { eq, ne, and, lte, lt, gte, or, isNull, isNotNull, inArray } from 'drizzle-orm';
 import { createLinkedInPost } from './linkedinService';
 import { getDb as getDatabase, recordPostAnalytics } from './db';
 import { notifyOwner } from './_core/notification';
@@ -30,6 +30,112 @@ let subscriptionReminderTask: cron.ScheduledTask | null = null;
 // In-process overlap guard: a run that exceeds the 5-min interval must not be
 // re-entered by the next tick on the same instance.
 let isProcessing = false;
+
+/**
+ * Channels the worker can actually publish to.
+ *
+ * Deliberately a list, not "everything in the enum". `scheduled_posts.platform`
+ * also allows 'twitter', which has an OAuth flow but no verified publish path —
+ * selecting it here would turn a silent no-op into a stream of failures. A
+ * platform joins this list when its publisher is real.
+ */
+const SUPPORTED_SCHEDULER_PLATFORMS = ['linkedin', 'facebook', 'instagram'] as const;
+type SchedulerPlatform = (typeof SUPPORTED_SCHEDULER_PLATFORMS)[number];
+
+const PLATFORM_LABEL: Record<SchedulerPlatform, string> = {
+  linkedin: 'LinkedIn',
+  facebook: 'Facebook',
+  instagram: 'Instagram',
+};
+
+/**
+ * Publish one scheduled post to one platform.
+ *
+ * The worker body around this is entirely platform-agnostic — claim, brand
+ * resolution, publishability check, audit row, settle — and only the publish call
+ * itself differs. Keeping that difference in one function is what stops the next
+ * channel from re-introducing "LinkedIn is special" logic three levels deep
+ * inside the loop.
+ *
+ * Returns the provider post id and whether the image made it, or throws with a
+ * message the owner can act on.
+ */
+export async function publishScheduledPost(args: {
+  db: any;
+  platform: SchedulerPlatform;
+  userId: number;
+  content: string;
+  imageUrl: string | null;
+  destination: { destinationId: string | null; destinationType: string | null } | null;
+}): Promise<{ id?: string | null; imageAttached?: boolean }> {
+  const { db, platform, userId, content, imageUrl, destination } = args;
+  const { decryptSecret } = await import('./_core/tokenCrypto');
+
+  if (platform === 'linkedin') {
+    const [connection] = await db
+      .select()
+      .from(linkedinConnections)
+      .where(eq(linkedinConnections.userId, userId))
+      .limit(1);
+    if (!connection) throw new Error('LinkedIn er ikke koblet til.');
+
+    const toOrg = destination?.destinationType === 'organization';
+    const authorOverride = toOrg
+      ? (destination?.destinationId ?? (connection as { organizationUrn?: string | null }).organizationUrn ?? null)
+      : null;
+
+    const orgToken = (connection as { orgAccessToken?: string | null }).orgAccessToken;
+    // Publishing to a Company Page needs the SEPARATE org token from the
+    // Community-Management app. This used to fall back to the member token when
+    // the org token was missing, while still sending the organization URN as the
+    // author — so LinkedIn 403'd, and the failure read like a mysterious
+    // permissions problem rather than "reconnect the Company Page".
+    if (toOrg && !orgToken) {
+      throw new Error(
+        'Company Page-tilkoblingen mangler. Koble til LinkedIn-siden på nytt for å publisere som bedrift.',
+      );
+    }
+    const activeToken = toOrg && orgToken
+      ? decryptSecret(orgToken) ?? ''
+      : decryptSecret(connection.accessToken) ?? '';
+
+    const result = await createLinkedInPost(
+      activeToken,
+      connection.personUrn,
+      content,
+      authorOverride,
+      imageUrl,
+    );
+    return { id: result?.id ?? null, imageAttached: result?.imageAttached };
+  }
+
+  // Facebook and Instagram both publish with the stored PAGE token.
+  const { platformManager } = await import('./services/platformOAuthService');
+  const connection = await platformManager.getPlatformConnection(userId, platform);
+  if (!connection) {
+    throw new Error(`${PLATFORM_LABEL[platform]} er ikke koblet til.`);
+  }
+
+  // The brand's destination wins over the account-wide row, exactly as on the
+  // interactive path — otherwise a two-brand account publishes one brand's
+  // scheduled posts to the other brand's Page.
+  const targetId = destination?.destinationId ?? connection.accountId ?? undefined;
+
+  const { FacebookPublisher, InstagramPublisher } = await import('./services/publishingService');
+  const publishContent = { content, imageUrl: imageUrl ?? undefined };
+
+  const result = platform === 'facebook'
+    ? await new FacebookPublisher().publish(connection.accessToken, publishContent, targetId)
+    : await new InstagramPublisher().publish(connection.accessToken, publishContent, targetId);
+
+  // These publishers report failure by returning `success: false` rather than
+  // throwing. Swallowing that would mark the row 'published' for a post that was
+  // never published — the same class of silent lie this whole change is about.
+  if (!result.success) {
+    throw new Error(result.error || `${PLATFORM_LABEL[platform]}: ukjent feil`);
+  }
+  return { id: result.postId ?? null, imageAttached: result.imageAttached };
+}
 
 async function processScheduledPosts() {
   if (isProcessing) {
@@ -93,14 +199,22 @@ async function processScheduledPostsInner() {
         console.warn(`[Scheduler] Reaped ${stale.length} stale 'publishing' row(s)`);
       }
 
-      // Due scheduled entries (LinkedIn auto-posting is the only supported channel).
+      // Due scheduled entries.
+      //
+      // This filter used to be `eq(platform, 'linkedin')`. Meanwhile
+      // `schedulingRouter.schedulePost` happily accepted 'facebook' and
+      // 'instagram' and wrote the row — which this query then never selected. A
+      // scheduled Facebook post sat at status 'scheduled' forever: no publish, no
+      // error, no failure reason, nothing in the UI to suggest anything was
+      // wrong. Silence is the worst possible failure mode for a scheduler,
+      // because the user only finds out by noticing the post never appeared.
       const due = await db
         .select()
         .from(scheduledPosts)
         .where(
           and(
             eq(scheduledPosts.status, 'scheduled'),
-            eq(scheduledPosts.platform, 'linkedin'),
+            inArray(scheduledPosts.platform, SUPPORTED_SCHEDULER_PLATFORMS),
             lte(scheduledPosts.scheduledFor, now)
           )
         )
@@ -131,12 +245,8 @@ async function processScheduledPostsInner() {
           const [post] = await db.select().from(posts).where(eq(posts.id, sched.postId)).limit(1);
           if (!post) throw new Error(`Post ${sched.postId} not found for scheduled entry ${sched.id}`);
 
-          const [connection] = await db
-            .select()
-            .from(linkedinConnections)
-            .where(eq(linkedinConnections.userId, sched.userId))
-            .limit(1);
-          if (!connection) throw new Error('LinkedIn not connected');
+          const platform = sched.platform as SchedulerPlatform;
+          const platformLabel = PLATFORM_LABEL[platform] ?? platform;
 
           // ── PR #82: the worker publishes where the BRAND says, not wherever
           // the account-wide connection points ──────────────────────────────
@@ -160,11 +270,7 @@ async function processScheduledPostsInner() {
             content: post.generatedContent,
             brandId,
           });
-          const destination = await requireDestination(post.userId, brandId, 'linkedin', post.id);
-          const toOrg = destination?.destinationType === 'organization';
-          const authorOverride = toOrg
-            ? (destination?.destinationId ?? (connection as { organizationUrn?: string | null }).organizationUrn ?? null)
-            : null;
+          const destination = await requireDestination(post.userId, brandId, platform, post.id);
 
           // Same audit trail and duplicate protection as an interactive publish,
           // so a worker retry cannot double-post either.
@@ -172,27 +278,11 @@ async function processScheduledPostsInner() {
             accountId: post.userId,
             brandId,
             postId: post.id,
-            platform: 'linkedin',
+            platform,
             destination,
             content: post.generatedContent,
           });
 
-          const { decryptSecret } = await import('./_core/tokenCrypto');
-          const orgToken = (connection as { orgAccessToken?: string | null }).orgAccessToken;
-          // Publishing to a Company Page needs the SEPARATE org token from the
-          // Community-Management app. This used to fall back to the member token
-          // when the org token was missing, while still sending the organization
-          // URN as the author — so LinkedIn 403'd, and the failure read like a
-          // mysterious permissions problem rather than "reconnect the Company
-          // Page". The interactive path already refuses this outright.
-          if (toOrg && !orgToken) {
-            throw new Error(
-              'Company Page-tilkoblingen mangler. Koble til LinkedIn-siden på nytt for å publisere som bedrift.',
-            );
-          }
-          const activeToken = toOrg && orgToken
-            ? decryptSecret(orgToken) ?? ''
-            : decryptSecret(connection.accessToken) ?? '';
           // The image. This call used to stop at `authorOverride` and omit
           // `createLinkedInPost`'s fifth argument entirely, so EVERY scheduled
           // post went out as text — even when its image was finished and stored.
@@ -200,32 +290,30 @@ async function processScheduledPostsInner() {
           // post simply appeared on LinkedIn without the picture, and the record
           // in "Mine innlegg" still showed the image next to it.
           //
-          // Both other publish paths (linkedinRouter's interactive publish and
-          // publishingService) pass it. This one was the odd one out.
-          //
-          // Pass `post.imageUrl` raw, deliberately. `createLinkedInPost` already
-          // decides what is usable (`/^https?:\/\//`), and routing this through a
-          // stricter local check would mean the SAME post keeps its picture when
-          // published by hand and loses it when scheduled. One predicate, one
-          // behaviour. Note it is NOT gated on `imageStatus`: `content.attachImage`
-          // and `seriesRouter` both write `image_url` without touching that column,
-          // so it sits at its 'none' default for images that plainly exist.
+          // Pass `post.imageUrl` raw, deliberately. Each publisher already decides
+          // what is usable, and routing this through a stricter local check would
+          // mean the SAME post keeps its picture when published by hand and loses
+          // it when scheduled. One predicate, one behaviour. Note it is NOT gated
+          // on `imageStatus`: `content.attachImage` and `seriesRouter` both write
+          // `image_url` without touching that column, so it sits at its 'none'
+          // default for images that plainly exist.
           const imageUrl = post.imageUrl ?? null;
 
-          let published;
+          let published: { id?: string | null; imageAttached?: boolean } | undefined;
           try {
-            published = await createLinkedInPost(
-              activeToken,
-              connection.personUrn,
-              post.generatedContent,
-              authorOverride,
+            published = await publishScheduledPost({
+              db,
+              platform,
+              userId: post.userId,
+              content: post.generatedContent,
               imageUrl,
-            );
-            if (imageUrl && !published.imageAttached) {
+              destination,
+            });
+            if (imageUrl && published?.imageAttached === false) {
               // The reported symptom, from a different cause. Say it out loud
               // instead of reporting an unqualified success.
               console.warn(
-                `[Scheduler] Post ${post.id} published WITHOUT its image — LinkedIn upload failed for ${imageUrl}`,
+                `[Scheduler] Post ${post.id} published WITHOUT its image — ${platformLabel} upload failed for ${imageUrl}`,
               );
             }
             await settlePublication(publicationId, {
@@ -251,26 +339,37 @@ async function processScheduledPostsInner() {
           // excluded every scheduled post from engagement data — and therefore
           // from the personalised "best time to post" that is computed from it.
           // The interactive path has always passed it.
-          await recordPostAnalytics(post.userId, post.id, 'linkedin', publishedAt, published?.id ?? null);
+          await recordPostAnalytics(post.userId, post.id, platform, publishedAt, published?.id ?? null);
 
-          console.log(`[Scheduler] Published scheduled post ${sched.id} (post ${post.id}) to LinkedIn`);
+          console.log(`[Scheduler] Published scheduled post ${sched.id} (post ${post.id}) to ${platformLabel}`);
           await notifyOwner({
             title: 'Innlegg publisert',
-            content: 'Et planlagt innlegg ble automatisk publisert til LinkedIn.',
+            content: `Et planlagt innlegg ble automatisk publisert til ${platformLabel}.`,
           });
         } catch (error) {
           const reason = (error as Error)?.message || String(error);
           console.error(`[Scheduler] Failed to publish scheduled post ${sched.id}:`, reason);
           try {
             await db.update(scheduledPosts).set({ status: 'failed', failureReason: reason }).where(eq(scheduledPosts.id, sched.id));
-            await db.update(posts).set({ status: 'failed' }).where(eq(posts.id, sched.postId));
+            // `posts.status` is shared across every platform the post is
+            // scheduled to, and now that more than one channel is publishable the
+            // same post can be queued to several. Instagram hard-requires an
+            // image, so "published on LinkedIn, failed on Instagram" is a normal
+            // outcome — and an unconditional write here would show the user a
+            // post marked FAILED that is live and getting engagement. The
+            // scheduled_posts row above carries the per-platform truth.
+            await db
+              .update(posts)
+              .set({ status: 'failed' })
+              .where(and(eq(posts.id, sched.postId), ne(posts.status, 'published')));
           } catch (dbError) {
             console.error('[Scheduler] Failed to record failure status:', dbError);
           }
           try {
+            const failedLabel = PLATFORM_LABEL[sched.platform as SchedulerPlatform] ?? sched.platform;
             await notifyOwner({
               title: 'Publisering feilet',
-              content: `Kunne ikke publisere planlagt innlegg (${reason}). Sjekk LinkedIn-tilkoblingen.`,
+              content: `Kunne ikke publisere planlagt innlegg til ${failedLabel} (${reason}). Sjekk tilkoblingen.`,
             });
           } catch (notifyError) {
             console.error('[Scheduler] Failed to notify owner:', notifyError);

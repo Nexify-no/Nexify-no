@@ -1525,7 +1525,12 @@ export const platformIntegrations = mysqlTable("platform_integrations", {
   accountName: varchar("account_name", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  // The key `savePlatformToken` upserts against. Without it the "update on
+  // conflict" had no conflict to detect and every reconnect inserted another row
+  // (migration 0098).
+  userPlatform: unique("uq_platform_integrations_user_platform").on(table.userId, table.platform),
+}));
 
 export type PlatformIntegration = typeof platformIntegrations.$inferSelect;
 export type InsertPlatformIntegration = typeof platformIntegrations.$inferInsert;

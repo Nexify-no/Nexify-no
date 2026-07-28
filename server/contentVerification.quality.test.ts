@@ -320,8 +320,25 @@ describe("a flagged claim cannot slip through", () => {
   it("the scheduler re-checks at PUBLISH time, not only at schedule time", () => {
     // A post can sit in the calendar for weeks; the Merkehjerne may have changed,
     // and the worker publishes with nobody watching.
+    //
+    // This used to compare the file offsets of `assertContentIsPublishable` and
+    // `createLinkedInPost(` — a proxy that broke the moment the publish call was
+    // extracted into a helper defined ABOVE the worker loop, even though the
+    // ordering it was protecting had not changed at all. Assert the real
+    // relationship instead: inside the worker loop, the check precedes the
+    // dispatch, and the dispatch is the only way a post reaches a platform.
     const worker = readFileSync("server/schedulerService.ts", "utf8");
-    expect(worker.indexOf("assertContentIsPublishable")).toBeLessThan(worker.indexOf("createLinkedInPost("));
+    const check = worker.indexOf("await assertContentIsPublishable(");
+    const dispatch = worker.indexOf("await publishScheduledPost(");
+    expect(check, "assertContentIsPublishable is not awaited in the worker").toBeGreaterThan(-1);
+    expect(dispatch, "publishScheduledPost is not awaited in the worker").toBeGreaterThan(-1);
+    expect(check).toBeLessThan(dispatch);
+
+    // And the helper must stay the single door out. A publisher invoked directly
+    // from the loop would bypass the check above without failing this file.
+    const loop = worker.slice(worker.indexOf("for (const sched of due)"));
+    expect(loop).not.toMatch(/new (Facebook|Instagram)Publisher\(/);
+    expect(loop).not.toContain("createLinkedInPost(");
   });
 
   it("a deliberate block is distinguishable from an incidental failure", () => {

@@ -31,6 +31,7 @@ import { LivePostPreview } from "@/components/LivePostPreview";
 import { SavedTemplates } from "@/components/SavedTemplates";
 import { TrendingContentTemplates } from "@/components/TrendingContentTemplates";
 import { SmartSchedulingSuggestions } from "@/components/SmartSchedulingSuggestions";
+import { isSchedulable, schedulingUnavailableReason } from "@/lib/schedulablePlatforms";
 
 /** Convert a suggestion like "Tuesday 8:00 AM" to the next matching Date. */
 function nextOccurrenceFromLabel(timeStr: string): Date | null {
@@ -470,6 +471,10 @@ export default function Generate() {
     const when = nextOccurrenceFromLabel(timeLabel);
     if (!when) {
       toast.error("Kunne ikke tolke tidspunktet");
+      return;
+    }
+    if (!isSchedulable(platform)) {
+      toast.error(schedulingUnavailableReason(platform));
       return;
     }
     scheduleMutation.mutate({

@@ -4,13 +4,20 @@
  * Unauthorized copying, distribution, or use is strictly prohibited.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Linkedin, Twitter, Instagram, Facebook, Trash2, CheckCircle2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { PrivacyNotice, OAuthFlowSteps } from "@/components/SecurityBadge";
 import { OAuthWarningDialog } from "@/components/OAuthWarningDialog";
 import { toast } from "sonner";
@@ -18,7 +25,11 @@ import { toast } from "sonner";
 const PLATFORMS = [
   { name: "LinkedIn", icon: Linkedin, color: "bg-blue-600", id: "linkedin" },
   { name: "Twitter", icon: Twitter, color: "bg-sky-500", id: "twitter" },
-  { name: "Instagram", icon: Instagram, color: "bg-pink-600", id: "instagram" },
+  // Instagram is not connected on its own. Meta reaches an Instagram
+  // Professional account through the Facebook Page it is linked to, so the
+  // Facebook card connects both and this card explains that rather than offering
+  // a button that cannot work.
+  { name: "Instagram", icon: Instagram, color: "bg-pink-600", id: "instagram", via: "facebook" as const },
   { name: "Facebook", icon: Facebook, color: "bg-blue-700", id: "facebook" },
 ];
 
@@ -28,7 +39,57 @@ export default function PlatformIntegrations() {
     open: false,
     platform: null,
   });
+  // Which platform is mid-connect — not a bare boolean, which disabled every
+  // platform's button while one of them was starting.
+  const [connecting, setConnecting] = useState<string | null>(null);
+  const [pagePickerOpen, setPagePickerOpen] = useState(false);
+  const utils = trpc.useUtils();
   const { data: integrations, isLoading, refetch } = trpc.platform.getConnectedPlatforms.useQuery();
+  const metaPages = trpc.platform.listMetaPages.useQuery(undefined, { enabled: pagePickerOpen });
+  const selectPage = trpc.platform.selectMetaPage.useMutation({
+    onSuccess: (result) => {
+      toast.success(
+        result.instagramConnected
+          ? `Publiserer nå til ${result.pageName} og tilknyttet Instagram-konto`
+          : `Publiserer nå til ${result.pageName}`,
+      );
+      setPagePickerOpen(false);
+      refetch();
+    },
+    onError: (error: any) => toast.error(error?.message || "Kunne ikke bytte side"),
+  });
+
+  // The Meta callback redirects back here with the outcome in the query string.
+  // Report it once, then strip it so a reload does not repeat the toast.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const error = params.get("meta_error");
+    const success = params.get("meta_success");
+    if (!error && !success) return;
+
+    if (error) {
+      const MESSAGES: Record<string, string> = {
+        ingen_sider: "Fant ingen Facebook-side. Du må være administrator for minst én side.",
+        ugyldig_state: "Tilkoblingen tok for lang tid. Prøv igjen.",
+        mangler_parametere: "Facebook sendte ikke tilbake nok informasjon. Prøv igjen.",
+        ikke_konfigurert: "Facebook er ikke satt opp på denne installasjonen ennå.",
+      };
+      toast.error(MESSAGES[error] || error);
+    } else {
+      toast.success(
+        params.get("meta_instagram")
+          ? "Facebook og Instagram er koblet til"
+          : "Facebook er koblet til",
+      );
+      // Several Pages: the callback connected one, and the user should know they
+      // can change it rather than discovering later that posts went to the wrong
+      // Page.
+      if (params.get("meta_pick")) setPagePickerOpen(true);
+      refetch();
+    }
+    window.history.replaceState({}, "", window.location.pathname);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const disconnectMutation = trpc.platform.disconnectPlatform.useMutation({
     onSuccess: () => {
       toast.success("Tilkoblingen ble fjernet");
@@ -57,10 +118,33 @@ export default function PlatformIntegrations() {
     setOauthDialog({ open: true, platform });
   };
 
+  /**
+   * Actually start the OAuth flow.
+   *
+   * This function used to be a `console.log`. The dialog opened, the user pressed
+   * "Fortsett", the dialog closed, and nothing happened — which is why no Facebook
+   * account has ever been connected to this product.
+   */
   const handleConfirmOAuth = async () => {
-    if (!oauthDialog.platform) return;
-    console.log("Connecting to", oauthDialog.platform);
+    const platform = oauthDialog.platform;
+    if (!platform) return;
     setOauthDialog({ open: false, platform: null });
+
+    if (platform === "facebook" || platform === "instagram") {
+      setConnecting(platform);
+      try {
+        const { authUrl } = await utils.platform.getMetaAuthUrl.fetch();
+        window.location.href = authUrl;
+      } catch (error: any) {
+        setConnecting(null);
+        toast.error(error?.message || "Kunne ikke starte Facebook-tilkoblingen");
+      }
+      return;
+    }
+
+    // The remaining platforms have no working connect flow. Say so instead of
+    // pretending the click did something.
+    toast.info(`${platform} er ikke tilgjengelig for tilkobling ennå.`);
   };
 
   return (
@@ -109,6 +193,17 @@ export default function PlatformIntegrations() {
                       </div>
                     </div>
 
+                    {platform.id === "facebook" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => setPagePickerOpen(true)}
+                      >
+                        Bytt Facebook-side
+                      </Button>
+                    )}
+
                     <Button
                       variant="destructive"
                       size="sm"
@@ -127,14 +222,20 @@ export default function PlatformIntegrations() {
                 ) : (
                   <>
                     <p className="text-sm text-muted-foreground">
-                      Koble til {platform.name}-kontoen din for automatisk publisering
+                      {platform.via === "facebook"
+                        ? "Instagram kobles til sammen med Facebook-siden din. Kontoen må være en Professional-konto som er koblet til siden."
+                        : `Koble til ${platform.name}-kontoen din for automatisk publisering`}
                     </p>
                     <Button
                       onClick={() => handleConnectPlatform(platform.id)}
                       className="w-full"
                       variant="outline"
+                      disabled={connecting === platform.id}
                     >
-                      Koble til {platform.name}
+                      {connecting === platform.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      {platform.via === "facebook"
+                        ? "Koble til via Facebook"
+                        : `Koble til ${platform.name}`}
                     </Button>
                   </>
                 )}
@@ -156,6 +257,54 @@ export default function PlatformIntegrations() {
           </CardContent>
         </Card>
       )}
+
+      {/* Which Facebook Page to publish to. Without this the connect flow simply
+          took whichever Page Meta listed first — so an account that administers
+          several would publish to an arbitrary one, with no way to tell or fix. */}
+      <Dialog open={pagePickerOpen} onOpenChange={setPagePickerOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Velg Facebook-side</DialogTitle>
+            <DialogDescription>
+              Innlegg publiseres til siden du velger her — og til Instagram-kontoen som er koblet til den.
+            </DialogDescription>
+          </DialogHeader>
+
+          {metaPages.isLoading ? (
+            <div className="flex justify-center py-6">
+              <Loader2 className="h-5 w-5 animate-spin" />
+            </div>
+          ) : metaPages.data?.needsReconnectToSwitch ? (
+            <p className="text-sm text-muted-foreground">
+              Denne tilkoblingen ble opprettet før sidebytte var mulig. Koble til Facebook på nytt for å bytte side.
+            </p>
+          ) : metaPages.data?.pages?.length ? (
+            <div className="space-y-2">
+              {metaPages.data.pages.map((page) => (
+                <Button
+                  key={page.id}
+                  variant={page.isCurrent ? "default" : "outline"}
+                  className="w-full justify-start gap-2"
+                  disabled={selectPage.isPending || page.isCurrent}
+                  onClick={() => selectPage.mutate({ pageId: page.id })}
+                >
+                  {page.isCurrent && <CheckCircle2 className="h-4 w-4" />}
+                  <span className="truncate">{page.name}</span>
+                  {page.instagramUsername && (
+                    <Badge variant="secondary" className="ml-auto">
+                      @{page.instagramUsername}
+                    </Badge>
+                  )}
+                </Button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Fant ingen sider du er administrator for.
+            </p>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* OAuth Warning Dialog */}
       {oauthDialog.platform && (

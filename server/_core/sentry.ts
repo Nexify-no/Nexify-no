@@ -10,6 +10,40 @@ import { AnomalyAlert } from "./monitoring";
 /**
  * Initialize Sentry for error tracking and alerting
  */
+/**
+ * Redact credentials that live in URL QUERY STRINGS, wherever Sentry stores a URL.
+ *
+ * Key-name scrubbing is blind to these: the secret is a substring of a value
+ * (`https://graph.facebook.com/v21.0/me/accounts?access_token=EAAB...`), not a
+ * field called "token". Meta's Graph API puts `access_token` on every read and
+ * `client_secret` on the OAuth exchange, so an unredacted span URL is a live
+ * credential sitting in an issue tracker.
+ *
+ * Walks the whole event rather than a fixed list of paths, because the URL turns
+ * up in several shapes — `event.request.url`, `contexts.trace.data["url.full"]`,
+ * and one `attributes` bag per span — and a list would silently miss the next one.
+ */
+const SECRET_QUERY_PARAM = /\b(access_token|client_secret|refresh_token|fb_exchange_token|code)=[^&\s"']+/gi;
+
+function redactSecretsInUrls(node: unknown, depth = 0): void {
+  if (!node || typeof node !== "object" || depth > 8) return;
+  const record = node as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    const value = record[key];
+    if (typeof value === "string") {
+      if (SECRET_QUERY_PARAM.test(value)) {
+        // `lastIndex` persists on a /g regex between calls; reset it or every
+        // other match is skipped.
+        SECRET_QUERY_PARAM.lastIndex = 0;
+        record[key] = value.replace(SECRET_QUERY_PARAM, "$1=[redacted]");
+      }
+      SECRET_QUERY_PARAM.lastIndex = 0;
+    } else if (value && typeof value === "object") {
+      redactSecretsInUrls(value, depth + 1);
+    }
+  }
+}
+
 export function initSentry() {
   const sentryDSN = process.env.SENTRY_DSN;
 
@@ -48,6 +82,19 @@ export function initSentry() {
         scrub(event.request.data);
       }
       scrub(event.extra);
+      redactSecretsInUrls(event);
+      return event;
+    },
+    // Transactions are a SEPARATE pipeline from errors — `beforeSend` never sees
+    // them. Without this hook, every outgoing HTTP span carries `url.full` and
+    // `url.query` verbatim, and the Meta Graph API takes its credentials as query
+    // parameters: `access_token` on every read, and `client_secret` on the OAuth
+    // exchange. At a 10% trace sample that shipped roughly one in ten Graph calls
+    // — including a 60-day user token and the app's client secret — to Sentry in
+    // cleartext. Key-name scrubbing cannot catch it, because the secret is inside
+    // a string value, not under a key.
+    beforeSendTransaction(event) {
+      redactSecretsInUrls(event);
       return event;
     },
   });
