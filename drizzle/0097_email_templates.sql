@@ -23,6 +23,9 @@
 -- `mediumtext`, not `text`: `text` holds 65,535 BYTES, and an e-mail body with
 -- an image or two crosses that. Under strict mode the insert fails with an opaque
 -- ER_DATA_TOO_LONG; without it, half an e-mail is stored and sent.
+--
+-- The index is declared inside the CREATE TABLE: `CREATE INDEX IF NOT EXISTS` is
+-- a MariaDB/TiDB extension and CI runs mysql:8.0, which rejects it.
 
 CREATE TABLE IF NOT EXISTS `email_templates` (
   `id` int AUTO_INCREMENT NOT NULL,
@@ -44,7 +47,6 @@ CREATE TABLE IF NOT EXISTS `email_templates` (
   `created_at` timestamp NOT NULL DEFAULT (now()),
   `updated_at` timestamp NOT NULL DEFAULT (now()) ON UPDATE now(),
   CONSTRAINT `email_templates_id` PRIMARY KEY(`id`),
-  CONSTRAINT `email_templates_template_key_unique` UNIQUE(`template_key`)
+  CONSTRAINT `email_templates_template_key_unique` UNIQUE(`template_key`),
+  INDEX `email_templates_kind_idx` (`kind`)
 );
---> statement-breakpoint
-CREATE INDEX IF NOT EXISTS `email_templates_kind_idx` ON `email_templates` (`kind`);
