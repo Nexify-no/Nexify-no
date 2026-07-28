@@ -84,6 +84,14 @@ services:
         sync: false
       - key: FACEBOOK_REDIRECT_URI   # must match the Meta app exactly, e.g. https://penna.no/api/meta/callback
         sync: false
+      # X (formerly Twitter). Without these the connect button reports
+      # "X er ikke satt opp" instead of sending the user to an invalid-client screen.
+      - key: X_CLIENT_ID
+        sync: false
+      - key: X_CLIENT_SECRET
+        sync: false
+      - key: X_REDIRECT_URI          # must match the X app exactly, e.g. https://penna.no/api/x/callback
+        sync: false
       - key: SENTRY_DSN
         sync: false
       # ── Object storage for generated images/uploads (REQUIRED for images to
@@ -175,6 +183,14 @@ services:
       - key: FACEBOOK_CLIENT_SECRET
         sync: false
       - key: FACEBOOK_REDIRECT_URI   # must match the Meta app exactly, e.g. https://penna.no/api/meta/callback
+        sync: false
+      # X (formerly Twitter). Without these the connect button reports
+      # "X er ikke satt opp" instead of sending the user to an invalid-client screen.
+      - key: X_CLIENT_ID
+        sync: false
+      - key: X_CLIENT_SECRET
+        sync: false
+      - key: X_REDIRECT_URI          # must match the X app exactly, e.g. https://penna.no/api/x/callback
         sync: false
       - key: SENTRY_DSN
         sync: false

@@ -23,11 +23,6 @@ const linkedinConfig = {
   redirectUri: process.env.LINKEDIN_REDIRECT_URI || "",
 };
 
-const twitterConfig = {
-  clientId: process.env.TWITTER_CLIENT_ID || "",
-  clientSecret: process.env.TWITTER_CLIENT_SECRET || "",
-  redirectUri: process.env.TWITTER_REDIRECT_URI || "",
-};
 
 export const platformRouter = router({
   // Get OAuth authorization URLs
@@ -38,12 +33,44 @@ export const platformRouter = router({
       return { authUrl: oauth.getAuthorizationUrl(input.state) };
     }),
 
-  getTwitterAuthUrl: publicProcedure
-    .input(z.object({ state: z.string() }))
-    .query(({ input }) => {
-      const oauth = new TwitterOAuth(twitterConfig);
-      return { authUrl: oauth.getAuthorizationUrl(input.state) };
-    }),
+  /**
+   * Start the X connect flow.
+   *
+   * `protectedProcedure`, and both the state and the PKCE verifier are created
+   * HERE. The previous `getTwitterAuthUrl` was public and took `state` as a
+   * caller-supplied string, so the value that came back through X carried no
+   * proof of who started the flow — the same hole the Meta flow was hardened
+   * against. The verifier never leaves the server; only its S256 challenge goes
+   * to X.
+   */
+  // A mutation, not a query, because it WRITES — it mints and stores a PKCE
+  // verifier. As a query it inherited the client's 30s staleTime, so a second
+  // connect attempt within that window replayed a cached authUrl whose verifier
+  // had already been consumed, and the user got "Tilkoblingen tok for lang tid"
+  // for no reason.
+  getXAuthUrl: protectedProcedure.mutation(async ({ ctx }) => {
+    const { resolveXConfig } = await import("../services/xConfig");
+    // The same host the callback will derive from. X compares redirect_uri as a
+    // string on both the authorize and the token call, so computing it without
+    // the host here while the callback computes it with would send every
+    // preview/staging user to the production callback, on a different database.
+    const config = resolveXConfig(ctx.req.get("host"));
+    if (!config) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "X er ikke satt opp på denne installasjonen ennå.",
+      });
+    }
+    const { signOAuthState } = await import("../_core/oauthState");
+    const { createVerifier, challengeFor, rememberVerifier } = await import("../services/xPkce");
+
+    const state = signOAuthState(ctx.user.id);
+    const verifier = createVerifier();
+    await rememberVerifier(state, verifier);
+
+    const oauth = new TwitterOAuth(config);
+    return { authUrl: oauth.getAuthorizationUrl(state, challengeFor(verifier)) };
+  }),
 
   /**
    * Start the Meta connect flow (Facebook Page + linked Instagram account).
@@ -163,21 +190,9 @@ export const platformRouter = router({
       }
     }),
 
-  handleTwitterCallback: protectedProcedure
-    .input(z.object({ code: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      try {
-        const oauth = new TwitterOAuth(twitterConfig);
-        const token = await oauth.exchangeCodeForToken(input.code);
-        await platformManager.savePlatformToken(ctx.user.id, "twitter", token);
-        return { success: true, message: "Twitter connected successfully" };
-      } catch (error) {
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : "Unknown error",
-        };
-      }
-    }),
+  // handleTwitterCallback is gone. The exchange now happens in the redirect
+  // route (server/_core/xCallback.ts), where the PKCE verifier lives — a tRPC
+  // mutation cannot see it, and X redirects the browser rather than calling us.
 
   // Get connected platforms
   getConnectedPlatforms: protectedProcedure.query(async ({ ctx }) => {

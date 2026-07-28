@@ -24,7 +24,11 @@ import { toast } from "sonner";
 
 const PLATFORMS = [
   { name: "LinkedIn", icon: Linkedin, color: "bg-blue-600", id: "linkedin" },
-  { name: "Twitter", icon: Twitter, color: "bg-sky-500", id: "twitter" },
+  // Shown as "X" — the name on the product the user is about to be redirected
+  // to. The platform VALUE stays "twitter" because that is the enum every table
+  // in the schema already uses; renaming it would be a migration with nothing at
+  // the end of it.
+  { name: "X", icon: Twitter, color: "bg-neutral-900", id: "twitter" },
   // Instagram is not connected on its own. Meta reaches an Instagram
   // Professional account through the Facebook Page it is linked to, so the
   // Facebook card connects both and this card explains that rather than offering
@@ -44,6 +48,9 @@ export default function PlatformIntegrations() {
   const [connecting, setConnecting] = useState<string | null>(null);
   const [pagePickerOpen, setPagePickerOpen] = useState(false);
   const utils = trpc.useUtils();
+  // A mutation because minting the PKCE verifier is a write. As a cached query
+  // a second attempt within 30s reused an authUrl whose verifier was spent.
+  const xAuthUrl = trpc.platform.getXAuthUrl.useMutation();
   const { data: integrations, isLoading, refetch } = trpc.platform.getConnectedPlatforms.useQuery();
   const metaPages = trpc.platform.listMetaPages.useQuery(undefined, { enabled: pagePickerOpen });
   const selectPage = trpc.platform.selectMetaPage.useMutation({
@@ -63,6 +70,25 @@ export default function PlatformIntegrations() {
   // Report it once, then strip it so a reload does not repeat the toast.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const xError = params.get("x_error");
+    const xSuccess = params.get("x_success");
+    if (xError || xSuccess) {
+      if (xError) {
+        const X_MESSAGES: Record<string, string> = {
+          ugyldig_state: "Tilkoblingen tok for lang tid. Prøv igjen.",
+          mangler_parametere: "X sendte ikke tilbake nok informasjon. Prøv igjen.",
+          ikke_konfigurert: "X er ikke satt opp på denne installasjonen ennå.",
+          access_denied: "Du avbrøt tilkoblingen til X.",
+        };
+        toast.error(X_MESSAGES[xError] || xError);
+      } else {
+        toast.success("X er koblet til");
+        refetch();
+      }
+      window.history.replaceState({}, "", window.location.pathname);
+      return;
+    }
+
     const error = params.get("meta_error");
     const success = params.get("meta_success");
     if (!error && !success) return;
@@ -138,6 +164,18 @@ export default function PlatformIntegrations() {
       } catch (error: any) {
         setConnecting(null);
         toast.error(error?.message || "Kunne ikke starte Facebook-tilkoblingen");
+      }
+      return;
+    }
+
+    if (platform === "twitter") {
+      setConnecting(platform);
+      try {
+        const { authUrl } = await xAuthUrl.mutateAsync();
+        window.location.href = authUrl;
+      } catch (error: any) {
+        setConnecting(null);
+        toast.error(error?.message || "Kunne ikke starte X-tilkoblingen");
       }
       return;
     }
@@ -224,7 +262,14 @@ export default function PlatformIntegrations() {
                     <p className="text-sm text-muted-foreground">
                       {platform.via === "facebook"
                         ? "Instagram kobles til sammen med Facebook-siden din. Kontoen må være en Professional-konto som er koblet til siden."
-                        : `Koble til ${platform.name}-kontoen din for automatisk publisering`}
+                        : platform.id === "twitter"
+                          // Not "automatisk publisering": X is not in
+                          // SUPPORTED_SCHEDULER_PLATFORMS and schedulingRouter
+                          // rejects it, so promising scheduling here would send the
+                          // user to a dialog that refuses them. Publishing to X is
+                          // manual, and text-only until media upload exists.
+                          ? "Koble til X-kontoen din for å publisere innlegg direkte. Bilder og planlegging kommer senere."
+                          : `Koble til ${platform.name}-kontoen din for automatisk publisering`}
                     </p>
                     <Button
                       onClick={() => handleConnectPlatform(platform.id)}
