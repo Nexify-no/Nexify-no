@@ -299,3 +299,51 @@ describe("the subscription reminder claims before it sends", () => {
     expect(claimAt).toBeLessThan(sendAt);
   });
 });
+
+/**
+ * The scheduler's idle cost.
+ *
+ * This job runs every five minutes forever. On a serverless database every
+ * statement is billed, and a WRITE is billed far more than a read — it takes
+ * locks and replicates. The reaper was an unconditional UPDATE on every tick:
+ * ~8,640 write statements a month, essentially all of them matching zero rows.
+ */
+describe("an idle tick costs as little as possible", () => {
+  beforeEach(() => {
+    imageAttached = true;
+    orgDestination = false;
+    // Nothing stuck, nothing due — the overwhelmingly common case.
+    fake = createFakeDb({ rows: { scheduled_posts: [] } });
+  });
+
+  it("writes nothing when there is nothing stuck and nothing due", async () => {
+    const { triggerScheduledPosts } = await import("./schedulerService");
+    await triggerScheduledPosts();
+    expect(fake.opsOf("update", "scheduled_posts")).toHaveLength(0);
+    expect(linkedinCalls).toHaveLength(0);
+  });
+
+  it("still reaps a genuinely stuck row", async () => {
+    // Reading first must not mean never writing.
+    fake = createFakeDb({
+      rows: {
+        scheduled_posts: [
+          {
+            id: 77,
+            userId: 720687,
+            postId: 300006,
+            platform: "linkedin",
+            status: "publishing",
+            scheduledFor: new Date(Date.now() - 3_600_000),
+            updatedAt: new Date(Date.now() - 3_600_000),
+          },
+        ],
+      },
+    });
+    const { triggerScheduledPosts } = await import("./schedulerService");
+    await triggerScheduledPosts();
+    const updates = fake.opsOf("update", "scheduled_posts");
+    expect(updates.length).toBeGreaterThan(0);
+    expect(JSON.stringify(updates.map((o) => o.set))).toMatch(/Stuck in publishing/);
+  });
+});

@@ -62,14 +62,36 @@ async function processScheduledPostsInner() {
       // crashed before marking the outcome). Mark them 'failed' rather than
       // re-queue — re-queuing risks double-posting a post that may have already
       // gone out before the crash. The owner is alerted via the failed state.
+      //
+      // LOOK BEFORE WRITING. This was an unconditional UPDATE on every tick:
+      // 8,640 write statements a month, of which essentially all matched zero
+      // rows. On a distributed database a write is far more expensive than a
+      // read — it takes locks and replicates — and this one is billed whether or
+      // not it changes anything. The SELECT below is served by
+      // `idx_scheduled_posts_status_scheduled_for` and costs almost nothing.
       const STALE_PUBLISHING_MS = 15 * 60 * 1000;
       const staleBefore = new Date(now.getTime() - STALE_PUBLISHING_MS);
-      const reaped: any = await db
-        .update(scheduledPosts)
-        .set({ status: 'failed', failureReason: 'Stuck in publishing (worker crash) — reset by reaper' })
-        .where(and(eq(scheduledPosts.status, 'publishing'), lt(scheduledPosts.updatedAt, staleBefore)));
-      const reapedCount = reaped?.[0]?.affectedRows ?? reaped?.affectedRows ?? 0;
-      if (reapedCount > 0) console.warn(`[Scheduler] Reaped ${reapedCount} stale 'publishing' row(s)`);
+      const stale = await db
+        .select({ id: scheduledPosts.id })
+        .from(scheduledPosts)
+        .where(and(eq(scheduledPosts.status, 'publishing'), lt(scheduledPosts.updatedAt, staleBefore)))
+        .limit(50);
+      if (stale.length > 0) {
+        const { inArray } = await import('drizzle-orm');
+        await db
+          .update(scheduledPosts)
+          .set({ status: 'failed', failureReason: 'Stuck in publishing (worker crash) — reset by reaper' })
+          .where(
+            and(
+              inArray(scheduledPosts.id, stale.map((r) => r.id)),
+              // Re-check the status: a row can settle legitimately between the
+              // read and the write, and marking a just-published post 'failed'
+              // would be worse than leaving it for the next tick.
+              eq(scheduledPosts.status, 'publishing')
+            )
+          );
+        console.warn(`[Scheduler] Reaped ${stale.length} stale 'publishing' row(s)`);
+      }
 
       // Due scheduled entries (LinkedIn auto-posting is the only supported channel).
       const due = await db
