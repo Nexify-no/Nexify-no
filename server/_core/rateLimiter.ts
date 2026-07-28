@@ -181,19 +181,27 @@ export async function checkPlanLimit(
     if (!db) throw new Error("Database not available");
 
     const { posts } = await import("../../drizzle/schema");
-    const { eq, gte, and } = await import("drizzle-orm");
+    const { eq, gte, and, count } = await import("drizzle-orm");
 
-    const postsThisMonth = await db
-      .select()
+    // COUNT(*), not SELECT *. This runs on EVERY authenticated request, and the
+    // only thing done with the result was `.length` — so the old form dragged
+    // every column of every post the user wrote this month across the wire (post
+    // bodies, generated content, image URLs) to compute a number the database
+    // can return in one row. On a metered serverless database that is paid for
+    // twice: in rows read and in bytes returned.
+    const [usage] = await db
+      .select({ n: count() })
       .from(posts)
       .where(and(eq(posts.userId, user.id), gte(posts.createdAt, monthStart)));
+
+    const used = Number(usage?.n ?? 0);
 
     // Attach limit info to request (informational; not enforced here)
     (req as any).planLimit = {
       ...limit,
-      used: postsThisMonth.length,
-      remaining: Math.max(0, limit.postsPerMonth - postsThisMonth.length),
-      exceeded: postsThisMonth.length >= limit.postsPerMonth,
+      used,
+      remaining: Math.max(0, limit.postsPerMonth - used),
+      exceeded: used >= limit.postsPerMonth,
     };
 
     next();

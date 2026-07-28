@@ -6,6 +6,9 @@
 
 import { desc, eq, and, count, gte, lte, lt, sql, isNotNull, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+// The callback-style pool, not mysql2/promise: drizzle's mysql2 driver wraps it
+// itself, and `ReturnType<typeof drizzle>` is typed against this one.
+import { createPool } from "mysql2";
 import * as schema from "../drizzle/schema";
 import { sanitizeHtml } from "./_core/sanitizeHtml";
 import { 
@@ -72,7 +75,30 @@ export async function getDb() {
       // Pass the schema so Drizzle's relational query API (db.query.*) works —
       // without it, db.query is undefined and any findFirst/findMany throws
       // "Cannot read properties of undefined" (e.g. the whole settings feature).
-      _db = drizzle(process.env.DATABASE_URL, { schema, mode: "default" });
+      //
+      // The pool is built explicitly rather than by handing drizzle the URL
+      // string (which is exactly `createPool({ uri })`, so nothing the URL
+      // encodes — TLS included — is lost) in order to set ONE option:
+      // keepAliveInitialDelay.
+      //
+      // Without it mysql2 calls socket.setKeepAlive(true, undefined) and the OS
+      // default takes over: roughly two hours before the first probe. TiDB
+      // Cloud's serverless gateway drops an idle connection long before that,
+      // and nothing tells us — the socket looks alive until a cron tick tries to
+      // use it and has to pay for a fresh TLS handshake. A 30s probe keeps the
+      // connection genuinely alive instead of nominally alive.
+      //
+      // Deliberately NOT set: `maxIdle`. mysql2 only starts its idle-reaper when
+      // maxIdle < connectionLimit (base/pool.js), so leaving them equal keeps the
+      // reaper switched off and idle connections warm — which is what we want on
+      // a database that bills per connection. Lowering maxIdle "to be tidy" would
+      // switch the reaper ON and make handshake churn worse, not better.
+      const pool = createPool({
+        uri: process.env.DATABASE_URL,
+        connectionLimit: 10,
+        keepAliveInitialDelay: 30_000,
+      });
+      _db = drizzle(pool, { schema, mode: "default" });
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
