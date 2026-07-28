@@ -818,7 +818,17 @@ export const adminRouter = router({
         segment: z.enum(["all", "active", "suspended", "admins", "inactive_30d"]).optional(),
         userIds: z.array(z.number()).max(500).optional(),
         subject: z.string().trim().min(1).max(300),
-        body: z.string().trim().min(1).max(20000),
+        /** Required unless `templateId` supplies the body. */
+        body: z.string().trim().max(20000).optional(),
+        /**
+         * Send a saved CUSTOM template instead of typed plain text.
+         *
+         * Only custom templates: an override of a built-in describes a
+         * transactional e-mail with required placeholders that only its own
+         * sender can fill, so blasting one at a segment would produce mail with
+         * `{{resetLink}}` printed in it.
+         */
+        templateId: z.number().int().positive().optional(),
         ctaLabel: z.string().trim().max(60).optional(),
         ctaHref: z.string().url().max(500).optional(),
         /** Operational mail only (security, billing). Defaults to honouring opt-out. */
@@ -846,14 +856,61 @@ export const adminRouter = router({
         recipients = await resolveSegment(input.segment ?? "active");
       }
 
+      // A saved template supplies the body, already rendered and sanitised.
+      let bodyHtml: string | undefined;
+      let ctaLabel = input.ctaLabel;
+      let ctaHref = input.ctaHref;
+      let subject = input.subject;
+
+      if (input.templateId) {
+        const { getDb } = await import("../db");
+        const { emailTemplates } = await import("../../drizzle/schema");
+        const { and, eq, isNull } = await import("drizzle-orm");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+        const [row] = await db
+          .select()
+          .from(emailTemplates)
+          .where(
+            and(
+              eq(emailTemplates.id, input.templateId),
+              eq(emailTemplates.kind, "custom"),
+              isNull(emailTemplates.templateKey)
+            )
+          )
+          .limit(1);
+        if (!row) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            // Named precisely: picking an override here would send a
+            // transactional template to a whole segment with its placeholders
+            // unresolved.
+            message: "Malen finnes ikke, eller den er en overstyring av en innebygd e-post (kan ikke sendes i bulk).",
+          });
+        }
+        const { renderStored } = await import("../services/emailTemplates");
+        // No per-recipient values: a bulk send has no ticket id and no reset link.
+        // `{{name}}` is intentionally not resolved here either — `sendAdminEmail`
+        // renders ONE body for the whole batch, so a per-person placeholder would
+        // silently show one person's name to everybody.
+        const rendered = renderStored(row, {});
+        bodyHtml = rendered.bodyHtml;
+        subject = input.subject.trim() || rendered.subject;
+        ctaLabel = ctaLabel ?? rendered.ctaLabel;
+        ctaHref = ctaHref ?? rendered.ctaHref;
+      } else if (!input.body) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Skriv en melding, eller velg en mal." });
+      }
+
       try {
         return await sendAdminEmail({
           sentByUserId: ctx.user.id,
           recipients,
-          subject: input.subject,
-          bodyText: input.body,
-          ctaLabel: input.ctaLabel,
-          ctaHref: input.ctaHref,
+          subject,
+          bodyText: bodyHtml ? undefined : input.body,
+          bodyHtml,
+          ctaLabel,
+          ctaHref,
           respectOptOut: input.respectOptOut,
         });
       } catch (error) {
@@ -944,5 +1001,252 @@ export const adminRouter = router({
           skipped: Number(r.skipped ?? 0),
         })),
       };
+    }),
+  // ── E-mail templates ─────────────────────────────────────────────────────
+  //
+  // Every send in the product was a template literal in server/_core/email.ts, so
+  // changing a sentence needed a deploy. These procedures make the copy data.
+  // The built-in copy stays in code as the fallback for every failure path — see
+  // services/emailTemplates.ts.
+
+  listEmailTemplates: adminProcedure.query(async () => {
+    const { listTemplates } = await import("../services/emailTemplates");
+    return listTemplates();
+  }),
+
+  saveEmailTemplate: adminProcedure
+    .input(
+      z.object({
+        id: z.number().int().positive().optional(),
+        /** Present → overriding a built-in. Absent → a custom template. */
+        templateKey: z.string().max(64).nullish(),
+        name: z.string().min(1).max(200),
+        subject: z.string().min(1).max(300),
+        // Below `mediumtext`. Also below what the preview GET can carry.
+        bodyHtml: z.string().min(1).max(60_000),
+        ctaLabel: z.string().max(120).nullish(),
+        ctaHref: z.string().max(1000).nullish(),
+        enabled: z.boolean().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { saveTemplate } = await import("../services/emailTemplates");
+      const { id } = await saveTemplate({ ...input, adminUserId: ctx.user.id });
+      console.log(
+        `[admin] ${ctx.user.id} saved email template ${input.templateKey ?? `custom#${id}`}`
+      );
+      return { id };
+    }),
+
+  /** Drop an override so the built-in copy is used again. */
+  resetEmailTemplate: adminProcedure
+    .input(z.object({ templateKey: z.string().min(1).max(64) }))
+    .mutation(async ({ ctx, input }) => {
+      const { resetOverride } = await import("../services/emailTemplates");
+      await resetOverride(input.templateKey);
+      console.log(`[admin] ${ctx.user.id} reset email template ${input.templateKey}`);
+      return { success: true };
+    }),
+
+  deleteEmailTemplate: adminProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const { deleteCustomTemplate } = await import("../services/emailTemplates");
+      await deleteCustomTemplate(input.id);
+      console.log(`[admin] ${ctx.user.id} deleted custom email template ${input.id}`);
+      return { success: true };
+    }),
+
+  /**
+   * Render exactly what a recipient would receive, from unsaved editor content.
+   *
+   * Takes the draft rather than reading the stored row, so the preview shows what
+   * you are about to save — a preview of the previous version would be worse than
+   * none. Runs the same sanitiser and the same escaping as the real send, so
+   * markup stripped here is markup that would have been stripped there.
+   */
+  previewEmailTemplate: adminProcedure
+    .input(
+      z.object({
+        templateKey: z.string().max(64).nullish(),
+        subject: z.string().max(300),
+        bodyHtml: z.string().max(60_000),
+        ctaLabel: z.string().max(120).nullish(),
+        ctaHref: z.string().max(1000).nullish(),
+      })
+    )
+    .query(async ({ input }) => {
+      const { renderStored, sampleVars, validateTemplate, findBuiltIn } = await import(
+        "../services/emailTemplates"
+      );
+      const { pennaEmailShell } = await import("../_core/email");
+      const builtIn = input.templateKey ? findBuiltIn(input.templateKey) : undefined;
+      const vars = input.templateKey ? sampleVars(input.templateKey) : { name: "Tamer" };
+      const rendered = renderStored(
+        {
+          subject: input.subject,
+          bodyHtml: input.bodyHtml,
+          ctaLabel: input.ctaLabel ?? null,
+          ctaHref: input.ctaHref ?? null,
+        },
+        vars
+      );
+      return {
+        subject: rendered.subject,
+        html: pennaEmailShell({
+          bodyHtml: rendered.bodyHtml,
+          ctaLabel: rendered.ctaLabel,
+          ctaHref: rendered.ctaHref,
+        }),
+        // Shown as warnings in the editor rather than blocking the preview: you
+        // should be able to look at a draft that is not finished yet.
+        problems: validateTemplate({
+          name: "preview",
+          subject: input.subject,
+          bodyHtml: input.bodyHtml,
+          ctaLabel: input.ctaLabel,
+          ctaHref: input.ctaHref,
+          builtIn,
+        }),
+      };
+    }),
+
+  /**
+   * Send one copy of a draft, to one address.
+   *
+   * Deliberately narrow: no segment, no list, one recipient, and the subject is
+   * prefixed so a test can never be mistaken for the real thing in an inbox.
+   * Defaults to the admin's own address; a different one has to be typed, which
+   * is what stops "preview" from quietly becoming "send to a customer".
+   */
+  sendTestEmailTemplate: adminProcedure
+    .input(
+      z.object({
+        /**
+         * Left in for a shared mailbox, but it must be an address that already
+         * belongs to an account here. An open `to:` on an admin-authored body,
+         * out of a verified domain, is a spam relay — and a deliverability
+         * problem for every real customer once it gets reported.
+         */
+        to: z.string().email().max(320).optional(),
+        templateKey: z.string().max(64).nullish(),
+        subject: z.string().min(1).max(300),
+        bodyHtml: z.string().min(1).max(60_000),
+        ctaLabel: z.string().max(120).nullish(),
+        ctaHref: z.string().max(1000).nullish(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { isEmailConfigured, sendEmail, pennaEmailShell } = await import("../_core/email");
+      if (!isEmailConfigured()) {
+        // Saying "sent" when no transport is configured is the specific lie the
+        // old "Send Notification" button told. Refuse instead.
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "E-post er ikke konfigurert (SENDGRID_API_KEY mangler).",
+        });
+      }
+      const to = (input.to ?? ctx.user.email ?? "").trim().toLowerCase();
+      if (!to) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Ingen mottaker. Kontoen din har ingen e-postadresse.",
+        });
+      }
+      if (to !== (ctx.user.email ?? "").trim().toLowerCase()) {
+        const { getUserByEmail } = await import("../db");
+        const existing = await getUserByEmail(to);
+        if (!existing) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message:
+              "Testen kan bare sendes til din egen adresse eller til en adresse som allerede har en konto her.",
+          });
+        }
+      }
+      const { renderStored, sampleVars } = await import("../services/emailTemplates");
+      const vars = input.templateKey ? sampleVars(input.templateKey) : { name: ctx.user.name ?? "Test" };
+      const rendered = renderStored(
+        {
+          subject: input.subject,
+          bodyHtml: input.bodyHtml,
+          ctaLabel: input.ctaLabel ?? null,
+          ctaHref: input.ctaHref ?? null,
+        },
+        vars
+      );
+      const ok = await sendEmail(
+        to,
+        `[TEST] ${rendered.subject}`,
+        pennaEmailShell({
+          bodyHtml: rendered.bodyHtml,
+          ctaLabel: rendered.ctaLabel,
+          ctaHref: rendered.ctaHref,
+        })
+      );
+      // Logged per recipient, like every other admin-triggered send. A message
+      // that left the system with no row to point at is the gap the send log was
+      // built to close; a test is not exempt from it.
+      try {
+        const { getDb } = await import("../db");
+        const { adminEmailSends } = await import("../../drizzle/schema");
+        const db = await getDb();
+        await db?.insert(adminEmailSends).values({
+          batchId: `test-${Date.now().toString(36)}`,
+          sentByUserId: ctx.user.id,
+          recipientUserId: null,
+          recipientEmail: to,
+          subject: `[TEST] ${rendered.subject}`,
+          bodyHtml: rendered.bodyHtml,
+          status: ok ? "sent" : "failed",
+          detail: `Test av ${input.templateKey ?? "egen mal"}`,
+        });
+      } catch (error) {
+        console.error("[admin] could not log the test send:", error);
+      }
+
+      if (!ok) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Testen ble ikke sendt. Se serverloggen for SendGrid-svaret.",
+        });
+      }
+      console.log(`[admin] ${ctx.user.id} sent a test of ${input.templateKey ?? "custom"} to ${to}`);
+      return { sentTo: to };
+    }),
+
+  /**
+   * Host an image for use inside an e-mail.
+   *
+   * Hosted, never inlined: base64 `data:` images are blocked by Gmail, Outlook
+   * and most mobile clients, so an inlined picture is an invisible one. Raster
+   * types only — an SVG upload is an HTML document with a picture's file
+   * extension, and this URL is served from our own origin.
+   */
+  uploadEmailImage: adminProcedure
+    .input(
+      z.object({
+        fileName: z.string().min(1).max(128).regex(/^[A-Za-z0-9._-]+$/, "Ugyldig filnavn"),
+        fileData: z.string().min(1).max(9_000_000),
+        contentType: z.enum(["image/png", "image/jpeg", "image/webp", "image/gif"]),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { uploadRasterImage } = await import("../services/imageUpload");
+      const { url } = await uploadRasterImage("email-images", input);
+      // An e-mail image is fetched by Gmail's image proxy, unauthenticated, for
+      // as long as the mail exists. If storage is not configured with a public
+      // base URL, `storagePut` hands back the S3/R2 API endpoint — which needs a
+      // signature and will render as a broken image in every inbox. Fail here,
+      // where an admin can read the reason.
+      if (!/^https?:\/\//i.test(url) || /r2\.cloudflarestorage\.com|\.s3[.-]/i.test(url)) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Bildelagring mangler en offentlig URL (R2_PUBLIC_URL / S3_PUBLIC_URL). " +
+            "Uten den blir bildet usynlig i e-postklienter.",
+        });
+      }
+      return { url };
     }),
 });

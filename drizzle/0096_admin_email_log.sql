@@ -10,8 +10,10 @@
 -- effect is irreversible and invisible from inside the product: once it leaves
 -- SendGrid there is nothing to inspect. One row per RECIPIENT (not per batch), so
 -- "did this customer get it, and did it bounce?" is answerable.
+--
+-- `IF NOT EXISTS` because this was applied by hand during the outage.
 
-CREATE TABLE `admin_email_sends` (
+CREATE TABLE IF NOT EXISTS `admin_email_sends` (
   `id` int AUTO_INCREMENT NOT NULL,
   -- Groups the recipients of one send together.
   `batch_id` varchar(36) NOT NULL,
@@ -31,7 +33,9 @@ CREATE TABLE `admin_email_sends` (
   `created_at` timestamp NOT NULL DEFAULT (now()),
   CONSTRAINT `admin_email_sends_id` PRIMARY KEY(`id`)
 );
-
-CREATE INDEX `admin_email_sends_batch_idx` ON `admin_email_sends` (`batch_id`);
-CREATE INDEX `admin_email_sends_recipient_idx` ON `admin_email_sends` (`recipient_user_id`);
-CREATE INDEX `admin_email_sends_created_idx` ON `admin_email_sends` (`created_at`);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS `admin_email_sends_batch_idx` ON `admin_email_sends` (`batch_id`);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS `admin_email_sends_recipient_idx` ON `admin_email_sends` (`recipient_user_id`);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS `admin_email_sends_created_idx` ON `admin_email_sends` (`created_at`);

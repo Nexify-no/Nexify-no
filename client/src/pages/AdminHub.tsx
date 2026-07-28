@@ -21,6 +21,7 @@ import {
   Zap,
   Clock,
   Activity,
+  Mail,
 } from "lucide-react";
 
 interface AdminFeature {
@@ -122,6 +123,16 @@ export function AdminHub() {
       color: "bg-indigo-50 border-indigo-200",
       badge: "New",
       badgeColor: "bg-indigo-100 text-indigo-800",
+    },
+    {
+      id: "email",
+      title: "E-post og maler",
+      description: "Send til medlemmer, styr automatiske e-poster, rediger teksten",
+      icon: <Mail className="w-6 h-6" />,
+      path: "/admin/epost",
+      color: "bg-blue-50 border-blue-200",
+      badge: "E-post",
+      badgeColor: "bg-blue-100 text-blue-800",
     },
     {
       id: "settings",

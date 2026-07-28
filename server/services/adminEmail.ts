@@ -133,7 +133,18 @@ export async function sendAdminEmail(opts: {
   sentByUserId: number;
   recipients: AdminEmailRecipient[];
   subject: string;
-  bodyText: string;
+  /** Plain text, paragraph-wrapped and escaped. Ignored when `bodyHtml` is given. */
+  bodyText?: string;
+  /**
+   * An already-rendered, already-SANITISED body, from a saved template.
+   *
+   * A template authored in the rich editor has formatting and hosted images; running
+   * it through `renderAdminEmailBody` would escape its own markup into visible tags.
+   * The caller must have put it through `sanitizeHtml` — `emailTemplates.renderStored`
+   * does, on read as well as on write, so a row saved before the allow-list was last
+   * tightened is still cleaned on the way out.
+   */
+  bodyHtml?: string;
   ctaLabel?: string;
   ctaHref?: string;
   respectOptOut?: boolean;
@@ -165,8 +176,11 @@ export async function sendAdminEmail(opts: {
   const ctaHref = safeCtaHref(opts.ctaHref);
   const ctaLabel = ctaHref && opts.ctaLabel ? escapeHtml(opts.ctaLabel) : undefined;
 
+  if (!opts.bodyHtml && !opts.bodyText) {
+    throw new Error("Ingen meldingstekst.");
+  }
   const bodyHtml = pennaEmailShell({
-    bodyHtml: renderAdminEmailBody(opts.bodyText),
+    bodyHtml: opts.bodyHtml ?? renderAdminEmailBody(opts.bodyText ?? ""),
     ctaLabel,
     ctaHref,
   });

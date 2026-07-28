@@ -130,6 +130,17 @@ const trpcClient = trpc.createClient({
     httpBatchLink({
       url: "/api/trpc",
       transformer: superjson,
+      /**
+       * Fall back to POST once a batched GET would outgrow the URL.
+       *
+       * tRPC's default is `Infinity`, so a query with a large input is sent as a
+       * GET with the whole input in the query string. Node's `maxHeaderSize` is
+       * 16 KB, so past that the request fails with a bare 431 before it reaches
+       * any of our code — and the failure looks like the feature is broken rather
+       * than like a request that was too long. 2 KB is comfortably under every
+       * proxy and CDN limit in the path.
+       */
+      maxURLLength: 2000,
       fetch(input, init) {
         return globalThis.fetch(input, {
           ...(init ?? {}),

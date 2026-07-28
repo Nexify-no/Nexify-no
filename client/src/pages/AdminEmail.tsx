@@ -34,7 +34,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Mail, Send, AlertTriangle, Users, Clock, Power, Lock } from "lucide-react";
+import { Mail, Send, AlertTriangle, Users, Clock, Power, Lock, FileText } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
@@ -57,6 +57,14 @@ export default function AdminEmail() {
   const [body, setBody] = useState("");
   const [ctaLabel, setCtaLabel] = useState("");
   const [ctaHref, setCtaHref] = useState("");
+  /**
+   * A saved CUSTOM template to send instead of typed plain text.
+   *
+   * Only custom ones are offered. An override of a built-in describes a
+   * transactional e-mail whose required placeholders only its own sender can
+   * fill, so blasting one at a segment would mail out `{{resetLink}}` as text.
+   */
+  const [templateId, setTemplateId] = useState<number | null>(null);
 
   const isAdmin = user?.role === "admin";
 
@@ -65,6 +73,7 @@ export default function AdminEmail() {
     { enabled: Boolean(isAdmin) }
   );
   const history = trpc.admin.emailHistory.useQuery({ limit: 20 }, { enabled: Boolean(isAdmin) });
+  const templates = trpc.admin.listEmailTemplates.useQuery(undefined, { enabled: Boolean(isAdmin) });
   const automations = trpc.admin.listEmailAutomations.useQuery(undefined, {
     enabled: Boolean(isAdmin),
   });
@@ -88,6 +97,7 @@ export default function AdminEmail() {
       setBody("");
       setCtaLabel("");
       setCtaHref("");
+      setTemplateId(null);
       history.refetch();
       audience.refetch();
     },
@@ -126,18 +136,26 @@ export default function AdminEmail() {
     !tooLarge &&
     count > 0 &&
     subject.trim().length > 0 &&
-    body.trim().length > 0;
+    // A template supplies the body, so the free-text box is not required then —
+    // without this the Send button stayed disabled with a template selected.
+    (templateId !== null || body.trim().length > 0);
 
   return (
     <div className="container py-8 max-w-5xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
-          <Mail className="h-7 w-7" />
-          E-post til medlemmer
-        </h1>
-        <p className="text-muted-foreground">
-          Sendes med Penna-malen. Alt som sendes herfra loggføres per mottaker.
-        </p>
+      <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
+            <Mail className="h-7 w-7" />
+            E-post til medlemmer
+          </h1>
+          <p className="text-muted-foreground">
+            Sendes med Penna-malen. Alt som sendes herfra loggføres per mottaker.
+          </p>
+        </div>
+        <Button variant="outline" onClick={() => (window.location.href = "/admin/epost/maler")}>
+          <FileText className="h-4 w-4 mr-1" />
+          Rediger e-postmaler
+        </Button>
       </div>
 
       {!emailConfigured && (
@@ -274,6 +292,39 @@ export default function AdminEmail() {
               </p>
             </div>
 
+            {(templates.data?.custom ?? []).length > 0 && (
+              <div>
+                <label className="text-sm font-medium mb-2 block">Mal (valgfritt)</label>
+                <Select
+                  value={templateId ? String(templateId) : "none"}
+                  onValueChange={(v) => {
+                    if (v === "none") {
+                      setTemplateId(null);
+                      return;
+                    }
+                    const id = Number(v);
+                    setTemplateId(id);
+                    // Prefill the subject so the operator sees what will go out,
+                    // and can still change it before sending.
+                    const t = templates.data?.custom.find((c) => c.id === id);
+                    if (t && !subject.trim()) setSubject(t.subject);
+                  }}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Skriv fritekst</SelectItem>
+                    {templates.data?.custom.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-2">
+                  En mal sendes med sin egen formatering og sine bilder.{" "}
+                  <a href="/admin/epost/maler" className="underline">Lag eller endre maler</a>.
+                </p>
+              </div>
+            )}
+
             <div>
               <label className="text-sm font-medium mb-2 block">Emne</label>
               <Input
@@ -284,7 +335,7 @@ export default function AdminEmail() {
               />
             </div>
 
-            <div>
+            <div className={templateId ? "hidden" : undefined}>
               <label className="text-sm font-medium mb-2 block">Melding</label>
               <Textarea
                 value={body}
@@ -325,7 +376,8 @@ export default function AdminEmail() {
                   send.mutate({
                     segment,
                     subject: subject.trim(),
-                    body: body.trim(),
+                    body: templateId ? undefined : body.trim(),
+                    templateId: templateId ?? undefined,
                     ctaLabel: ctaLabel.trim() || undefined,
                     ctaHref: ctaHref.trim() || undefined,
                     respectOptOut: true,
