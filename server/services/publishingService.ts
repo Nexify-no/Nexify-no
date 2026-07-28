@@ -5,6 +5,7 @@
  */
 
 import { platformManager } from "./platformOAuthService";
+import { graphPost, graphUrl, graphFetch, isPubliclyFetchableImage } from "./metaGraph";
 
 export interface PublishContent {
   title?: string;
@@ -19,6 +20,15 @@ export interface PublishResult {
   success: boolean;
   postId?: string;
   error?: string;
+  /**
+   * Whether the post's image actually made it onto the platform.
+   *
+   * Distinct from `success` on purpose: a post can publish fine and still lose
+   * its picture, which is exactly the failure that went unnoticed on Facebook for
+   * the life of the feature. `undefined` means the platform has no image concept
+   * on this path; `false` means there WAS an image and it did not go.
+   */
+  imageAttached?: boolean;
   timestamp: Date;
 }
 
@@ -43,6 +53,7 @@ export class LinkedInPublisher {
         platform: "linkedin",
         success: true,
         postId: result.id,
+        imageAttached: result.imageAttached,
         timestamp: new Date(),
       };
     } catch (error) {
@@ -119,64 +130,75 @@ export class TwitterPublisher {
   }
 }
 
-// Instagram Publishing (via Facebook Graph API)
+/**
+ * Instagram publishing, through the Facebook Graph Content Publishing API.
+ *
+ * The previous implementation talked to `graph.instagram.com` and asked `/me` for
+ * an account id. That is the Basic Display surface: it can read a profile and it
+ * cannot publish anything, so every Instagram post this app "published" was a
+ * request that could not have succeeded. Publishing goes through
+ * graph.facebook.com against the Instagram PROFESSIONAL account id linked to a
+ * Facebook Page, using that Page's token — which is what the connect flow stores.
+ *
+ * The API is two calls, not one: create a media container, then publish it.
+ */
 export class InstagramPublisher {
-  async publish(accessToken: string, content: PublishContent): Promise<PublishResult> {
+  async publish(
+    accessToken: string,
+    content: PublishContent,
+    instagramAccountId?: string,
+  ): Promise<PublishResult> {
     try {
-      // First, get the Instagram Business Account ID
-      const accountResponse = await fetch(
-        `https://graph.instagram.com/me?fields=id,username&access_token=${accessToken}`
-      );
-
-      if (!accountResponse.ok) {
-        throw new Error("Failed to get Instagram account");
+      if (!instagramAccountId) {
+        throw new Error(
+          "Ingen Instagram-konto er koblet til. Koble en Instagram Professional-konto til Facebook-siden din.",
+        );
       }
 
-      const accountData = await accountResponse.json() as { id: string };
-      const instagramAccountId = accountData.id;
+      // Instagram has no text-only post. Saying so plainly beats letting Graph
+      // reject it with "media_type is required", and beats the old behaviour of
+      // publishing nothing while reporting success.
+      if (!isPubliclyFetchableImage(content.imageUrl)) {
+        throw new Error(
+          "Instagram krever et bilde. Legg til et bilde i innlegget før du publiserer til Instagram.",
+        );
+      }
 
-      // Create a media container
-      const postContent = this.formatContent(content);
-      const containerResponse = await fetch(
-        `https://graph.instagram.com/${instagramAccountId}/media?access_token=${accessToken}`,
+      const container = await graphPost<{ id?: string }>(
+        "Instagram-media",
+        `${instagramAccountId}/media`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            image_url: content.imageUrl,
-            caption: postContent,
-          }),
-        }
+          image_url: content.imageUrl,
+          caption: this.formatContent(content),
+          access_token: accessToken,
+        },
       );
+      if (!container.id) throw new Error("Instagram-media: ingen container-id returnert");
 
-      if (!containerResponse.ok) {
-        throw new Error("Failed to create Instagram media");
-      }
+      // Wait for Graph to finish downloading the image.
+      //
+      // `/media` returns a container id immediately while the download is still
+      // IN_PROGRESS, and publishing an unfinished container fails with "Media ID
+      // is not available". A small warm CDN image usually wins the race, which is
+      // exactly why this is easy to omit and then fails only on the large or slow
+      // images — in the scheduler, unattended, as a permanent `failed` row for a
+      // post that would have succeeded a second later.
+      await this.awaitContainerReady(container.id, accessToken);
 
-      const containerData = await containerResponse.json() as { id: string };
-      const mediaId = containerData.id;
-
-      // Publish the media
-      const publishResponse = await fetch(
-        `https://graph.instagram.com/${instagramAccountId}/media_publish?access_token=${accessToken}`,
+      const published = await graphPost<{ id?: string }>(
+        "Instagram-publisering",
+        `${instagramAccountId}/media_publish`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            creation_id: mediaId,
-          }),
-        }
+          creation_id: container.id,
+          access_token: accessToken,
+        },
       );
 
-      if (!publishResponse.ok) {
-        throw new Error("Failed to publish Instagram media");
-      }
-
-      const publishData = await publishResponse.json() as { id: string };
       return {
         platform: "instagram",
         success: true,
-        postId: publishData.id,
+        postId: published.id ?? "",
+        imageAttached: true,
         timestamp: new Date(),
       };
     } catch (error) {
@@ -187,6 +209,40 @@ export class InstagramPublisher {
         timestamp: new Date(),
       };
     }
+  }
+
+  /**
+   * Poll the container until Graph reports FINISHED.
+   *
+   * Bounded on purpose: this runs inside the publish path, and a container that
+   * is still IN_PROGRESS after ~15s is far more likely to be a broken image URL
+   * than a slow one. Failing with the last known status beats blocking a cron
+   * tick indefinitely, and beats calling media_publish on a container that will
+   * reject it.
+   */
+  private async awaitContainerReady(
+    containerId: string,
+    accessToken: string,
+    attempts = 6,
+    delayMs = 2500,
+  ): Promise<void> {
+    let lastStatus = "UNKNOWN";
+    for (let i = 0; i < attempts; i++) {
+      const status = await graphFetch<{ status_code?: string; status?: string }>(
+        "Instagram-status",
+        graphUrl(containerId, { fields: "status_code,status", access_token: accessToken }),
+      );
+      lastStatus = status.status_code ?? "UNKNOWN";
+      if (lastStatus === "FINISHED") return;
+      if (lastStatus === "ERROR" || lastStatus === "EXPIRED") {
+        throw new Error(`Instagram kunne ikke hente bildet (${status.status ?? lastStatus}).`);
+      }
+      // No sleep after the final check — it would only delay the error.
+      if (i < attempts - 1) await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+    throw new Error(
+      `Instagram rakk ikke å behandle bildet i tide (status ${lastStatus}). Prøv et mindre bilde.`,
+    );
   }
 
   private formatContent(content: PublishContent): string {
@@ -200,27 +256,17 @@ export class InstagramPublisher {
 
 // Facebook Publishing
 export class FacebookPublisher {
-  private static readonly V = process.env.META_GRAPH_VERSION || "v21.0";
-
   async publish(accessToken: string, content: PublishContent, pageId?: string): Promise<PublishResult> {
     try {
-      const V = FacebookPublisher.V;
       let targetPageId = pageId;
 
       if (!targetPageId) {
         // Legacy fallback: older connections stored a USER token without a page id.
         // New connections store a PAGE token + accountId, skipping this lookup.
-        const pagesResponse = await fetch(
-          `https://graph.facebook.com/${V}/me/accounts?access_token=${encodeURIComponent(accessToken)}`
+        const pagesData = await graphFetch<{ data?: Array<{ id: string }> }>(
+          "Facebook-sider",
+          graphUrl("me/accounts", { access_token: accessToken }),
         );
-        const pagesData = (await pagesResponse.json().catch(() => ({}))) as {
-          data?: Array<{ id: string }>;
-          error?: { message: string; code?: number };
-        };
-        if (pagesData.error) {
-          const reconnect = pagesData.error.code === 190 ? " — koble til Facebook på nytt." : "";
-          throw new Error(`Facebook: ${pagesData.error.message}${reconnect}`);
-        }
         if (!pagesData.data || pagesData.data.length === 0) {
           throw new Error("Ingen Facebook-side funnet (du må være administrator for en side).");
         }
@@ -229,33 +275,65 @@ export class FacebookPublisher {
 
       const postContent = this.formatContent(content);
 
-      // Post to the page (the stored token IS the page token for new connections)
-      const postResponse = await fetch(
-        `https://graph.facebook.com/${V}/${targetPageId}/feed`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            message: postContent,
-            ...(content.link ? { link: content.link } : {}),
+      // ── The image ────────────────────────────────────────────────────────
+      //
+      // This method used to accept `content.imageUrl` and never read it. Every
+      // Facebook post the product has ever made came out as text, on every path,
+      // while the preview in the app showed the picture — because /feed has no
+      // parameter that attaches a photo. A photo post is a different endpoint.
+      //
+      // `/{page-id}/photos` with `url` has Graph fetch the image itself, so the
+      // URL must be publicly reachable; `caption` carries the text, and the
+      // result is one photo post rather than a text post with a link preview.
+      //
+      // A link and an image are mutually exclusive on this API. When the post has
+      // both, the link wins: a link post renders its own preview image anyway, and
+      // silently dropping the user's link would lose the thing they were posting
+      // FOR.
+      const wantsImage = isPubliclyFetchableImage(content.imageUrl) && !content.link;
+
+      if (wantsImage) {
+        const photo = await graphPost<{ id?: string; post_id?: string }>(
+          "Facebook-bilde",
+          `${targetPageId}/photos`,
+          {
+            url: content.imageUrl as string,
+            caption: postContent,
+            published: "true",
             access_token: accessToken,
-          }),
-        }
+          },
+        );
+        return {
+          platform: "facebook",
+          success: true,
+          // `post_id` is the feed story (page_id_post_id) that engagement metrics
+          // key off; `id` is only the photo object. Preferring the photo id here
+          // would silently exclude every image post from analytics.
+          postId: photo.post_id ?? photo.id ?? "",
+          imageAttached: true,
+          timestamp: new Date(),
+        };
+      }
+
+      const postData = await graphPost<{ id?: string }>(
+        "Facebook",
+        `${targetPageId}/feed`,
+        {
+          message: postContent,
+          ...(content.link ? { link: content.link } : {}),
+          access_token: accessToken,
+        },
       );
 
-      const postData = (await postResponse.json().catch(() => ({}))) as {
-        id?: string;
-        error?: { message: string; code?: number };
-      };
-      if (!postResponse.ok || postData.error) {
-        const e = postData.error;
-        const reconnect = e?.code === 190 ? " — koble til Facebook på nytt." : "";
-        throw new Error(`Facebook: ${e?.message ?? postResponse.statusText}${reconnect}`);
-      }
       return {
         platform: "facebook",
         success: true,
         postId: postData.id ?? "",
+        // `false` only when there WAS an image and it did not go — which is the
+        // contract the field documents. A plain text post has no image to report
+        // on, so it reports `undefined`; returning `false` there would train
+        // every caller to ignore the flag.
+        imageAttached: content.imageUrl ? false : undefined,
         timestamp: new Date(),
       };
     } catch (error) {
@@ -310,9 +388,14 @@ export class PublishingManager {
         case "twitter":
           result = await this.twitterPublisher.publish(token.accessToken, content);
           break;
-        case "instagram":
-          result = await this.instagramPublisher.publish(token.accessToken, content);
+        case "instagram": {
+          // The IG Professional account id, not the Page id. It is stored as the
+          // instagram row's accountId when the Page is connected; without it the
+          // publisher has nothing to post to.
+          const conn = await platformManager.getPlatformConnection(userId, "instagram");
+          result = await this.instagramPublisher.publish(token.accessToken, content, conn?.accountId ?? undefined);
           break;
+        }
         case "facebook": {
           const conn = await platformManager.getPlatformConnection(userId, "facebook");
           result = await this.facebookPublisher.publish(token.accessToken, content, conn?.accountId ?? undefined);
@@ -384,9 +467,16 @@ export class PublishingManager {
         case "twitter":
           result = await this.twitterPublisher.publish(token.accessToken, content);
           break;
-        case "instagram":
-          result = await this.instagramPublisher.publish(token.accessToken, content);
+        case "instagram": {
+          const wanted = destinations?.get(platform);
+          const conn = await platformManager.getPlatformConnection(userId, "instagram");
+          result = await this.instagramPublisher.publish(
+            token.accessToken,
+            content,
+            wanted?.destinationId ?? conn?.accountId ?? undefined,
+          );
           break;
+        }
         case "facebook": {
           const wanted = destinations?.get(platform);
           const conn = await platformManager.getPlatformConnection(userId, "facebook");

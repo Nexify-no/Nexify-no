@@ -6,8 +6,9 @@
 
 import { getDb } from "../db";
 import { platformIntegrations, PlatformIntegration } from "../../drizzle/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { encryptSecret, decryptSecret } from "../_core/tokenCrypto";
+import { GRAPH_VERSION, META_SCOPES, graphFetch, graphUrl } from "./metaGraph";
 
 export interface OAuthToken {
   accessToken: string;
@@ -119,53 +120,26 @@ export class TwitterOAuth {
   }
 }
 
-// Instagram OAuth (via Facebook)
-export class InstagramOAuth {
-  private config: PlatformConfig;
-
-  constructor(config: PlatformConfig) {
-    this.config = config;
-  }
-
-  getAuthorizationUrl(state: string): string {
-    const params = new URLSearchParams({
-      client_id: this.config.clientId,
-      redirect_uri: this.config.redirectUri,
-      scope: "instagram_basic,instagram_content_publish",
-      response_type: "code",
-      state,
-    });
-    return `https://api.instagram.com/oauth/authorize?${params}`;
-  }
-
-  async exchangeCodeForToken(code: string): Promise<OAuthToken> {
-    const response = await fetch("https://graph.instagram.com/v18.0/oauth/access_token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: this.config.clientId,
-        client_secret: this.config.clientSecret,
-        grant_type: "authorization_code",
-        redirect_uri: this.config.redirectUri,
-        code,
-      }).toString(),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Instagram OAuth failed: ${response.statusText}`);
-    }
-
-    const data = await response.json() as { access_token: string; user_id: string };
-    return {
-      accessToken: data.access_token,
-    };
-  }
+/**
+ * A Facebook Page the signed-in user administers, plus the Instagram
+ * Professional account linked to it (if any).
+ *
+ * Instagram is not a separate login. Meta retired that path: an Instagram
+ * Professional account is reached through the Facebook Page it is connected to,
+ * with the PAGE token, on graph.facebook.com. The old `api.instagram.com` /
+ * `graph.instagram.com` Basic Display flow this file used to implement cannot
+ * publish at all, which is why Instagram never worked here.
+ */
+export interface MetaPage {
+  id: string;
+  name: string;
+  accessToken: string;
+  instagram?: { id: string; username: string | null } | null;
 }
 
-// Facebook OAuth (complete: short-lived code -> long-lived user token -> non-expiring PAGE token)
+// Facebook + Instagram OAuth: code -> long-lived user token -> per-Page tokens.
 export class FacebookOAuth {
   private config: PlatformConfig;
-  private static readonly V = process.env.META_GRAPH_VERSION || "v21.0";
 
   constructor(config: PlatformConfig) {
     this.config = config;
@@ -175,52 +149,81 @@ export class FacebookOAuth {
     const params = new URLSearchParams({
       client_id: this.config.clientId,
       redirect_uri: this.config.redirectUri,
-      // pages_show_list is required to read /me/accounts; business_management is
-      // needed when the Page is owned by a Business Manager (Nexify).
-      scope: "pages_show_list,pages_manage_posts,pages_read_engagement,business_management",
+      scope: META_SCOPES,
       response_type: "code",
       state,
     });
-    return `https://www.facebook.com/${FacebookOAuth.V}/dialog/oauth?${params}`;
+    return `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth?${params}`;
   }
 
   /**
-   * Exchanges the OAuth code and returns a connection ready to save:
-   * a non-expiring PAGE token plus the page id/name. Publishing with a page
-   * token never needs the /me/accounts lookup again and survives user-token expiry.
+   * Code -> long-lived USER token.
+   *
+   * Kept separate from the Page lookup on purpose. The user token is what can
+   * enumerate Pages, so it has to outlive the callback: a user who admins three
+   * Pages picks one afterwards, and switching later must not force a whole new
+   * consent round-trip.
    */
-  async exchangeCodeForToken(code: string): Promise<OAuthToken & { accountId: string; accountName: string }> {
-    const V = FacebookOAuth.V;
-    const short = (await fetch(`https://graph.facebook.com/${V}/oauth/access_token?` + new URLSearchParams({
-      client_id: this.config.clientId,
-      client_secret: this.config.clientSecret,
-      redirect_uri: this.config.redirectUri,
-      code,
-    })).then((r) => r.json())) as { access_token?: string; error?: { message: string } };
-    if (short.error || !short.access_token) throw new Error(`Facebook OAuth: ${short.error?.message ?? "no access token"}`);
+  async exchangeCodeForUserToken(code: string): Promise<{ accessToken: string; expiresAt?: Date }> {
+    const short = await graphFetch<{ access_token?: string }>(
+      "Facebook-innlogging",
+      graphUrl("oauth/access_token", {
+        client_id: this.config.clientId,
+        client_secret: this.config.clientSecret,
+        redirect_uri: this.config.redirectUri,
+        code,
+      }),
+    );
+    if (!short.access_token) throw new Error("Facebook-innlogging: ingen tilgangsnøkkel returnert");
 
-    const longLived = (await fetch(`https://graph.facebook.com/${V}/oauth/access_token?` + new URLSearchParams({
-      grant_type: "fb_exchange_token",
-      client_id: this.config.clientId,
-      client_secret: this.config.clientSecret,
-      fb_exchange_token: short.access_token,
-    })).then((r) => r.json())) as { access_token?: string; error?: { message: string } };
-    if (longLived.error || !longLived.access_token) throw new Error(`Facebook long-lived exchange: ${longLived.error?.message ?? "failed"}`);
-
-    const pages = (await fetch(`https://graph.facebook.com/${V}/me/accounts?` + new URLSearchParams({
-      fields: "id,name,access_token",
-      access_token: longLived.access_token,
-    })).then((r) => r.json())) as { data?: Array<{ id: string; name: string; access_token: string }>; error?: { message: string } };
-    if (pages.error) throw new Error(`Facebook /me/accounts: ${pages.error.message}`);
-    const page = pages.data?.[0]; // TODO: if the user admins multiple Pages, add a picker
-    if (!page) throw new Error("Ingen Facebook-side funnet (du må være administrator for en side).");
+    const longLived = await graphFetch<{ access_token?: string; expires_in?: number }>(
+      "Facebook langtidsnøkkel",
+      graphUrl("oauth/access_token", {
+        grant_type: "fb_exchange_token",
+        client_id: this.config.clientId,
+        client_secret: this.config.clientSecret,
+        fb_exchange_token: short.access_token,
+      }),
+    );
+    if (!longLived.access_token) throw new Error("Facebook langtidsnøkkel: ingen tilgangsnøkkel returnert");
 
     return {
-      accessToken: page.access_token, // PAGE token — effectively non-expiring
-      accountId: page.id,
-      accountName: page.name,
-      scope: "pages_show_list,pages_manage_posts,pages_read_engagement,business_management",
+      accessToken: longLived.access_token,
+      // ~60 days. Page tokens derived from it do not expire, but this one does,
+      // and it is what the Page picker needs later.
+      expiresAt: longLived.expires_in ? new Date(Date.now() + longLived.expires_in * 1000) : undefined,
     };
+  }
+
+  /**
+   * Every Page the user administers, with its Page token and linked Instagram
+   * Professional account. Asking for `instagram_business_account` here means the
+   * Instagram connection costs no extra round trip.
+   */
+  static async listPages(userAccessToken: string): Promise<MetaPage[]> {
+    const pages = await graphFetch<{
+      data?: Array<{
+        id: string;
+        name: string;
+        access_token: string;
+        instagram_business_account?: { id: string; username?: string };
+      }>;
+    }>(
+      "Facebook-sider",
+      graphUrl("me/accounts", {
+        fields: "id,name,access_token,instagram_business_account{id,username}",
+        access_token: userAccessToken,
+      }),
+    );
+
+    return (pages.data ?? []).map((page) => ({
+      id: page.id,
+      name: page.name,
+      accessToken: page.access_token,
+      instagram: page.instagram_business_account
+        ? { id: page.instagram_business_account.id, username: page.instagram_business_account.username ?? null }
+        : null,
+    }));
   }
 }
 
@@ -236,29 +239,93 @@ export class PlatformIntegrationManager {
     const db = await getDb();
     if (!db) throw new Error("Database not initialized");
 
+    // `onDuplicateKeyUpdate`, not `onConflictDoUpdate`.
+    //
+    // The latter is drizzle's Postgres/SQLite API and does not exist on the MySQL
+    // builder at all — calling it threw `TypeError: ... is not a function`. It
+    // never showed up because the `(db as any)` cast hides it from the type
+    // checker, and because nothing could reach this code: there was no OAuth
+    // callback route. The moment a working callback was added, every single
+    // connect attempt would have died here.
+    //
+    // The conflict target is the unique key added in migration 0098. Before it
+    // the table had only `id`, so even a correct upsert would have inserted a
+    // duplicate row on every reconnect.
+    const values = {
+      accessToken: encryptSecret(token.accessToken),
+      refreshToken: token.refreshToken ? encryptSecret(token.refreshToken) : null,
+      expiresAt: token.expiresAt || null,
+      scope: token.scope || null,
+      accountId: accountId || null,
+      accountName: accountName || null,
+    };
+
     await (db as any)
       .insert(platformIntegrations)
-      .values({
+      .values({ userId, platform, ...values })
+      .onDuplicateKeyUpdate({ set: values });
+  }
+
+  /**
+   * Store a chosen Facebook Page — and its Instagram account, when the Page has
+   * one — as the account's Meta connection.
+   *
+   * Two tokens are kept, and the split matters:
+   *
+   *  - `accessToken` is the PAGE token. It does not expire, and it is what both
+   *    Facebook publishing and Instagram publishing use.
+   *  - `refreshToken` holds the long-lived USER token. Facebook has no refresh
+   *    tokens, so the column was dead weight for this platform; a user token is
+   *    the only thing that can call /me/accounts, and without keeping it the
+   *    "switch to another Page" screen would have to send the user back through
+   *    the whole consent dialog. It is encrypted by the same code path as the
+   *    Page token.
+   *
+   * Instagram is written as its own row so the rest of the app — destinations,
+   * scheduling, analytics — can treat it as the separate channel it is.
+   */
+  async saveMetaConnection(
+    userId: number,
+    page: { id: string; name: string; accessToken: string; instagram?: { id: string; username: string | null } | null },
+    userToken: { accessToken: string; expiresAt?: Date },
+  ): Promise<{ facebook: true; instagram: boolean }> {
+    await this.savePlatformToken(
+      userId,
+      "facebook",
+      {
+        accessToken: page.accessToken,
+        refreshToken: userToken.accessToken,
+        expiresAt: userToken.expiresAt,
+        scope: META_SCOPES,
+      },
+      page.id,
+      page.name,
+    );
+
+    if (page.instagram?.id) {
+      await this.savePlatformToken(
         userId,
-        platform,
-        accessToken: encryptSecret(token.accessToken),
-        refreshToken: token.refreshToken ? encryptSecret(token.refreshToken) : null,
-        expiresAt: token.expiresAt || null,
-        scope: token.scope || null,
-        accountId: accountId || null,
-        accountName: accountName || null,
-      })
-      .onConflictDoUpdate({
-        target: [platformIntegrations.userId, platformIntegrations.platform],
-        set: {
-          accessToken: encryptSecret(token.accessToken),
-          refreshToken: token.refreshToken ? encryptSecret(token.refreshToken) : null,
-          expiresAt: token.expiresAt || null,
-          scope: token.scope || null,
-          accountId: accountId || null,
-          accountName: accountName || null,
+        "instagram",
+        {
+          // The PAGE token, deliberately. Instagram Content Publishing is called
+          // on graph.facebook.com with the Page token — there is no separate
+          // Instagram token in this flow.
+          accessToken: page.accessToken,
+          refreshToken: userToken.accessToken,
+          expiresAt: userToken.expiresAt,
+          scope: META_SCOPES,
         },
-      });
+        page.instagram.id,
+        page.instagram.username ?? page.name,
+      );
+    } else {
+      // Switching to a Page without a linked Instagram account must not leave the
+      // previous Page's Instagram row behind, publishing to an account the user
+      // no longer means to use.
+      await this.disconnectPlatform(userId, "instagram");
+    }
+
+    return { facebook: true, instagram: Boolean(page.instagram?.id) };
   }
 
   async getPlatformToken(userId: number, platform: string): Promise<OAuthToken | null> {
@@ -274,6 +341,11 @@ export class PlatformIntegrationManager {
           eq(platformIntegrations.platform as any, platform)
         )
       )
+      // Newest first. Migration 0098 collapses the duplicates that the broken
+      // upsert created, but LIMIT 1 with no ORDER BY was returning whichever row
+      // MySQL felt like — in practice the oldest, so a user who reconnected to
+      // replace a dead token kept getting the dead one back.
+      .orderBy(desc(platformIntegrations.id as any))
       .limit(1);
 
     if (!result || result.length === 0) {
@@ -334,6 +406,11 @@ export class PlatformIntegrationManager {
           eq(platformIntegrations.platform as any, platform)
         )
       )
+      // Newest first. Migration 0098 collapses the duplicates that the broken
+      // upsert created, but LIMIT 1 with no ORDER BY was returning whichever row
+      // MySQL felt like — in practice the oldest, so a user who reconnected to
+      // replace a dead token kept getting the dead one back.
+      .orderBy(desc(platformIntegrations.id as any))
       .limit(1);
 
     if (!result || result.length === 0) return null;
@@ -351,6 +428,21 @@ export class PlatformIntegrationManager {
   async disconnectPlatform(userId: number, platform: string): Promise<void> {
     const db = await getDb();
     if (!db) throw new Error("Database not initialized");
+
+    // Instagram publishes with the Facebook PAGE token. Leaving its row behind
+    // when Facebook is disconnected means the app keeps posting to Instagram
+    // after the user believes they have revoked access — the disconnect button
+    // would be telling them something untrue.
+    if (platform === "facebook") {
+      await (db as any)
+        .delete(platformIntegrations)
+        .where(
+          and(
+            eq(platformIntegrations.userId as any, userId),
+            eq(platformIntegrations.platform as any, "instagram")
+          )
+        );
+    }
 
     await (db as any)
       .delete(platformIntegrations)

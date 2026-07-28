@@ -18,6 +18,7 @@
 
 import { eq, and, gte, isNotNull } from "drizzle-orm";
 import { platformManager } from "./platformOAuthService";
+import { graphUrl } from "./metaGraph";
 
 type Platform = "linkedin" | "twitter" | "instagram" | "facebook";
 
@@ -92,7 +93,7 @@ async function fetchInstagramMetrics(
   accessToken: string
 ): Promise<FetchedMetrics | null> {
   // graph.facebook.com uses access_token as a query param (not a Bearer header).
-  const base = `https://graph.facebook.com/v19.0/${encodeURIComponent(platformPostId)}`;
+  const base = graphUrl(encodeURIComponent(platformPostId));
   const data = await safeFetchJson(
     `${base}?fields=like_count,comments_count&access_token=${encodeURIComponent(
       accessToken
@@ -120,7 +121,7 @@ async function fetchFacebookMetrics(
   platformPostId: string,
   accessToken: string
 ): Promise<FetchedMetrics | null> {
-  const base = `https://graph.facebook.com/v19.0/${encodeURIComponent(platformPostId)}`;
+  const base = graphUrl(encodeURIComponent(platformPostId));
   const data = await safeFetchJson(
     `${base}?fields=likes.summary(true),comments.summary(true),shares&access_token=${encodeURIComponent(
       accessToken

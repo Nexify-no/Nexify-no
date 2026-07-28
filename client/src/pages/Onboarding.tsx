@@ -38,6 +38,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getLoginUrl } from "@/const";
 import { cn } from "@/lib/utils";
+import { isSchedulable } from "@/lib/schedulablePlatforms";
 
 // ---------------------------------------------------------------------------
 // Types & copy
@@ -888,7 +889,11 @@ export default function Onboarding() {
       lastDecisionRef.current = decision;
       const item = pending[0];
       if (!item) return;
-      if (decision === "approved" && state.connected) {
+      if (decision === "approved" && state.connected && isSchedulable(item.platform)) {
+        // Onboarding generates for every platform the product supports, but only
+        // the publishable ones can be queued. Skipping the schedule here (rather
+        // than queueing a row nothing will ever pick up) keeps the approval flow
+        // itself working for the rest.
         smartSchedule.mutate(
           { postId: item.postId, platform: item.platform, daysAhead: state.approvedCount + 1 },
           {

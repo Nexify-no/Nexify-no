@@ -12,6 +12,7 @@ import { CalendarClock, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
+import { isSchedulable, schedulingUnavailableReason } from "@/lib/schedulablePlatforms";
 
 type Props = {
   open: boolean;
@@ -55,6 +56,10 @@ export function ScheduleDialog({ open, onClose, postId, platform, content, image
   const multiBrand = flags.data?.enabled === true;
   const dest = trpc.social.destinations.useQuery(undefined, { enabled: open && multiBrand });
   const destination = dest.data?.platforms.find((p) => p.platform === platform);
+  // Twitter can be generated for but not published to, so it cannot be
+  // scheduled either. Saying so here beats accepting the click and dropping the
+  // post into a queue nothing reads.
+  const schedulable = isSchedulable(platform);
   // PR #81: name the brand this is scheduled for. Without it the dialog looked
   // identical for Penna and Ballong, so there was nothing to catch a mis-click
   // before the post went into the wrong brand's calendar.
@@ -74,7 +79,7 @@ export function ScheduleDialog({ open, onClose, postId, platform, content, image
   if (!open) return null;
 
   const when = new Date(`${date}T${time}:00`);
-  const valid = postId != null && !Number.isNaN(when.getTime()) && when.getTime() > Date.now();
+  const valid = (postId != null && !Number.isNaN(when.getTime()) && when.getTime() > Date.now()) && schedulable;
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true">
@@ -130,13 +135,19 @@ export function ScheduleDialog({ open, onClose, postId, platform, content, image
           {!Number.isNaN(when.getTime()) && when.getTime() <= Date.now() && (
             <p className="text-xs text-amber-600">Velg et tidspunkt fram i tid.</p>
           )}
+          {!schedulable && (
+            <p className="text-xs text-amber-600">{schedulingUnavailableReason(platform)}</p>
+          )}
         </div>
 
         <div className="border-t px-5 py-3 flex gap-2 justify-end">
           <Button variant="ghost" onClick={onClose}>Avbryt</Button>
           <Button
             disabled={!valid || schedule.isPending}
-            onClick={() => postId != null && schedule.mutate({ postId, platform, scheduledFor: when, timezone: tz })}
+            onClick={() => {
+              if (postId == null || !isSchedulable(platform)) return;
+              schedule.mutate({ postId, platform, scheduledFor: when, timezone: tz });
+            }}
           >
             {schedule.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Planlegger …</> : "Planlegg"}
           </Button>

@@ -74,6 +74,16 @@ services:
         sync: false
       - key: TELEGRAM_BOT_TOKEN
         sync: false
+      # ── Meta (Facebook Page + Instagram) publishing ──
+      # One Meta app covers both channels. Without these the connect button
+      # reports "Facebook er ikke satt opp" instead of sending the user to an
+      # Invalid-App-ID screen.
+      - key: FACEBOOK_CLIENT_ID
+        sync: false
+      - key: FACEBOOK_CLIENT_SECRET
+        sync: false
+      - key: FACEBOOK_REDIRECT_URI   # must match the Meta app exactly, e.g. https://penna.no/api/meta/callback
+        sync: false
       - key: SENTRY_DSN
         sync: false
       # ── Object storage for generated images/uploads (REQUIRED for images to
@@ -155,6 +165,16 @@ services:
       - key: GOOGLE_CLIENT_SECRET
         sync: false
       - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      # ── Meta (Facebook Page + Instagram) publishing ──
+      # One Meta app covers both channels. Without these the connect button
+      # reports "Facebook er ikke satt opp" instead of sending the user to an
+      # Invalid-App-ID screen.
+      - key: FACEBOOK_CLIENT_ID
+        sync: false
+      - key: FACEBOOK_CLIENT_SECRET
+        sync: false
+      - key: FACEBOOK_REDIRECT_URI   # must match the Meta app exactly, e.g. https://penna.no/api/meta/callback
         sync: false
       - key: SENTRY_DSN
         sync: false

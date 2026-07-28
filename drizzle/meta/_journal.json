@@ -687,6 +687,13 @@
       "when": 1785801600000,
       "tag": "0097_email_templates",
       "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "5",
+      "when": 1785888000000,
+      "tag": "0098_platform_integrations_unique",
+      "breakpoints": true
     }
   ]
 }
