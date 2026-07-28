@@ -666,6 +666,27 @@
       "when": 1785542400000,
       "tag": "0094_verification_reasons",
       "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "5",
+      "when": 1785628800000,
+      "tag": "0095_account_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "5",
+      "when": 1785715200000,
+      "tag": "0096_admin_email_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "5",
+      "when": 1785801600000,
+      "tag": "0097_email_templates",
+      "breakpoints": true
     }
   ]
 }

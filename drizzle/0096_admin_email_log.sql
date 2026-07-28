@@ -10,8 +10,14 @@
 -- effect is irreversible and invisible from inside the product: once it leaves
 -- SendGrid there is nothing to inspect. One row per RECIPIENT (not per batch), so
 -- "did this customer get it, and did it bounce?" is answerable.
+--
+-- The indexes are declared INSIDE the CREATE TABLE rather than as separate
+-- statements, so `IF NOT EXISTS` covers them too. `CREATE INDEX IF NOT EXISTS`
+-- is a MariaDB/TiDB extension that mysql:8.0 — which CI runs — rejects.
+-- This table was also created by hand in production during the outage, so the
+-- migration has to be safe to re-run.
 
-CREATE TABLE `admin_email_sends` (
+CREATE TABLE IF NOT EXISTS `admin_email_sends` (
   `id` int AUTO_INCREMENT NOT NULL,
   -- Groups the recipients of one send together.
   `batch_id` varchar(36) NOT NULL,
@@ -29,9 +35,8 @@ CREATE TABLE `admin_email_sends` (
   -- Why a recipient was skipped (opted out) or why the send failed.
   `detail` varchar(500) NULL,
   `created_at` timestamp NOT NULL DEFAULT (now()),
-  CONSTRAINT `admin_email_sends_id` PRIMARY KEY(`id`)
+  CONSTRAINT `admin_email_sends_id` PRIMARY KEY(`id`),
+  INDEX `admin_email_sends_batch_idx` (`batch_id`),
+  INDEX `admin_email_sends_recipient_idx` (`recipient_user_id`),
+  INDEX `admin_email_sends_created_idx` (`created_at`)
 );
-
-CREATE INDEX `admin_email_sends_batch_idx` ON `admin_email_sends` (`batch_id`);
-CREATE INDEX `admin_email_sends_recipient_idx` ON `admin_email_sends` (`recipient_user_id`);
-CREATE INDEX `admin_email_sends_created_idx` ON `admin_email_sends` (`created_at`);

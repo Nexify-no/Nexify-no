@@ -125,19 +125,10 @@ export const blogRouter = router({
           throw new Error("Unauthorized: Admin access required");
         }
 
-        // Generate unique file key. fileName is regex-validated above (no `/`, `\`, `..`).
-        const ext = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif" }[input.contentType];
-        const timestamp = Date.now();
-        const randomSuffix = Math.random().toString(36).substring(7);
-        const fileKey = `blog-images/${timestamp}-${randomSuffix}.${ext}`;
-
-        // Convert base64 to buffer
-        const base64Data = input.fileData.split(',')[1] || input.fileData;
-        const buffer = Buffer.from(base64Data, 'base64');
-
-        // Upload to S3
-        const { url } = await storagePut(fileKey, buffer, input.contentType);
-
-        return { url, fileKey };
+        // One shared implementation — this used to be a byte-identical copy of
+        // what adminRouter.uploadEmailImage does, and two copies of a validation
+        // rule is one copy that gets tightened and one that does not.
+        const { uploadRasterImage } = await import("../services/imageUpload");
+        return uploadRasterImage("blog-images", input);
       }),
   });

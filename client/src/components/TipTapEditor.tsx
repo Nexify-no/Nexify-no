@@ -25,16 +25,29 @@ import {
   Code,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 
 interface TipTapEditorProps {
   content: string;
   onChange: (content: string) => void;
   placeholder?: string;
+  /** Legacy: host opens its own picker and inserts the image itself. */
   onImageUpload?: () => void;
+  /**
+   * Host uploads and returns a hosted URL; the editor inserts it. Preferred over
+   * `onImageUpload`, which left the host with no way to reach the editor.
+   */
+  onPickImage?: () => Promise<string | null>;
+  /**
+   * Base64 `data:` images. Fine for a blog post rendered in a browser; wrong for
+   * an e-mail, where Gmail, Outlook and most mobile clients block them — an
+   * inlined picture is an invisible one. Off means paste-an-image is refused
+   * rather than silently stripped later.
+   */
+  allowBase64Images?: boolean;
 }
 
-export function TipTapEditor({ content, onChange, placeholder = 'Skriv innholdet ditt her...', onImageUpload }: TipTapEditorProps) {
+export function TipTapEditor({ content, onChange, placeholder = 'Skriv innholdet ditt her...', onImageUpload, onPickImage, allowBase64Images = true }: TipTapEditorProps) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -44,7 +57,7 @@ export function TipTapEditor({ content, onChange, placeholder = 'Skriv innholdet
       }),
       Image.configure({
         inline: true,
-        allowBase64: true,
+        allowBase64: allowBase64Images,
       }),
       Link.configure({
         openOnClick: false,
@@ -67,6 +80,26 @@ export function TipTapEditor({ content, onChange, placeholder = 'Skriv innholdet
     },
   });
 
+  /**
+   * Keep the document in sync with the `content` prop.
+   *
+   * `useEditor({ content })` seeds the document ONCE. Without this, two things
+   * quietly broke on any host that changes `content` programmatically:
+   *   - an "insert variable" button that appends to the host's string had no
+   *     effect on the document, and the next keystroke overwrote the append with
+   *     `editor.getHTML()` — the button looked like it worked and did nothing;
+   *   - switching between two edited items left the previous item's text in the
+   *     editor, and the first keystroke wrote it into the new item's draft.
+   *
+   * Guarded on `getHTML()` so this never fights the user's own typing (that would
+   * reset the cursor on every character).
+   */
+  useEffect(() => {
+    if (!editor) return;
+    if (content === editor.getHTML()) return;
+    editor.commands.setContent(content || '', { emitUpdate: false });
+  }, [content, editor]);
+
   const addLink = useCallback(() => {
     if (!editor) return;
     
@@ -79,7 +112,11 @@ export function TipTapEditor({ content, onChange, placeholder = 'Skriv innholdet
   const addImage = useCallback(() => {
     if (!editor) return;
     
-    if (onImageUpload) {
+    if (onPickImage) {
+      void onPickImage().then((url) => {
+        if (url) editor.chain().focus().setImage({ src: url }).run();
+      });
+    } else if (onImageUpload) {
       onImageUpload();
     } else {
       const url = window.prompt('Bilde URL:');
@@ -87,7 +124,7 @@ export function TipTapEditor({ content, onChange, placeholder = 'Skriv innholdet
         editor.chain().focus().setImage({ src: url }).run();
       }
     }
-  }, [editor, onImageUpload]);
+  }, [editor, onImageUpload, onPickImage]);
 
   if (!editor) {
     return null;

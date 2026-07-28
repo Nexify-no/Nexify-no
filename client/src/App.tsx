@@ -68,6 +68,7 @@ const ResetPassword = lazy(() => import("./pages/ResetPassword").then(m => ({ de
 const Analytics = lazy(() => import("./pages/Analytics").then(m => ({ default: m.Analytics })));
 const AdminSettings = lazy(() => import("./pages/AdminSettings"));
 const AdminEmail = lazy(() => import("./pages/AdminEmail"));
+const AdminEmailTemplates = lazy(() => import("./pages/AdminEmailTemplates"));
 const MemberMonitoring = lazy(() => import("./pages/MemberMonitoring"));
 const Progress = lazy(() => import("./pages/Progress"));
 const Profile = lazy(() => import("./pages/Profile"));
@@ -134,6 +135,7 @@ function Router() {
         <Route path={"/subscription/cancel"} component={SubscriptionCancel} />
         <Route path={"/admin/analytics"} component={AdminAnalytics} />
         <Route path={"/admin/settings"} component={AdminSettings} />
+        <Route path={"/admin/epost/maler"} component={AdminEmailTemplates} />
         <Route path={"/admin/epost"} component={AdminEmail} />
         <Route path={"/admin/members"} component={MemberMonitoring} />
         <Route path={"/examples"} component={Examples} />

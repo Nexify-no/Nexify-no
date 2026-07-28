@@ -4,7 +4,7 @@
  * Unauthorized copying, distribution, or use is strictly prohibited.
  */
 
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, tinyint, date, boolean, json, decimal, double, index, unique } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, mediumtext, timestamp, varchar, tinyint, date, boolean, json, decimal, double, index, unique } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -2079,3 +2079,42 @@ export const adminEmailSends = mysqlTable("admin_email_sends", {
 
 export type AdminEmailSend = typeof adminEmailSends.$inferSelect;
 export type InsertAdminEmailSend = typeof adminEmailSends.$inferInsert;
+
+/**
+ * Admin-editable e-mail templates (migration 0097).
+ *
+ * `override` rows replace a built-in e-mail, matched by `templateKey` against the
+ * registry in server/services/emailTemplates.ts. Absent, disabled, or failing to
+ * render → the built-in copy in code is used, because a broken template must
+ * never stop a password reset.
+ *
+ * `custom` rows are templates the admin wrote from scratch; `templateKey` is NULL.
+ */
+export const emailTemplates = mysqlTable("email_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Registry key of the built-in this overrides; NULL for a custom template. */
+  templateKey: varchar("template_key", { length: 64 }).unique("email_templates_template_key_unique"),
+  name: varchar("name", { length: 200 }).notNull(),
+  subject: varchar("subject", { length: 300 }).notNull(),
+  /**
+   * Admin-authored, sanitised on write. Substituted values are escaped separately.
+   *
+   * `mediumtext`, not `text`: `text` holds 65,535 BYTES and an e-mail with a couple
+   * of images crosses that. Strict mode then fails the insert with an opaque
+   * ER_DATA_TOO_LONG; without it, half an e-mail is stored and sent.
+   */
+  bodyHtml: mediumtext("body_html").notNull(),
+  ctaLabel: varchar("cta_label", { length: 120 }),
+  ctaHref: varchar("cta_href", { length: 1000 }),
+  kind: mysqlEnum("kind", ["override", "custom"]).notNull(),
+  /** Off → fall back to the built-in. How you undo a bad edit without losing it. */
+  enabled: tinyint("enabled").default(1).notNull(),
+  updatedByUserId: int("updated_by_user_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  kindIdx: index("email_templates_kind_idx").on(table.kind),
+}));
+
+export type EmailTemplate = typeof emailTemplates.$inferSelect;
+export type InsertEmailTemplate = typeof emailTemplates.$inferInsert;
