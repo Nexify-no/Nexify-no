@@ -39,6 +39,7 @@ export default function Privacy() {
           "- **fal.ai (FLUX)** – AI-bildegenerering.",
           "- **Stripe** og **Vipps** – betalingsbehandling for abonnement.",
           "- **LinkedIn** – publisering av innlegg når du selv kobler til kontoen din.",
+          "- **Meta (Facebook og Instagram)** – publisering av innlegg til Facebook-siden og den tilknyttede Instagram-kontoen du selv kobler til. Vi lagrer et tilgangstoken for siden slik at planlagte innlegg kan publiseres, og henter antall likerklikk og kommentarer på dine egne innlegg. Du kan trekke tilbake tilgangen når som helst i Innstillinger, eller på Facebook under Innstillinger → Apper og nettsteder.",
           "- **SendGrid** – utsending av konto- og tjenstemeldinger på e-post.",
           "- **TiDB Cloud** (database), **Amazon S3** (bildelagring) og **Sentry** (feilovervåking) – teknisk drift.",
           "Vi selger aldri personopplysningene dine, og deler kun det som er nødvendig for å levere tjenesten."
@@ -153,6 +154,7 @@ export default function Privacy() {
           "- **fal.ai (FLUX)** – AI image generation.",
           "- **Stripe** and **Vipps** – payment processing for subscriptions.",
           "- **LinkedIn** – publishing posts when you connect your own account.",
+          "- **Meta (Facebook and Instagram)** – publishing posts to the Facebook Page and linked Instagram account you connect yourself. We store a Page access token so scheduled posts can be published, and read the number of likes and comments on your own posts. You can revoke access at any time in Settings, or on Facebook under Settings → Apps and Websites.",
           "- **SendGrid** – sending account and service emails.",
           "- **TiDB Cloud** (database), **Amazon S3** (image storage) and **Sentry** (error monitoring) – technical operations.",
           "We never sell your personal data and only share what is necessary to provide the service."
