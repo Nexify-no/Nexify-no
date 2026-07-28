@@ -31,6 +31,10 @@ export type SessionPayload = {
   tokenVersion?: number;
 };
 
+// Per-request memo key for authenticateRequest. A symbol so it cannot collide
+// with anything Express, a body parser, or another middleware puts on `req`.
+const AUTH_MEMO = Symbol.for("penna.authenticateRequest");
+
 const EXCHANGE_TOKEN_PATH = `/webdev.v1.WebDevAuthPublicService/ExchangeToken`;
 const GET_USER_INFO_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserInfo`;
 const GET_USER_INFO_WITH_JWT_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserInfoWithJwt`;
@@ -276,7 +280,34 @@ class SDKServer {
     } as GetUserInfoWithJwtResponse;
   }
 
+  /**
+   * Authenticate once per HTTP request, no matter how many layers ask.
+   *
+   * Two independent layers call this for the same request: the Express
+   * middleware that populates `req.user` (_core/index.ts) and the tRPC context
+   * factory (_core/context.ts). Each full run costs a `SELECT` on `users` AND a
+   * write (`upsertUser` stamping `lastSignedIn`) — so every authenticated tRPC
+   * call was paying for two reads and two writes to learn the same fact twice.
+   *
+   * The result is memoised on the request object itself, which is per-request by
+   * construction, so there is no cross-user leakage and nothing to invalidate.
+   * The PROMISE is cached rather than the value: the two callers can overlap,
+   * and a rejection must be replayed identically (both sites catch it and fall
+   * back to an anonymous user). A rejected promise stored here is always awaited
+   * by whoever created it, so it cannot surface as an unhandled rejection.
+   */
   async authenticateRequest(req: Request): Promise<User> {
+    const cached = (req as any)[AUTH_MEMO];
+    if (cached) return cached as Promise<User>;
+    const pending = this.authenticateRequestUncached(req);
+    (req as any)[AUTH_MEMO] = pending;
+    // Do not let the cached rejection count as unhandled before the real
+    // awaiter attaches its own catch.
+    pending.catch(() => {});
+    return pending;
+  }
+
+  private async authenticateRequestUncached(req: Request): Promise<User> {
     // Regular authentication flow
     const cookies = this.parseCookies(req.headers.cookie);
     const sessionCookie = cookies.get(COOKIE_NAME);
