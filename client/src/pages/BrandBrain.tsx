@@ -121,6 +121,13 @@ export default function BrandBrain() {
   const [newFact, setNewFact] = useState("");
   // MB3: lets the user skip the confirm screen and edit fields directly.
   const [forceEdit, setForceEdit] = useState(false);
+  // "Analyser på nytt" used to re-run profile.websiteUrl with no way to change it.
+  // That made the one instruction the mismatch banner gives — analyse the RIGHT
+  // address — impossible to follow: a Merkehjerne built from the wrong site could
+  // only ever be rebuilt from the wrong site. Opening an editable address is the
+  // whole fix.
+  const [reanalyzeOpen, setReanalyzeOpen] = useState(false);
+  const [reanalyzeUrl, setReanalyzeUrl] = useState("");
 
   useEffect(() => {
     if (!profile) return;
@@ -160,6 +167,32 @@ export default function BrandBrain() {
     differentiators: list(form.differentiators), tonePersonality: list(form.tonePersonality), writingStyle: form.writingStyle,
     preferredWords: list(form.preferredWords), avoidWords: list(form.avoidWords), callsToAction: list(form.callsToAction), contentPillars: list(form.contentPillars),
   });
+
+  // Prefill with the address on the profile — usually right, and when it is wrong
+  // seeing it is what tells the user so.
+  useEffect(() => {
+    if (profile?.websiteUrl && !reanalyzeUrl) setReanalyzeUrl(profile.websiteUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.websiteUrl]);
+
+  const reanalyzeRow = () => (
+    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+      <Input
+        value={reanalyzeUrl}
+        onChange={(e) => setReanalyzeUrl(e.target.value)}
+        placeholder="https://bedriften.no"
+        className="sm:max-w-sm"
+        aria-label="Nettadresse å analysere"
+      />
+      <Button
+        onClick={() => runAnalyze(reanalyzeUrl)}
+        disabled={!reanalyzeUrl.trim() || analyze.isPending}
+      >
+        <RefreshCw className={`h-4 w-4 mr-2 ${analyze.isPending ? "animate-spin" : ""}`} />
+        {analyze.isPending ? "Analyserer …" : "Analyser denne adressen"}
+      </Button>
+    </div>
+  );
 
   const manifest = (profile?.sourceManifest ?? []) as Array<{ url: string; title: string; chars: number; suspiciousPromptText: boolean }>;
   const warnings = (profile?.injectionWarnings ?? []) as string[];
@@ -330,11 +363,12 @@ export default function BrandBrain() {
             {confirmBrain.isPending ? "Bekrefter …" : "Bekreft og lag innhold"}
           </Button>
           <Button variant="outline" onClick={() => setForceEdit(true)}>Rediger informasjonen</Button>
-          <Button variant="outline" onClick={() => runAnalyze(profile.websiteUrl)} disabled={analyze.isPending}>
+          <Button variant="outline" onClick={() => setReanalyzeOpen((open) => !open)} disabled={analyze.isPending}>
             <RefreshCw className={`h-4 w-4 mr-2 ${analyze.isPending ? "animate-spin" : ""}`} />
             Analyser på nytt
           </Button>
         </div>
+        {reanalyzeOpen ? reanalyzeRow() : null}
       </Shell>
     );
   }
@@ -351,10 +385,14 @@ export default function BrandBrain() {
           {profile.confirmedAt
             ? <span className="inline-flex items-center gap-2 text-sm text-green-700 bg-green-500/10 border border-green-500/30 rounded-full px-3 py-1.5"><BadgeCheck className="h-4 w-4" />Bekreftet {new Date(profile.confirmedAt).toLocaleDateString("nb-NO")}</span>
             : <Button onClick={() => confirmBrain.mutate()} disabled={confirmBrain.isPending}><BadgeCheck className="h-4 w-4 mr-2" />Bekreft Merkehjerne</Button>}
-          <Button variant="outline" onClick={() => runAnalyze(profile.websiteUrl)} disabled={analyze.isPending}><RefreshCw className={`h-4 w-4 mr-2 ${analyze.isPending ? "animate-spin" : ""}`} />Analyser på nytt</Button>
+          <Button variant="outline" onClick={() => setReanalyzeOpen((open) => !open)} disabled={analyze.isPending}><RefreshCw className={`h-4 w-4 mr-2 ${analyze.isPending ? "animate-spin" : ""}`} />Analyser på nytt</Button>
           <Button variant="outline" onClick={saveProfile} disabled={save.isPending}><Save className="h-4 w-4 mr-2" />Lagre</Button>
         </div>
       </div>
+      {reanalyzeOpen ? <div className="mb-6">{reanalyzeRow()}</div> : null}
+      {(profile as any).brandMismatch
+        ? brandMismatchBanner((profile as any).profileDescribes ?? null, activeBrandName)
+        : null}
 
       {needsReview && (
         <div className="mb-5 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">

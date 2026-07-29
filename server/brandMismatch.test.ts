@@ -197,4 +197,37 @@ describe("the Merkehjerne page reports it", () => {
     expect(page()).toMatch(/feil stemme, tjenester og målgruppe/);
     expect(page()).toMatch(/Analyser på nytt/);
   });
+
+  it("shows the banner on the ready screen too, not only the review screen", () => {
+    // A confirmed-but-mismatched Merkehjerne never shows the review screen, so a
+    // banner only there would never be seen by the account that has the problem.
+    const src = page();
+    const occurrences = src.match(/brandMismatchBanner\(/g) ?? [];
+    // One definition + two render sites.
+    expect(occurrences.length).toBe(3);
+  });
+});
+
+describe("the address it re-analyses can be corrected", () => {
+  const page = () => readFileSync("client/src/pages/BrandBrain.tsx", "utf8");
+
+  it("does not re-run the stored URL blindly", () => {
+    // The load-bearing one. "Analyser på nytt" called runAnalyze(profile.websiteUrl),
+    // so a Merkehjerne built from the wrong site could only ever be rebuilt from
+    // the wrong site — and the mismatch banner's single instruction ("analyse the
+    // right address") was impossible to follow.
+    expect(page()).not.toMatch(/runAnalyze\(profile\.websiteUrl\)/);
+  });
+
+  it("offers an editable address prefilled from the profile", () => {
+    const src = page();
+    expect(src).toContain("reanalyzeUrl");
+    expect(src).toMatch(/runAnalyze\(reanalyzeUrl\)/);
+    // Prefilled, because seeing the wrong address is what tells the user it is wrong.
+    expect(src).toMatch(/setReanalyzeUrl\(profile\.websiteUrl\)/);
+  });
+
+  it("refuses to submit an empty address", () => {
+    expect(page()).toMatch(/!reanalyzeUrl\.trim\(\) \|\| analyze\.isPending/);
+  });
 });
