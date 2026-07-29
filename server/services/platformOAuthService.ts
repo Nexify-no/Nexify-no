@@ -635,7 +635,33 @@ export class PlatformIntegrationManager {
       .from(platformIntegrations)
       .where(eq(platformIntegrations.userId as any, userId));
 
-    return results.map((r: any) => r.platform);
+    const platforms: string[] = results.map((r: any) => r.platform);
+
+    // LinkedIn does not live in platform_integrations.
+    //
+    // It is connected through the dedicated "Koble til LinkedIn" flow, which
+    // writes to linkedin_connections. `getPlatformToken` already bridges the two
+    // stores — this one did not, so the settings screen asked "which platforms
+    // are connected", got an answer with no LinkedIn in it, and rendered a
+    // "Koble til LinkedIn" button to a user whose LinkedIn was connected and
+    // publishing. Clicking it sent them through a whole OAuth round trip to
+    // reach the state they were already in.
+    if (!platforms.includes("linkedin")) {
+      try {
+        const { linkedinConnections } = await import("../../drizzle/schema");
+        const conn = await (db as any)
+          .select({ id: linkedinConnections.id })
+          .from(linkedinConnections)
+          .where(eq(linkedinConnections.userId as any, userId))
+          .limit(1);
+        if (conn && conn.length > 0) platforms.push("linkedin");
+      } catch (error) {
+        // A missing LinkedIn row is not a reason to fail the whole screen.
+        console.error("[Platforms] Could not read linkedin_connections:", error);
+      }
+    }
+
+    return platforms;
   }
 }
 

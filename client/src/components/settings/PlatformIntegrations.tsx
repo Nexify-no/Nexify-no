@@ -366,9 +366,34 @@ export default function PlatformIntegrations() {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">
-              Fant ingen sider du er administrator for.
-            </p>
+            // An empty list here is NOT "you have no Pages" — the connection in
+            // front of the user proves they had one. Facebook returned a valid
+            // token with zero Pages, which means the app's access to the Page was
+            // removed or the admin role changed. Saying "found none" reads as a
+            // dead end; naming the two causes and offering the way out does not.
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Facebook svarer at Penna ikke har tilgang til noen sider akkurat nå. Det skjer
+                vanligvis av én av to grunner:
+              </p>
+              <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                <li>
+                  Tilgangen til siden er fjernet under <strong>Facebook → Innstillinger →
+                  Bedriftsintegrasjoner</strong>.
+                </li>
+                <li>Du er ikke lenger administrator for siden.</li>
+              </ul>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  setPagePickerOpen(false);
+                  handleConnectPlatform("facebook");
+                }}
+              >
+                Koble til Facebook på nytt
+              </Button>
+            </div>
           )}
         </DialogContent>
       </Dialog>
