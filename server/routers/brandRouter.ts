@@ -69,7 +69,44 @@ export const brandRouter = router({
     const db = await requireDb();
     const brandId = await activeBrand(ctx.user.id);
     const [profile] = await db.select().from(brandProfiles).where(ownProfile(ctx.user.id, brandId)).orderBy(brandProfiles.id).limit(1);
-    return profile ?? null;
+    if (!profile) return null;
+
+    // Does this Merkehjerne describe the brand it is attached to?
+    //
+    // For a while it might not: legacy adoption stamped an unowned Merkehjerne
+    // onto whichever brand was active, so a brand named Penna.no could carry a
+    // Merkehjerne built from ballongforfest.no — and every post generated for
+    // that brand came out in a balloon company's voice, on Penna's channels.
+    // The adoption bug is fixed; these rows are already written, and a wrong
+    // Merkehjerne is wrong silently and in every post that follows. Report it.
+    let brandMismatch = false;
+    let profileDescribes: string | null = null;
+    if (brandId != null) {
+      try {
+        const { brands } = await import("../../drizzle/schema");
+        const { detectBrandMismatch } = await import("../services/merkehjerne/brandMismatch");
+        const [brand] = await db
+          .select({ name: brands.name, websiteUrl: brands.websiteUrl })
+          .from(brands)
+          .where(and(eq(brands.id, brandId), eq(brands.accountId, ctx.user.id)))
+          .limit(1);
+        if (brand) {
+          const result = detectBrandMismatch({
+            brandName: brand.name,
+            brandWebsiteUrl: brand.websiteUrl,
+            profileCompanyName: profile.companyName,
+            profileWebsiteUrl: (profile as any).websiteUrl,
+          });
+          brandMismatch = result.mismatch;
+          profileDescribes = result.profileDescribes;
+        }
+      } catch (error) {
+        // A warning banner is not worth failing the Merkehjerne page over.
+        console.error("[brand.get] mismatch check failed:", error);
+      }
+    }
+
+    return { ...profile, brandMismatch, profileDescribes };
   }),
 
   analyze: aiProcedure

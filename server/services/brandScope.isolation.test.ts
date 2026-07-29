@@ -179,9 +179,17 @@ describe("a Merkehjerne mutation touches at most one row", () => {
     // one profile while the readback returned another, so a saved edit would
     // appear to have been discarded. Only reachable with multi-brand OFF, where
     // duplicate NULL-brand rows are still possible.
-    const limited = src.match(/\.limit\(1\)/g) ?? [];
+    //
+    // Counts limits on brandProfiles ONLY. Counting every `.limit(1)` in the file
+    // made an unrelated primary-key lookup — `brands` by id, which returns one row
+    // by definition — fail this, and "add a meaningless ORDER BY to satisfy the
+    // test" is the wrong lesson to teach. The invariant is about the table where
+    // duplicate rows are possible.
+    const brandProfileLimits =
+      src.match(/brandProfiles[\s\S]{0,400}?\.limit\(1\)/g) ?? [];
     const ordered = src.match(/\.orderBy\(brandProfiles\.id\)\s*\n?\s*\.limit\(1\)/g) ?? [];
-    expect(ordered.length).toBe(limited.length);
+    expect(brandProfileLimits.length).toBeGreaterThanOrEqual(4);
+    expect(ordered.length).toBe(brandProfileLimits.length);
   });
 
   it("scopes the profile by exact (user, brand) at every write site", () => {

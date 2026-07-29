@@ -45,6 +45,36 @@ function ListField({ label, value, onChange, placeholder }: { label: string; val
   return <div className="space-y-2"><Label>{label}</Label><Textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={4} /><p className="text-xs text-muted-foreground">Én per linje eller skill med komma.</p></div>;
 }
 
+/**
+ * The Merkehjerne on screen describes a different company than the brand it is
+ * attached to.
+ *
+ * This is not a style warning — it is the difference between publishing your own
+ * voice and publishing someone else's. It happened: legacy adoption stamped an
+ * unowned Merkehjerne onto whichever brand was active, so a brand named Penna.no
+ * carried a Merkehjerne built from ballongforfest.no, and every post generated
+ * for it went out in a balloon company's words. Red, not amber, and it names the
+ * company it actually found so the user can see the mismatch rather than take our
+ * word for it.
+ */
+function brandMismatchBanner(describes: string | null, brandName: string | null) {
+  return (
+    <div className="mb-4 flex items-start gap-3 rounded-xl border border-red-500/40 bg-red-500/5 p-4">
+      <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+      <div className="space-y-1 text-sm">
+        <p className="font-medium">
+          Denne Merkehjernen beskriver {describes ? <>«{describes}»</> : "en annen bedrift"}
+          {brandName ? <> — ikke «{brandName}»</> : null}.
+        </p>
+        <p className="text-muted-foreground">
+          Innlegg for denne merkevaren blir skrevet med feil stemme, tjenester og målgruppe.
+          Kjør «Analyser på nytt» med riktig nettadresse før du publiserer noe.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function needsReviewBanner(warningCount: number, factCount: number) {
   if (warningCount === 0 && factCount > 0) return null;
   return (
@@ -77,6 +107,14 @@ export default function BrandBrain() {
     refetchIntervalInBackground: false,
   });
   const profile = profileQuery.data;
+  // Only to NAME the brand in the mismatch banner — the mismatch itself is
+  // decided server-side, against the row the generator actually reads.
+  const brandsQuery = trpc.brands.list.useQuery(undefined, {
+    enabled: Boolean((profile as any)?.brandMismatch),
+    staleTime: 60 * 1000,
+  });
+  const activeBrandName =
+    brandsQuery.data?.brands?.find((b: any) => b.id === brandsQuery.data?.activeBrandId)?.name ?? null;
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [tab, setTab] = useState<Tab>("company");
   const [form, setForm] = useState<Editable>(EMPTY);
@@ -230,6 +268,9 @@ export default function BrandBrain() {
           Dette fant vi på {profile.websiteUrl}. Bekreft før vi lager innhold — du kan endre alt senere.
         </p>
 
+        {(profile as any).brandMismatch
+          ? brandMismatchBanner((profile as any).profileDescribes ?? null, activeBrandName)
+          : null}
         {needsReviewBanner(warnings.length, facts.length)}
 
         <Card className="mb-4">
