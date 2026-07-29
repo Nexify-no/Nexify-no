@@ -200,6 +200,25 @@ export const platformRouter = router({
     return { platforms };
   }),
 
+  /**
+   * Which platforms this installation is actually able to connect.
+   *
+   * A channel with no app credentials cannot be connected, and offering a button
+   * that fails is worse than saying so. Before this, an unconfigured channel
+   * looked identical to a configured one until the user clicked and got an error
+   * — the same shape of problem as the old "(kommer snart)" cards that were
+   * hardcoded and therefore stayed grey after the integration shipped.
+   *
+   * Reading the config means the card and the API turn on together: set the env
+   * vars and "Kommer snart" becomes "Koble til" with no code change, and unset
+   * them and it goes back. Nothing here leaks a credential — only whether one is
+   * present.
+   */
+  getPlatformAvailability: protectedProcedure.query(async () => {
+    const { getPlatformAvailability } = await import("../services/platformAvailability");
+    return getPlatformAvailability();
+  }),
+
   // Disconnect platform
   disconnectPlatform: protectedProcedure
     .input(z.object({ platform: z.string() }))

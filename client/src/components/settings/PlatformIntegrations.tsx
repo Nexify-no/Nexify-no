@@ -52,6 +52,10 @@ export default function PlatformIntegrations() {
   // a second attempt within 30s reused an authUrl whose verifier was spent.
   const xAuthUrl = trpc.platform.getXAuthUrl.useMutation();
   const { data: integrations, isLoading, refetch } = trpc.platform.getConnectedPlatforms.useQuery();
+  // Which channels this installation can actually connect. Undefined while it
+  // loads — treated as available so a slow query never flashes "Kommer snart"
+  // at a user whose channel works.
+  const { data: availability } = trpc.platform.getPlatformAvailability.useQuery();
   const metaPages = trpc.platform.listMetaPages.useQuery(undefined, { enabled: pagePickerOpen });
   const selectPage = trpc.platform.selectMetaPage.useMutation({
     onSuccess: (result) => {
@@ -195,9 +199,18 @@ export default function PlatformIntegrations() {
         {PLATFORMS.map((platform) => {
           const Icon = platform.icon;
           const isConnected = integrations?.platforms?.includes(platform.id) || false;
+          // Instagram rides on the Facebook connection, so it is available
+          // exactly when Facebook is.
+          const isAvailable =
+            availability?.[platform.id as keyof typeof availability] ?? true;
 
           return (
-            <Card key={platform.id} className={isConnected ? "border-green-200 bg-green-50/50" : ""}>
+            <Card
+              key={platform.id}
+              className={
+                isConnected ? "border-green-200 bg-green-50/50" : !isAvailable ? "opacity-60" : ""
+              }
+            >
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -214,11 +227,13 @@ export default function PlatformIntegrations() {
                       )}
                     </div>
                   </div>
-                  {isConnected && (
+                  {isConnected ? (
                     <Badge variant="outline" className="bg-green-100 text-green-800">
                       Aktiv
                     </Badge>
-                  )}
+                  ) : !isAvailable ? (
+                    <Badge variant="outline">Kommer snart</Badge>
+                  ) : null}
                 </div>
               </CardHeader>
 
@@ -260,7 +275,12 @@ export default function PlatformIntegrations() {
                 ) : (
                   <>
                     <p className="text-sm text-muted-foreground">
-                      {platform.via === "facebook"
+                      {!isAvailable
+                        // Say plainly that the channel is not open yet. The
+                        // alternative — a live-looking button that fails on click
+                        // — is what this screen used to do.
+                        ? `${platform.name} er ikke åpnet for kunder ennå. Vi sier fra så snart den er klar.`
+                        : platform.via === "facebook"
                         ? "Instagram kobles til sammen med Facebook-siden din. Kontoen må være en Professional-konto som er koblet til siden."
                         : platform.id === "twitter"
                           // Not "automatisk publisering": X is not in
@@ -275,10 +295,12 @@ export default function PlatformIntegrations() {
                       onClick={() => handleConnectPlatform(platform.id)}
                       className="w-full"
                       variant="outline"
-                      disabled={connecting === platform.id}
+                      disabled={connecting === platform.id || !isAvailable}
                     >
                       {connecting === platform.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      {platform.via === "facebook"
+                      {!isAvailable
+                        ? "Kommer snart"
+                        : platform.via === "facebook"
                         ? "Koble til via Facebook"
                         : `Koble til ${platform.name}`}
                     </Button>
