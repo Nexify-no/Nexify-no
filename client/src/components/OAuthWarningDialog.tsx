@@ -27,6 +27,33 @@ interface OAuthWarningDialogProps {
   isLoading?: boolean;
 }
 
+/**
+ * What connecting Meta actually grants — matched to the scopes the server asks
+ * for in `META_SCOPES` (server/services/metaGraph.ts).
+ *
+ * This screen previously told the user we would "get access to your friends".
+ * We never requested that, and never could: the scopes are pages_show_list,
+ * pages_manage_posts, pages_read_engagement, business_management,
+ * instagram_basic and instagram_content_publish. Overstating access is bad twice
+ * over — it frightens users out of a permission grant they were right to give,
+ * and Meta's App Review compares what an app's own UI claims against what it
+ * requests, so a mismatch is a rejection reason.
+ *
+ * Keep this list honest against META_SCOPES. If a scope is added there, say so
+ * here; if one is removed, remove it here.
+ */
+const META_PERMISSIONS_NO = [
+  "Se hvilke Facebook-sider du er administrator for",
+  "Publisere innlegg til siden du velger — og til Instagram-kontoen som er koblet til den",
+  "Lese antall likerklikk og kommentarer på dine egne innlegg",
+];
+
+const META_PERMISSIONS_EN = [
+  "See which Facebook Pages you administer",
+  "Publish posts to the Page you choose — and to the Instagram account linked to it",
+  "Read the likes and comments on your own posts",
+];
+
 const platformDetails = {
   linkedin: {
     no: {
@@ -50,69 +77,63 @@ const platformDetails = {
       note: "We do NOT store your password. LinkedIn handles authentication securely.",
     },
   },
+  // Each line below maps to one scope in X_SCOPES (server/services/platformOAuthService.ts).
+  // "Få tilgang til dine følgere" used to be here and was never requested — the
+  // copy was written for a different platform and copied across. A consent
+  // screen that overstates what it asks for scares users out of a grant they
+  // were right to make, and it is a documented review-rejection reason.
   twitter: {
     no: {
-      title: "Koble til Twitter/X",
-      description: "Du blir sendt til Twitter for å autorisere tilkoblingen",
+      title: "Koble til X",
+      description: "Du blir sendt til X for å autorisere tilkoblingen",
       permissions: [
-        "Publisere tweets på vegne av deg",
-        "Lese dine tweets",
-        "Få tilgang til dine følgere",
+        "Publisere innlegg på X på dine vegne — når du har trykket publiser",
+        "Lese dine egne innlegg",
+        "Se brukernavnet ditt, så du ser hvilken konto som er koblet til",
+        "Holde tilkoblingen i live uten at du må logge inn på nytt",
       ],
-      note: "Vi lagrer IKKE ditt passord. Twitter håndterer autentiseringen sikkert.",
+      note: "Vi lagrer IKKE ditt passord. X håndterer autentiseringen, og du kan koble fra når som helst.",
     },
     en: {
-      title: "Connect to Twitter/X",
-      description: "You will be sent to Twitter to authorize the connection",
+      title: "Connect to X",
+      description: "You will be sent to X to authorize the connection",
       permissions: [
-        "Post tweets on your behalf",
-        "Read your tweets",
-        "Access your followers",
+        "Publish posts on X on your behalf — once you have pressed publish",
+        "Read your own posts",
+        "See your username, so you know which account is connected",
+        "Keep the connection alive without you signing in again",
       ],
-      note: "We do NOT store your password. Twitter handles authentication securely.",
+      note: "We do NOT store your password. X handles authentication, and you can disconnect at any time.",
     },
   },
+  // Instagram and Facebook are ONE consent, because Meta makes them one: an
+  // Instagram Professional account is reached through the Facebook Page it is
+  // linked to. Both cards therefore describe the same six scopes.
   instagram: {
     no: {
-      title: "Koble til Instagram",
-      description: "Du blir sendt til Instagram for å autorisere tilkoblingen",
-      permissions: [
-        "Publisere innlegg på vegne av deg",
-        "Lese dine innlegg",
-        "Få tilgang til dine følgere",
-      ],
-      note: "Vi lagrer IKKE ditt passord. Instagram håndterer autentiseringen sikkert.",
+      title: "Koble til Instagram via Facebook",
+      description: "Du blir sendt til Facebook. Instagram-kontoen kobles til gjennom Facebook-siden den er knyttet til.",
+      permissions: META_PERMISSIONS_NO,
+      note: "Vi lagrer IKKE ditt passord. Facebook håndterer autentiseringen sikkert.",
     },
     en: {
-      title: "Connect to Instagram",
-      description: "You will be sent to Instagram to authorize the connection",
-      permissions: [
-        "Post on your behalf",
-        "Read your posts",
-        "Access your followers",
-      ],
-      note: "We do NOT store your password. Instagram handles authentication securely.",
+      title: "Connect Instagram via Facebook",
+      description: "You will be sent to Facebook. Your Instagram account is connected through the Facebook Page it is linked to.",
+      permissions: META_PERMISSIONS_EN,
+      note: "We do NOT store your password. Facebook handles authentication securely.",
     },
   },
   facebook: {
     no: {
       title: "Koble til Facebook",
       description: "Du blir sendt til Facebook for å autorisere tilkoblingen",
-      permissions: [
-        "Publisere innlegg på vegne av deg",
-        "Lese dine innlegg",
-        "Få tilgang til dine venner",
-      ],
+      permissions: META_PERMISSIONS_NO,
       note: "Vi lagrer IKKE ditt passord. Facebook håndterer autentiseringen sikkert.",
     },
     en: {
       title: "Connect to Facebook",
       description: "You will be sent to Facebook to authorize the connection",
-      permissions: [
-        "Post on your behalf",
-        "Read your posts",
-        "Access your friends",
-      ],
+      permissions: META_PERMISSIONS_EN,
       note: "We do NOT store your password. Facebook handles authentication securely.",
     },
   },

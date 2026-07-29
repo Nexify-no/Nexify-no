@@ -84,7 +84,7 @@ export class TwitterPublisher {
     try {
       const postContent = this.formatContent(content);
 
-      const response = await fetch("https://api.twitter.com/2/tweets", {
+      const response = await fetch("https://api.x.com/2/tweets", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -97,7 +97,7 @@ export class TwitterPublisher {
 
       if (!response.ok) {
         const error = await response.text();
-        throw new Error(`Twitter API error: ${error}`);
+        throw new Error(`X API error: ${error}`);
       }
 
       const data = await response.json() as { data: { id: string } };
@@ -105,6 +105,15 @@ export class TwitterPublisher {
         platform: "twitter",
         success: true,
         postId: data.data.id,
+        // Deliberately `false`, not `undefined`, when the post carried an image.
+        //
+        // Attaching media to a post on X is a separate upload (POST media/upload
+        // → media_ids) that this publisher does not yet do, so the image is
+        // dropped. `undefined` means "this platform has no image concept" per the
+        // PublishResult contract above — claiming that here would make the
+        // scheduler's image-loss warning silently inert and let the product tell
+        // a user their picture went out when it did not.
+        imageAttached: content.imageUrl ? false : undefined,
         timestamp: new Date(),
       };
     } catch (error) {
@@ -118,16 +127,47 @@ export class TwitterPublisher {
   }
 
   private formatContent(content: PublishContent): string {
-    let text = content.content;
+    const parts = [content.content];
     if (content.hashtags && content.hashtags.length > 0) {
-      text += " " + content.hashtags.map((tag) => `#${tag}`).join(" ");
+      parts.push(content.hashtags.map((tag) => `#${tag}`).join(" "));
     }
-    // Twitter has 280 character limit
-    if (text.length > 280) {
-      text = text.substring(0, 277) + "...";
-    }
-    return text;
+    // The link was dropped entirely — LinkedInPublisher appends it, this did not,
+    // so "read more at …" posts went out with nothing to read.
+    if (content.link) parts.push(content.link);
+    const text = parts.join(" ");
+
+    return text.length > X_MAX_WEIGHTED_LENGTH ? truncateForX(text) : text;
   }
+}
+
+/** X counts weighted characters, not JS string length. */
+const X_MAX_WEIGHTED_LENGTH = 280;
+
+/**
+ * Truncate to X's limit without splitting a character in half.
+ *
+ * `text.substring(0, 277)` — the previous implementation — indexes UTF-16 code
+ * units, so a cut landing inside a surrogate pair produced a lone surrogate and
+ * X rejected the whole post with an opaque 400. Splitting by code point and
+ * trimming back to a word boundary keeps the result both valid and readable.
+ *
+ * This is still an approximation of X's weighted count (a URL always counts as
+ * 23, most emoji as 2), so it can leave a post shorter than strictly necessary.
+ * Erring short is the right direction: too long is a rejection, too short is a
+ * slightly tighter post.
+ */
+function truncateForX(text: string): string {
+  const ELLIPSIS = "…";
+  const budget = X_MAX_WEIGHTED_LENGTH - ELLIPSIS.length;
+  const codePoints = Array.from(text);
+  if (codePoints.length <= X_MAX_WEIGHTED_LENGTH) return text;
+
+  let cut = codePoints.slice(0, budget).join("");
+  const lastSpace = cut.lastIndexOf(" ");
+  // Only snap to a word boundary when one is reasonably near the end; otherwise
+  // a single long token would shrink the post to almost nothing.
+  if (lastSpace > budget * 0.8) cut = cut.slice(0, lastSpace);
+  return cut.trimEnd() + ELLIPSIS;
 }
 
 /**
