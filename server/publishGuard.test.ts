@@ -305,8 +305,13 @@ describe("nothing is scheduled that cannot be published", () => {
     const guard = readFileSync("server/services/publishGuard.ts", "utf8");
     const fn = guard.slice(guard.indexOf("export async function requireDestination"));
     const body = fn.slice(0, fn.indexOf("\nexport "));
-    expect(body).toMatch(/if \(!destination\)[\s\S]{0,200}throw new Error/);
+    // `refuse(...)`, not `throw new Error(...)`: a bare Error is classified
+    // INTERNAL_SERVER_ERROR and its message is replaced in production, so the
+    // refusal reached the user as "Internal server error". The assertion is that
+    // it REFUSES — and that the refusal is one the user can read.
+    expect(body).toMatch(/if \(!destination\)[\s\S]{0,200}refuse\(/);
     expect(body).toMatch(/Koble til en konto først/);
+    expect(body).not.toMatch(/throw new Error/);
   });
 
   it("multi-brand OFF degrades to the previous behaviour", () => {

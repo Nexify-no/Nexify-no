@@ -5,6 +5,7 @@
  */
 
 // Extracted from server/routers.ts (app-layer feature router).
+import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 
@@ -299,7 +300,7 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
           ? (brandDestination?.destinationId ?? (connection[0] as any).organizationUrn)
           : null;
         if (toOrg && !(connection[0] as any).orgAccessToken) {
-          throw new Error("Bedriftsside ikke tilkoblet. Koble til bedriftsside først.");
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Bedriftsside ikke tilkoblet. Koble til bedriftsside først." });
         }
         const activeToken = toOrg
           ? decryptSecret((connection[0] as any).orgAccessToken) ?? ""
@@ -319,7 +320,7 @@ export const linkedinRouter = router({    // Save LinkedIn app credentials (owne
         // local save loses the record and invites a duplicate republish.
         const { ENV: _brandEnv } = await import("../_core/env");
         if (_brandEnv.featureMultiBrand && publishBrandId == null) {
-          throw new Error("Velg en merkevare før du publiserer.");
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Velg en merkevare før du publiserer." });
         }
 
         // PR #82: a throw here left the claimed publication `pending`, so
