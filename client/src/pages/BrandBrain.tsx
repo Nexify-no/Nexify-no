@@ -45,6 +45,36 @@ function ListField({ label, value, onChange, placeholder }: { label: string; val
   return <div className="space-y-2"><Label>{label}</Label><Textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={4} /><p className="text-xs text-muted-foreground">Én per linje eller skill med komma.</p></div>;
 }
 
+/**
+ * The Merkehjerne on screen describes a different company than the brand it is
+ * attached to.
+ *
+ * This is not a style warning — it is the difference between publishing your own
+ * voice and publishing someone else's. It happened: legacy adoption stamped an
+ * unowned Merkehjerne onto whichever brand was active, so a brand named Penna.no
+ * carried a Merkehjerne built from ballongforfest.no, and every post generated
+ * for it went out in a balloon company's words. Red, not amber, and it names the
+ * company it actually found so the user can see the mismatch rather than take our
+ * word for it.
+ */
+function brandMismatchBanner(describes: string | null, brandName: string | null) {
+  return (
+    <div className="mb-4 flex items-start gap-3 rounded-xl border border-red-500/40 bg-red-500/5 p-4">
+      <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+      <div className="space-y-1 text-sm">
+        <p className="font-medium">
+          Denne Merkehjernen beskriver {describes ? <>«{describes}»</> : "en annen bedrift"}
+          {brandName ? <> — ikke «{brandName}»</> : null}.
+        </p>
+        <p className="text-muted-foreground">
+          Innlegg for denne merkevaren blir skrevet med feil stemme, tjenester og målgruppe.
+          Kjør «Analyser på nytt» med riktig nettadresse før du publiserer noe.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function needsReviewBanner(warningCount: number, factCount: number) {
   if (warningCount === 0 && factCount > 0) return null;
   return (
@@ -77,12 +107,27 @@ export default function BrandBrain() {
     refetchIntervalInBackground: false,
   });
   const profile = profileQuery.data;
+  // Only to NAME the brand in the mismatch banner — the mismatch itself is
+  // decided server-side, against the row the generator actually reads.
+  const brandsQuery = trpc.brands.list.useQuery(undefined, {
+    enabled: Boolean((profile as any)?.brandMismatch),
+    staleTime: 60 * 1000,
+  });
+  const activeBrandName =
+    brandsQuery.data?.brands?.find((b: any) => b.id === brandsQuery.data?.activeBrandId)?.name ?? null;
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [tab, setTab] = useState<Tab>("company");
   const [form, setForm] = useState<Editable>(EMPTY);
   const [newFact, setNewFact] = useState("");
   // MB3: lets the user skip the confirm screen and edit fields directly.
   const [forceEdit, setForceEdit] = useState(false);
+  // "Analyser på nytt" used to re-run profile.websiteUrl with no way to change it.
+  // That made the one instruction the mismatch banner gives — analyse the RIGHT
+  // address — impossible to follow: a Merkehjerne built from the wrong site could
+  // only ever be rebuilt from the wrong site. Opening an editable address is the
+  // whole fix.
+  const [reanalyzeOpen, setReanalyzeOpen] = useState(false);
+  const [reanalyzeUrl, setReanalyzeUrl] = useState("");
 
   useEffect(() => {
     if (!profile) return;
@@ -122,6 +167,32 @@ export default function BrandBrain() {
     differentiators: list(form.differentiators), tonePersonality: list(form.tonePersonality), writingStyle: form.writingStyle,
     preferredWords: list(form.preferredWords), avoidWords: list(form.avoidWords), callsToAction: list(form.callsToAction), contentPillars: list(form.contentPillars),
   });
+
+  // Prefill with the address on the profile — usually right, and when it is wrong
+  // seeing it is what tells the user so.
+  useEffect(() => {
+    if (profile?.websiteUrl && !reanalyzeUrl) setReanalyzeUrl(profile.websiteUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.websiteUrl]);
+
+  const reanalyzeRow = () => (
+    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+      <Input
+        value={reanalyzeUrl}
+        onChange={(e) => setReanalyzeUrl(e.target.value)}
+        placeholder="https://bedriften.no"
+        className="sm:max-w-sm"
+        aria-label="Nettadresse å analysere"
+      />
+      <Button
+        onClick={() => runAnalyze(reanalyzeUrl)}
+        disabled={!reanalyzeUrl.trim() || analyze.isPending}
+      >
+        <RefreshCw className={`h-4 w-4 mr-2 ${analyze.isPending ? "animate-spin" : ""}`} />
+        {analyze.isPending ? "Analyserer …" : "Analyser denne adressen"}
+      </Button>
+    </div>
+  );
 
   const manifest = (profile?.sourceManifest ?? []) as Array<{ url: string; title: string; chars: number; suspiciousPromptText: boolean }>;
   const warnings = (profile?.injectionWarnings ?? []) as string[];
@@ -230,6 +301,9 @@ export default function BrandBrain() {
           Dette fant vi på {profile.websiteUrl}. Bekreft før vi lager innhold — du kan endre alt senere.
         </p>
 
+        {(profile as any).brandMismatch
+          ? brandMismatchBanner((profile as any).profileDescribes ?? null, activeBrandName)
+          : null}
         {needsReviewBanner(warnings.length, facts.length)}
 
         <Card className="mb-4">
@@ -289,11 +363,12 @@ export default function BrandBrain() {
             {confirmBrain.isPending ? "Bekrefter …" : "Bekreft og lag innhold"}
           </Button>
           <Button variant="outline" onClick={() => setForceEdit(true)}>Rediger informasjonen</Button>
-          <Button variant="outline" onClick={() => runAnalyze(profile.websiteUrl)} disabled={analyze.isPending}>
+          <Button variant="outline" onClick={() => setReanalyzeOpen((open) => !open)} disabled={analyze.isPending}>
             <RefreshCw className={`h-4 w-4 mr-2 ${analyze.isPending ? "animate-spin" : ""}`} />
             Analyser på nytt
           </Button>
         </div>
+        {reanalyzeOpen ? reanalyzeRow() : null}
       </Shell>
     );
   }
@@ -310,10 +385,14 @@ export default function BrandBrain() {
           {profile.confirmedAt
             ? <span className="inline-flex items-center gap-2 text-sm text-green-700 bg-green-500/10 border border-green-500/30 rounded-full px-3 py-1.5"><BadgeCheck className="h-4 w-4" />Bekreftet {new Date(profile.confirmedAt).toLocaleDateString("nb-NO")}</span>
             : <Button onClick={() => confirmBrain.mutate()} disabled={confirmBrain.isPending}><BadgeCheck className="h-4 w-4 mr-2" />Bekreft Merkehjerne</Button>}
-          <Button variant="outline" onClick={() => runAnalyze(profile.websiteUrl)} disabled={analyze.isPending}><RefreshCw className={`h-4 w-4 mr-2 ${analyze.isPending ? "animate-spin" : ""}`} />Analyser på nytt</Button>
+          <Button variant="outline" onClick={() => setReanalyzeOpen((open) => !open)} disabled={analyze.isPending}><RefreshCw className={`h-4 w-4 mr-2 ${analyze.isPending ? "animate-spin" : ""}`} />Analyser på nytt</Button>
           <Button variant="outline" onClick={saveProfile} disabled={save.isPending}><Save className="h-4 w-4 mr-2" />Lagre</Button>
         </div>
       </div>
+      {reanalyzeOpen ? <div className="mb-6">{reanalyzeRow()}</div> : null}
+      {(profile as any).brandMismatch
+        ? brandMismatchBanner((profile as any).profileDescribes ?? null, activeBrandName)
+        : null}
 
       {needsReview && (
         <div className="mb-5 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">

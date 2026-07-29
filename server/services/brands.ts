@@ -110,30 +110,6 @@ export async function ensureDefaultBrand(accountId: number): Promise<number> {
     }
   };
 
-  // brand_profiles carries UNIQUE(user_id, brand_id) since migration 0089, so a
-  // blanket UPDATE collides in two ways: when a stamped row already occupies the
-  // (user, brand) slot, and when several unstamped rows would be given the same
-  // brand at once. Repeated "Analyser på nytt" attempts create exactly those
-  // extra rows. Adopt at most ONE row, and only into a free slot.
-  await adopt("brand_profiles", async () => {
-    const [taken] = await db
-      .select({ id: brandProfiles.id })
-      .from(brandProfiles)
-      .where(and(eq(brandProfiles.userId, accountId), eq(brandProfiles.brandId, brandId)))
-      .limit(1);
-    if (taken) return;
-
-    const [oldest] = await db
-      .select({ id: brandProfiles.id })
-      .from(brandProfiles)
-      .where(and(eq(brandProfiles.userId, accountId), isNull(brandProfiles.brandId)))
-      .orderBy(brandProfiles.id)
-      .limit(1);
-    if (!oldest) return;
-
-    await db.update(brandProfiles).set({ brandId }).where(eq(brandProfiles.id, oldest.id));
-  });
-
   // PR #79 — adoption is only safe when the answer is unambiguous.
   //
   // An account with ONE brand: every unowned row can only have meant that brand,
@@ -144,6 +120,40 @@ export async function ensureDefaultBrand(accountId: number): Promise<number> {
   const unambiguous = all.length === 1;
 
   if (unambiguous) {
+    // brand_profiles was adopted OUTSIDE this guard, which is how a Merkehjerne
+    // describing ballongforfest.no came to be owned by a brand named Penna.no —
+    // and every post generated for that brand was then written from a balloon
+    // company's voice, services and audience.
+    //
+    // It is the one table where guessing does the most damage: a post can be
+    // deleted, but the Merkehjerne is the input to every post that follows, so a
+    // wrong one is wrong silently and repeatedly. And unlike a post, this row
+    // NAMES the company and site it belongs to — "we do not know which brand
+    // this is" was never true here, it was never asked.
+    //
+    // UNIQUE(user_id, brand_id) since migration 0089 means a blanket UPDATE
+    // collides two ways: a stamped row already in the slot, and several unstamped
+    // rows given the same brand at once (repeated "Analyser på nytt" creates
+    // exactly those). So: at most ONE row, only into a free slot.
+    await adopt("brand_profiles", async () => {
+      const [taken] = await db
+        .select({ id: brandProfiles.id })
+        .from(brandProfiles)
+        .where(and(eq(brandProfiles.userId, accountId), eq(brandProfiles.brandId, brandId)))
+        .limit(1);
+      if (taken) return;
+
+      const [oldest] = await db
+        .select({ id: brandProfiles.id })
+        .from(brandProfiles)
+        .where(and(eq(brandProfiles.userId, accountId), isNull(brandProfiles.brandId)))
+        .orderBy(brandProfiles.id)
+        .limit(1);
+      if (!oldest) return;
+
+      await db.update(brandProfiles).set({ brandId }).where(eq(brandProfiles.id, oldest.id));
+    });
+
     await adopt("posts", () => db.update(posts).set({ brandId })
       .where(and(eq(posts.userId, accountId), isNull(posts.brandId))));
     await adopt("ideas", () => db.update(ideas).set({ brandId })
