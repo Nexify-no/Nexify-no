@@ -21,6 +21,7 @@
  * every check degrades to the previous account-wide behaviour.
  */
 
+import { TRPCError } from "@trpc/server";
 import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import { posts, publications } from "../../drizzle/schema";
 import { getDb } from "../db";
@@ -37,6 +38,26 @@ import {
  * Long enough to cover a double-click, a stuck spinner and an impatient retry;
  * short enough that deliberately re-publishing the same post later still works.
  */
+/**
+ * A refusal the user is meant to read.
+ *
+ * Every message in this file is written for the person who pressed publish —
+ * "connect an account first", "choose a brand", "already published". They were
+ * all thrown as plain `Error`, so tRPC classified them INTERNAL_SERVER_ERROR,
+ * and server/_core/trpc.ts replaces the message of every one of those in
+ * production with the string "Internal server error".
+ *
+ * The effect: a guard fires for a reason the user can act on, and the user is
+ * shown a technical noise word instead — or, in the generic publish path, no
+ * message at all. That happened to a real publish attempt: four channels
+ * selected, nothing published, nothing said.
+ *
+ * PRECONDITION_FAILED is not masked, so the sentence survives to the screen.
+ */
+function refuse(message: string): never {
+  throw new TRPCError({ code: "PRECONDITION_FAILED", message });
+}
+
 export const DUPLICATE_WINDOW_MS = 60_000;
 
 /**
@@ -84,7 +105,7 @@ export async function resolvePublishBrand(
       .from(posts)
       .where(and(eq(posts.id, postId), eq(posts.userId, accountId)))
       .limit(1);
-    if (!owned) throw new Error("Innlegget finnes ikke.");
+    if (!owned) refuse("Innlegget finnes ikke.");
     if (owned.brandId != null) return owned.brandId;
   }
 
@@ -110,7 +131,7 @@ export async function requireDestination(
 
   const destination = await getDestination(accountId, brandId, platform);
   if (!destination) {
-    throw new Error(
+    refuse(
       `Ingen ${platform}-konto er koblet til denne merkevaren. Koble til en konto først.`,
     );
   }
@@ -205,10 +226,18 @@ export async function assertContentIsPublishable(input: {
   }
 }
 
-/** Distinguishes a deliberate refusal from an incidental failure. */
-export class PublishBlockedError extends Error {
+/**
+ * Distinguishes a deliberate refusal from an incidental failure.
+ *
+ * Extends TRPCError, not Error. As a plain Error, tRPC classified it
+ * INTERNAL_SERVER_ERROR and server/_core/trpc.ts replaced its message in
+ * production with "Internal server error" — so the one sentence telling the user
+ * WHICH claim to fix never reached them. `instanceof` still works, so the
+ * catch-and-rethrow that separates a block from an incidental failure is intact.
+ */
+export class PublishBlockedError extends TRPCError {
   constructor(message: string) {
-    super(message);
+    super({ code: "PRECONDITION_FAILED", message });
     this.name = "PublishBlockedError";
   }
 }
@@ -265,7 +294,7 @@ export async function assertNotDuplicatePublish(
       postId: postId ?? -1,
       priorStatus: recent.status,
     });
-    throw new Error(
+    refuse(
       recent.status === "pending"
         ? "Publiseringen er allerede i gang. Vent litt før du prøver igjen."
         : "Dette innlegget er allerede publisert.",
@@ -344,7 +373,7 @@ export async function claimPublication(input: {
         .where(eq(publications.id, prior.id));
       return prior.id;
     }
-    throw new Error("Dette innlegget er allerede publisert.");
+    refuse("Dette innlegget er allerede publisert.");
   }
 }
 

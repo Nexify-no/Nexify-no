@@ -736,8 +736,23 @@ export async function updatePost(postId: number, userId: number, content: string
 
   // SECURITY: ownership enforced at the SQL layer (postId AND userId), so a
   // forgotten application-level check can never edit another user's post.
+  //
+  // The verification verdict is cleared, not carried over. It was judged against
+  // the OLD text, so keeping it means a user who removes the flagged claim still
+  // sees "Kan ikke publiseres før dette er rettet" pointing at words that are no
+  // longer in the post — the same shape of trap as an instruction you cannot
+  // follow. `verifiedAt: null` makes needsRecheck() true, so the next read or
+  // publish re-judges the text that is actually there.
   await db.update(posts)
-    .set({ generatedContent: content, updatedAt: new Date() })
+    .set({
+      generatedContent: content,
+      updatedAt: new Date(),
+      // null, not "verified": the text has not been judged, and claiming it
+      // passed would be worse than the stale flag it replaces.
+      verificationStatus: null,
+      verificationIssues: [],
+      verifiedAt: null,
+    })
     .where(and(eq(posts.id, postId), eq(posts.userId, userId)));
 }
 
