@@ -21,12 +21,21 @@ export interface TrendingTopicsSidebarProps {
 }
 
 export function TrendingTopicsSidebar({ onTopicSelected }: TrendingTopicsSidebarProps) {
-  const { data, isLoading, isFetching, refetch } = trpc.trends.getAggregatedTrends.useQuery(undefined, {
-    staleTime: 60 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
+  // Ranked against the user's Merkehjerne instead of the raw national feed —
+  // the previous generic list surfaced "kryssermissil" and "tordenvær" as post
+  // ideas for B2B accounts, contradicting the "tilpasset ditt felt" promise.
+  const { data, isLoading, isFetching, refetch } = trpc.trends.getRelevantTrends.useQuery(
+    { limit: 8 },
+    {
+      staleTime: 60 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    }
+  );
 
-  const trends: any[] = ((data as any)?.data || []).slice(0, 8);
+  const trends: any[] = (data as any)?.data || [];
+  const personalized: boolean = Boolean((data as any)?.personalized);
+  const industry: string | null = (data as any)?.industry ?? null;
+  const needsBrandProfile: boolean = Boolean((data as any)?.needsBrandProfile);
 
   return (
     <Card className="border-primary/20 h-full">
@@ -46,7 +55,27 @@ export function TrendingTopicsSidebar({ onTopicSelected }: TrendingTopicsSidebar
             <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
           </Button>
         </div>
-        <CardDescription>Ekte trender fra flere kilder — klikk for å bruke</CardDescription>
+        {/* Be explicit about WHICH list this is. Claiming "tailored to your
+            field" while showing the generic feed is exactly the gap this change
+            exists to close — so when we cannot personalise, we say so. */}
+        <CardDescription>
+          {personalized ? (
+            <>
+              Tilpasset {industry ? <span className="font-medium">{industry}</span> : "ditt felt"} — klikk
+              for å bruke
+            </>
+          ) : needsBrandProfile ? (
+            <>
+              Generelle trender.{" "}
+              <a href="/merkehjerne" className="underline hover:text-primary">
+                Sett opp Merkehjerne
+              </a>{" "}
+              for emner tilpasset ditt felt.
+            </>
+          ) : (
+            <>Generelle trender i dag — ingen traff ditt felt. Klikk for å bruke.</>
+          )}
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
         {isLoading ? (
@@ -67,10 +96,15 @@ export function TrendingTopicsSidebar({ onTopicSelected }: TrendingTopicsSidebar
                   <span className="text-sm font-medium line-clamp-2">{t.keyword}</span>
                   <ArrowRight className="h-4 w-4 flex-shrink-0 opacity-0 group-hover:opacity-100 text-primary transition-opacity" />
                 </div>
-                <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                   <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{t.source}</Badge>
                   {t.date && (
                     <span>{new Date(t.date).toLocaleDateString("no-NO", { day: "2-digit", month: "2-digit" })}</span>
+                  )}
+                  {/* Why this topic was picked — makes the ranking legible instead
+                      of asking the user to trust an opaque "relevant" claim. */}
+                  {Array.isArray(t.matchedOn) && t.matchedOn.length > 0 && (
+                    <span className="text-primary/80">· treff: {t.matchedOn.join(", ")}</span>
                   )}
                 </div>
               </button>

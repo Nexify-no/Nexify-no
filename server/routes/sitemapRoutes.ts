@@ -100,7 +100,15 @@ Allow: /
 Disallow: /admin
 Disallow: /api
 Disallow: /private
-Disallow: /settings
+
+# NOTE on the authenticated app screens (/generer, /merkehjerne, /account-settings, ...):
+# they are deliberately NOT Disallow'ed here. Several are already in Google's index
+# with the homepage title. Blocking them now would freeze them there — a crawler that
+# cannot fetch a URL never sees its noindex directive. They are served with
+# "X-Robots-Tag: noindex, nofollow" and a matching <meta name="robots"> (see
+# server/_core/vite.ts + shared/routeManifest.ts), so Googlebot must be allowed to
+# crawl them in order to drop them. Once Search Console shows them gone
+# (typically 4-8 weeks), add Disallow lines here to save crawl budget.
 
 # Crawl delay (optional)
 Crawl-delay: 1

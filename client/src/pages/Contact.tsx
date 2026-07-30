@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Mail, MapPin, Phone, Send, CheckCircle2 } from "lucide-react";
+import { COMPANY } from "@shared/company";
 
 export default function Contact() {
   const [formData, setFormData] = useState({
@@ -169,13 +170,13 @@ export default function Contact() {
                   <div>
                     <h3 className="font-semibold mb-2">E-post</h3>
                     <p className="text-muted-foreground mb-2">
-                      Send oss en e-post, vi svarer innen 24 timer
+                      {COMPANY.emailResponseTime}
                     </p>
                     <a
-                      href="mailto:support@penna.no"
+                      href={`mailto:${COMPANY.email}`}
                       className="text-primary hover:underline font-medium"
                     >
-                      support@penna.no
+                      {COMPANY.email}
                     </a>
                   </div>
                 </div>
@@ -191,13 +192,13 @@ export default function Contact() {
                   <div>
                     <h3 className="font-semibold mb-2">Telefon</h3>
                     <p className="text-muted-foreground mb-2">
-                      Mandag - Fredag: 09:00 - 17:00
+                      {COMPANY.supportHours}
                     </p>
                     <a
-                      href="tel:+4712345678"
+                      href={COMPANY.phoneHref}
                       className="text-primary hover:underline font-medium"
                     >
-                      +47 123 45 678
+                      {COMPANY.phone}
                     </a>
                   </div>
                 </div>
@@ -213,9 +214,12 @@ export default function Contact() {
                   <div>
                     <h3 className="font-semibold mb-2">Adresse</h3>
                     <p className="text-muted-foreground">
-                      Nexify CRM Systems AS<br />
-                      [Adresse]<br />
-                      [Postnummer] [By], Norge
+                      {COMPANY.legalName}<br />
+                      {COMPANY.address.street}<br />
+                      {COMPANY.address.postalCode} {COMPANY.address.city}, {COMPANY.address.country}
+                    </p>
+                    <p className="text-muted-foreground text-sm mt-2">
+                      Org.nr: {COMPANY.orgNr}
                     </p>
                   </div>
                 </div>
