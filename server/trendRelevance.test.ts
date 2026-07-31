@@ -113,6 +113,54 @@ describe("trend relevance", () => {
     expect(hasUsableBrandContext(B2B_BRAND)).toBe(true);
   });
 
+  /**
+   * Regression: shipped in #98, found on the live site.
+   *
+   * `category` was part of the scored text. On the Mastodon/RSS sources that
+   * field is the channel label "sosiale medier" — which appears in essentially
+   * every customer's Merkehjerne. Result: every hashtag from those sources
+   * scored a brand match and was presented as "Tilpasset <bransje>".
+   *
+   * The original fixtures were all Google Trends items with an empty category,
+   * so nothing caught it. These use the real feed observed on 31 July 2026.
+   */
+  const MASTODON_FEED: AggregatedTrend[] = [
+    { keyword: "#FensterFreitag", source: "Mastodon", date: "2026-07-31T00:00:00.000Z", category: "sosiale medier" },
+    { keyword: "#waiting", source: "Mastodon", date: "2026-07-31T00:00:00.000Z", category: "sosiale medier" },
+    { keyword: "#JukeboxFridayNight", source: "Mastodon", date: "2026-07-31T00:00:00.000Z", category: "sosiale medier" },
+    { keyword: "#LetterboxdFriday", source: "Mastodon", date: "2026-07-31T00:00:00.000Z", category: "sosiale medier" },
+    {
+      keyword: "Meta touts industry-leading ad revenue growth, but AI unease rises",
+      source: "Social Media Today",
+      date: "2026-07-30T00:00:00.000Z",
+      category: "sosiale medier",
+    },
+  ];
+
+  it("does not score on `category` — the channel label is not a topic", () => {
+    // "sosiale medier" is in B2B_BRAND.summary, so a category-based match would
+    // light up every one of these.
+    const vocab = buildBrandVocabulary(B2B_BRAND);
+    const hashtag = scoreTrend(MASTODON_FEED[1], vocab); // "#waiting"
+    expect(hashtag.matchedOn).toEqual([]);
+    expect(hashtag.relevance).toBe(0);
+  });
+
+  it("ranks the real article above the content-free hashtags from the same source", () => {
+    const { trends } = rankTrendsForBrand(MASTODON_FEED, B2B_BRAND, { limit: 5 });
+    expect(trends[0].keyword).toContain("Meta touts");
+  });
+
+  it("never presents bare hashtags as personalised suggestions", () => {
+    const { trends, personalized } = rankTrendsForBrand(MASTODON_FEED, B2B_BRAND, { limit: 5 });
+    const shown = trends.filter((t) => t.relevance >= 0.3).map((x) => x.keyword);
+    for (const junk of ["#waiting", "#JukeboxFridayNight", "#LetterboxdFriday", "#FensterFreitag"]) {
+      expect(shown, `${junk} must not be labelled "tilpasset"`).not.toContain(junk);
+    }
+    // The one genuine item still clears the bar, so this stays personalised.
+    expect(personalized).toBe(true);
+  });
+
   it("matches whole words only, so 'vær' does not swallow 'værdiskapning'", () => {
     const brand: BrandContext = { industry: "bygg og anlegg", contentPillars: ["byggebransjen"] };
     const scored = scoreTrend(t("Nye krav i byggebransjen"), buildBrandVocabulary(brand));
