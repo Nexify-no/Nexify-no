@@ -305,6 +305,35 @@ export const brandProfiles = mysqlTable("brand_profiles", {
 export type BrandProfile = typeof brandProfiles.$inferSelect;
 export type InsertBrandProfile = typeof brandProfiles.$inferInsert;
 
+/**
+ * Which provider identities belong to which account (migration 0100).
+ *
+ * Exists so that one person = one account regardless of how they sign in.
+ * Before it, Google/LinkedIn/Vipps callbacks upserted on `users.openId` alone
+ * and happily created a second row for an email that already had an account.
+ *
+ * `users.openId` remains the session key — this table only decides WHICH
+ * account a provider login resolves to.
+ */
+export const userIdentities = mysqlTable("user_identities", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("user_id").notNull(),
+  /** "google" | "linkedin" | "vipps" | "email" | "manus" */
+  provider: varchar("provider", { length: 32 }).notNull(),
+  /** Stable provider-side id (the OIDC `sub`). */
+  subject: varchar("subject", { length: 255 }).notNull(),
+  /** Diagnostics only — never used for authorization. */
+  emailAtLink: varchar("email_at_link", { length: 320 }),
+  emailVerifiedAtLink: tinyint("email_verified_at_link").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  providerSubjectUniq: unique("uq_user_identities_provider_subject").on(table.provider, table.subject),
+  userIdIdx: index("idx_user_identities_user_id").on(table.userId),
+}));
+
+export type UserIdentity = typeof userIdentities.$inferSelect;
+export type InsertUserIdentity = typeof userIdentities.$inferInsert;
+
 export const userPreferences = mysqlTable("user_preferences", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("user_id").notNull().unique(),

@@ -64,9 +64,30 @@ vi.mock("google-auth-library", () => ({
   },
 }));
 
+/**
+ * The callback no longer upserts on the Google openId — it asks the DB layer to
+ * resolve the identity to exactly ONE account (migration 0100). Recording the
+ * argument lets the tests below assert what the route tells the resolver,
+ * including the `emailVerified` claim the anti-pre-hijacking rule hangs on.
+ */
+let resolveArgs: Array<Record<string, unknown>> = [];
+/** Set to make the resolver refuse the link (email owned by another account). */
+let resolveRefusal: string | null = null;
+
 vi.mock("./db", () => ({
   upsertUser: async (row: Record<string, unknown>) => {
     upserted.push(row);
+  },
+  resolveOAuthLogin: async (identity: Record<string, unknown>) => {
+    resolveArgs.push(identity);
+    if (resolveRefusal) return { ok: false, reason: resolveRefusal };
+    return {
+      ok: true,
+      openId: `${identity.provider}_${identity.subject}`,
+      userId: 1,
+      linked: false,
+      passwordInvalidated: false,
+    };
   },
 }));
 
@@ -149,6 +170,8 @@ describe("Google OAuth routes", () => {
     getTokenArgs = null;
     verifyArgs = null;
     upserted = [];
+    resolveArgs = [];
+    resolveRefusal = null;
     sessionTokenFor = null;
     tokenExchangeError = null;
     idTokenPayload = {
@@ -289,9 +312,9 @@ describe("Google OAuth routes", () => {
     it("prefixes the Google subject with google_ so it cannot collide with a Manus openId", async () => {
       const r = await routes();
       await r["/api/auth/callback/google"](mkReq(ok), mkRes());
-      expect(upserted).toHaveLength(1);
-      expect(upserted[0].openId).toBe("google_123456789");
-      expect(upserted[0].loginMethod).toBe("google");
+      expect(resolveArgs).toHaveLength(1);
+      expect(resolveArgs[0].provider).toBe("google");
+      expect(resolveArgs[0].subject).toBe("123456789");
       expect(sessionTokenFor).toBe("google_123456789");
     });
 
@@ -310,7 +333,49 @@ describe("Google OAuth routes", () => {
       idTokenPayload = { sub: "42", email: "ola.nordmann@example.no" };
       const r = await routes();
       await r["/api/auth/callback/google"](mkReq(ok), mkRes());
-      expect(upserted[0].name).toBe("ola.nordmann");
+      expect(sessionTokenFor).toBe("google_42");
+    });
+
+    /**
+     * One account per email (migration 0100). The callback used to insert a new
+     * row whenever `google_<sub>` was unseen, which is how three accounts ended
+     * up sharing nexifyhub.no@gmail.com. It must now hand the decision to the
+     * resolver and never upsert on its own.
+     */
+    it("delegates account resolution instead of creating a row itself", async () => {
+      const r = await routes();
+      await r["/api/auth/callback/google"](mkReq(ok), mkRes());
+      expect(upserted).toHaveLength(0);
+      expect(resolveArgs).toHaveLength(1);
+    });
+
+    /**
+     * The `email_verified` claim is the only thing preventing account
+     * pre-hijacking, so it must be forwarded exactly as Google sent it —
+     * never defaulted to true for convenience.
+     */
+    it("forwards Google's email_verified claim verbatim", async () => {
+      idTokenPayload = { sub: "42", email: "x@y.no", email_verified: true };
+      let r = await routes();
+      await r["/api/auth/callback/google"](mkReq(ok), mkRes());
+      expect(resolveArgs[0].emailVerified).toBe(true);
+
+      resolveArgs = [];
+      idTokenPayload = { sub: "42", email: "x@y.no" }; // claim absent
+      r = await routes();
+      await r["/api/auth/callback/google"](mkReq(ok), mkRes());
+      expect(resolveArgs[0].emailVerified).toBe(false);
+    });
+
+    it("issues no session when the resolver refuses the link", async () => {
+      resolveRefusal = "email_taken_unverified_provider";
+      const r = await routes();
+      const res = mkRes();
+      await r["/api/auth/callback/google"](mkReq(ok), res);
+
+      expect(sessionTokenFor).toBeNull();
+      expect(res.cookies.find((c) => c.name === "app_session_id")).toBeUndefined();
+      expect(res.redirectedTo).toContain("/login?error=");
     });
 
     it("creates no session when the token has no subject", async () => {

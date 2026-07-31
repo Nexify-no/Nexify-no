@@ -96,15 +96,27 @@ export function registerLinkedInLoginRoutes(app: Express) {
       const profile = await getLinkedInProfile(token.access_token);
       if (!profile?.sub) throw new Error("No profile sub from LinkedIn");
 
-      const openId = `linkedin_${profile.sub}`;
       const name = profile.name || profile.email?.split("@")[0] || "User";
-      await db.upsertUser({
-        openId,
-        name,
+
+      // Same one-account-per-email resolution as the Google flow (see
+      // services/identityLinking.ts). LinkedIn's `email_verified` is not always
+      // present, and an unverified address must never open an account that
+      // already exists — resolveOAuthLogin refuses rather than guessing.
+      const resolved = await db.resolveOAuthLogin({
+        provider: "linkedin",
+        subject: profile.sub,
         email: profile.email ?? null,
-        loginMethod: "linkedin",
-        lastSignedIn: new Date(),
+        emailVerified: (profile as { email_verified?: boolean }).email_verified === true,
+        name,
       });
+
+      if (!resolved.ok) {
+        const { refusalMessage } = await import("../services/identityLinking");
+        console.warn(`[LinkedIn Login] Refused link for ${profile.email}: ${resolved.reason}`);
+        return res.redirect(302, `/login?error=${encodeURIComponent(refusalMessage(resolved.reason))}`);
+      }
+
+      const openId = resolved.openId;
 
       const sessionToken = await sdk.createSessionToken(openId, {
         name,

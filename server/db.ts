@@ -25,6 +25,7 @@ import {
   Subscription,
   InsertSubscription,
   userPreferences,
+  userIdentities,
   UserPreference,
   InsertUserPreference,
   contentAnalysis,
@@ -222,6 +223,140 @@ export async function createEmailUser(input: {
   const created = await getUserByOpenId(input.openId);
   if (!created) throw new Error("Failed to load newly created user");
   return created;
+}
+
+/**
+ * Resolve an OAuth callback to exactly one account (migration 0100).
+ *
+ * Every provider callback goes through here instead of upserting on its own
+ * openId. That is what stops "sign up with password, then sign in with Google"
+ * from creating a second account on the same address — the failure that put
+ * three rows on nexifyhub.no@gmail.com in production.
+ *
+ * The policy lives in services/identityLinking.ts as a pure function; this
+ * function does the reads and writes around it. In particular it enforces the
+ * anti-pre-hijacking rule: when we link a provider-verified address into an
+ * account whose own email was never verified, that account's password is
+ * cleared, because it may have been set by someone who did not own the address.
+ *
+ * @returns the openId to mint the session with, or a refusal to surface.
+ */
+export async function resolveOAuthLogin(identity: {
+  provider: "google" | "linkedin" | "vipps" | "manus";
+  subject: string;
+  email: string | null;
+  emailVerified: boolean;
+  name: string | null;
+  avatarUrl?: string | null;
+}): Promise<
+  | { ok: true; openId: string; userId: number; linked: boolean; passwordInvalidated: boolean }
+  | { ok: false; reason: "email_taken_unverified_provider" }
+> {
+  const { decideLink, normalizeEmail } = await import("./services/identityLinking");
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const email = normalizeEmail(identity.email);
+  const fallbackOpenId = `${identity.provider}_${identity.subject}`;
+
+  // 1. Has this exact provider identity been seen before?
+  //    Two sources: the new table, and the legacy `provider_subject` openId
+  //    that pre-0100 logins wrote directly onto users.openId.
+  const [identityRow] = await db
+    .select({ userId: userIdentities.userId })
+    .from(userIdentities)
+    .where(and(eq(userIdentities.provider, identity.provider), eq(userIdentities.subject, identity.subject)))
+    .limit(1);
+
+  let alreadyLinked = null as null | typeof users.$inferSelect;
+  if (identityRow) {
+    const [u] = await db.select().from(users).where(eq(users.id, identityRow.userId)).limit(1);
+    alreadyLinked = u ?? null;
+  } else {
+    const legacy = await getUserByOpenId(fallbackOpenId);
+    alreadyLinked = legacy ?? null;
+  }
+
+  // 2. Does another account already hold this address?
+  let existing = null as null | typeof users.$inferSelect;
+  if (email && !alreadyLinked) {
+    const found = await getUserByEmail(email);
+    existing = found ?? null;
+  }
+
+  const decision = decideLink(
+    { provider: identity.provider, subject: identity.subject, email, emailVerified: identity.emailVerified, name: identity.name },
+    existing
+      ? { id: existing.id, openId: existing.openId, email: existing.email, passwordHash: existing.passwordHash, emailVerified: existing.emailVerified }
+      : null,
+    alreadyLinked
+      ? { id: alreadyLinked.id, openId: alreadyLinked.openId, email: alreadyLinked.email, passwordHash: alreadyLinked.passwordHash, emailVerified: alreadyLinked.emailVerified }
+      : null
+  );
+
+  if (decision.action === "refuse") return { ok: false, reason: "email_taken_unverified_provider" };
+
+  if (decision.action === "create_new") {
+    await upsertUser({
+      openId: fallbackOpenId,
+      name: identity.name ?? email?.split("@")[0] ?? "Bruker",
+      email,
+      loginMethod: identity.provider,
+      lastSignedIn: new Date(),
+      ...(identity.avatarUrl ? { avatarUrl: identity.avatarUrl } : {}),
+    });
+    const created = await getUserByOpenId(fallbackOpenId);
+    if (!created) throw new Error("Failed to load newly created user");
+    await recordIdentity(created.id, identity, email);
+    return { ok: true, openId: fallbackOpenId, userId: created.id, linked: false, passwordInvalidated: false };
+  }
+
+  // use_existing — either a returning identity, or a verified-email link.
+  if (decision.invalidatePassword) {
+    // The password on this row may belong to whoever typed the address, not to
+    // the person who just proved they own it. Clear it; they can set a new one
+    // through the normal reset flow.
+    await db.update(users).set({ passwordHash: null }).where(eq(users.id, decision.userId));
+    console.warn(
+      `[Auth] Cleared password on user ${decision.userId}: ${identity.provider} linked a verified address to an unverified local account.`
+    );
+  }
+  await db.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, decision.userId));
+  await recordIdentity(decision.userId, identity, email);
+
+  return {
+    ok: true,
+    openId: decision.openId,
+    userId: decision.userId,
+    linked: !alreadyLinked,
+    passwordInvalidated: decision.invalidatePassword,
+  };
+}
+
+/** Idempotent insert of a provider identity; the UNIQUE(provider,subject) makes it race-safe. */
+async function recordIdentity(
+  userId: number,
+  identity: { provider: string; subject: string; emailVerified: boolean },
+  email: string | null
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db
+      .insert(userIdentities)
+      .values({
+        userId,
+        provider: identity.provider,
+        subject: identity.subject,
+        emailAtLink: email,
+        emailVerifiedAtLink: identity.emailVerified ? 1 : 0,
+      })
+      .onDuplicateKeyUpdate({ set: { userId } });
+  } catch (error) {
+    // Never fail a login because the bookkeeping row could not be written —
+    // the legacy openId lookup still resolves the account on the next attempt.
+    console.error("[Auth] Failed to record provider identity:", error);
+  }
 }
 
 /** Mark a user's email as verified (idempotent). */
