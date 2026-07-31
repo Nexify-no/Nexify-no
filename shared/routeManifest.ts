@@ -136,6 +136,29 @@ export function normalizePath(pathname: string): string {
 }
 
 /** Classify a request path so the server can pick status code + robots meta. */
+/**
+ * Conventional URLs that were never implemented, mapped to where they belong.
+ *
+ * `/signup` and `/register` are the two paths a person types, a partner links,
+ * or an old ad points at. Both returned 404. Since #98 that 404 is at least
+ * honest, but a dead end is still a lost signup — a 301 costs nothing and
+ * passes any accumulated link equity to the real entry point.
+ */
+export const LEGACY_REDIRECTS: Readonly<Record<string, string>> = {
+  "/signup": "/login",
+  "/register": "/login",
+  "/sign-up": "/login",
+  "/registrer": "/login",
+  "/logg-inn": "/login",
+  "/checkout": "/pricing",
+  "/gratis": "/pricing",
+};
+
+/** Target for a legacy path, or null when the path is not a known alias. */
+export function redirectTarget(pathname: string): string | null {
+  return LEGACY_REDIRECTS[normalizePath(pathname)] ?? null;
+}
+
 export function classifyRoute(pathname: string): RouteClass {
   const p = normalizePath(pathname);
 

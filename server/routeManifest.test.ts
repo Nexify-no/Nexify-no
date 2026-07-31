@@ -21,6 +21,8 @@ import path from "path";
 import {
   classifyRoute,
   normalizePath,
+  redirectTarget,
+  LEGACY_REDIRECTS,
   PUBLIC_ROUTES,
   APP_ROUTES,
 } from "../shared/routeManifest";
@@ -76,6 +78,27 @@ describe("route manifest", () => {
     expect(normalizePath("/contact#form")).toBe("/contact");
     expect(normalizePath("")).toBe("/");
     expect(classifyRoute("/pricing/?ref=nyhetsbrev")).toBe("public");
+  });
+
+  it("redirects the conventional signup aliases instead of 404-ing them", () => {
+    expect(redirectTarget("/signup")).toBe("/login");
+    expect(redirectTarget("/register")).toBe("/login");
+    expect(redirectTarget("/registrer")).toBe("/login");
+    expect(redirectTarget("/SignUp/")).toBe("/login"); // normalised
+    expect(redirectTarget("/en-side-som-ikke-finnes")).toBeNull();
+  });
+
+  it("never redirects to a path that itself 404s", () => {
+    for (const [from, to] of Object.entries(LEGACY_REDIRECTS)) {
+      expect(
+        classifyRoute(to),
+        `${from} redirects to ${to}, which is not a real route`
+      ).not.toBe("unknown");
+      // A redirect to itself is an infinite loop.
+      expect(normalizePath(to)).not.toBe(normalizePath(from));
+      // And the target must not itself be a redirect (no chains).
+      expect(redirectTarget(to), `${to} is both a redirect source and target`).toBeNull();
+    }
   });
 
   it("has no route listed as both public and app", () => {
