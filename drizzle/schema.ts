@@ -309,7 +309,19 @@ export const userPreferences = mysqlTable("user_preferences", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("user_id").notNull().unique(),
   language: mysqlEnum("language", ["no", "en"]).default("no").notNull(),
-  viewMode: mysqlEnum("view_mode", ["simple", "advanced"]).default("advanced").notNull(),
+  /**
+   * Navigation density. New accounts default to "simple": landing a first-time
+   * user in the full 24-item sidebar contradicts the "Ingen læringskurve"
+   * promise and buries the one action that matters (generate a post).
+   * Existing accounts are untouched — migration 0099 changes the DEFAULT only.
+   */
+  viewMode: mysqlEnum("view_mode", ["simple", "advanced"]).default("simple").notNull(),
+  /**
+   * Set when the user picks a mode themselves. NULL means they inherited the
+   * default and have never been asked — the distinction any future default
+   * change depends on.
+   */
+  viewModeChosenAt: timestamp("view_mode_chosen_at"),
   openaiConsent: int("openai_consent").default(0).notNull(), // boolean as int: 0 = not asked, 1 = accepted, 2 = declined
   consentDate: timestamp("consent_date"),
   usagePreferences: text("usage_preferences"), // User's custom description of how they want to use the platform

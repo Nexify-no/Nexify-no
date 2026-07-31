@@ -649,11 +649,14 @@ export default function Generate() {
   // ── Enkel (simple) mode: one calm, guided screen. Few choices — the Merkehjerne
   //    (brand DNA) and smart defaults do the rest. Reuses the same generate/image
   //    handlers as the full studio, so nothing behaves differently under the hood. ──
+  // Mirrors DashboardNav: fall back to "simple" (the server default since
+  // migration 0099) rather than "advanced", so a first-time user is not shown
+  // the full studio for a frame before the preference loads.
   const simpleMode =
     (viewModeQuery.data ??
-      ((typeof window !== "undefined" && window.localStorage.getItem("penna-view-mode") === "simple")
-        ? "simple"
-        : "advanced")) === "simple";
+      ((typeof window !== "undefined" && window.localStorage.getItem("penna-view-mode") === "advanced")
+        ? "advanced"
+        : "simple")) === "simple";
   if (simpleMode) {
     const busy = generateMutation.isPending;
     const brandName = brandProfileQuery.data?.companyName ?? "";

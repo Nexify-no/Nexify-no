@@ -17,7 +17,6 @@ import {
   Sparkles,
   Target,
   MessageSquare,
-  Star,
   Shield,
   Image,
   Mic,
@@ -44,6 +43,7 @@ import HowItWorksDemo from "@/components/HowItWorksDemo";
 import FeaturesDemo from "@/components/FeaturesDemo";
 import PricingDemo from "@/components/PricingDemo";
 import { PennaMark } from "@/components/PennaMark";
+import { COMPANY, addressLine } from "@shared/company";
 
 // Animated counter hook
 function useCountUp(end: number, duration: number = 2000, start: boolean = false) {
@@ -187,6 +187,12 @@ export default function Home() {
             <a href="#pricing" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
               Priser
             </a>
+            {/* The blog (24 indexed articles) had no inbound link from the homepage,
+                so it received no internal PageRank from the strongest page on the
+                domain. Real <a href> — not a hash anchor — so crawlers follow it. */}
+            <a href="/blog" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
+              Blogg
+            </a>
           </div>
           <div className="flex items-center gap-3">
             {user ? (
@@ -326,13 +332,16 @@ export default function Home() {
               <div className="text-3xl md:text-4xl font-bold text-primary mb-1">100%</div>
               <div className="text-sm text-gray-500 font-medium">Ditt innhold</div>
             </div>
+            {/* No star rating here. A 5-star row with zero underlying reviews is an
+                unsubstantiated rating claim under markedsføringsloven §§ 6–7 (and reads
+                as fake to visitors). Replaced with a fact we can actually document:
+                the service is built and operated in Norway by a registered AS.
+                Re-introduce stars only when tied to real, attributable reviews. */}
             <div className="text-center">
-              <div className="flex items-center justify-center gap-0.5 mb-1">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="h-5 w-5 fill-yellow-400 text-yellow-400" />
-                ))}
+              <div className="text-3xl md:text-4xl font-bold text-primary mb-1" aria-hidden="true">
+                🇳🇴
               </div>
-              <div className="text-sm text-gray-500 font-medium">Ny plattform</div>
+              <div className="text-sm text-gray-500 font-medium">Norsk og GDPR-trygt</div>
             </div>
           </div>
         </div>
@@ -595,6 +604,8 @@ export default function Home() {
                 <li><a href="#how-it-works" className="hover:text-white transition-colors">Hvordan det virker</a></li>
                 <li><a href="#features" className="hover:text-white transition-colors">Funksjoner</a></li>
                 <li><a href="#pricing" className="hover:text-white transition-colors">Priser</a></li>
+                <li><a href="/blog" className="hover:text-white transition-colors">Blogg</a></li>
+                <li><a href="/contact" className="hover:text-white transition-colors">Kontakt</a></li>
               </ul>
             </div>
             <div>
@@ -609,10 +620,10 @@ export default function Home() {
             <div>
               <h4 className="font-semibold mb-4 text-sm uppercase tracking-wider text-gray-300">Kontakt</h4>
               <ul className="space-y-2.5 text-sm text-gray-400">
-                <li><a href="mailto:support@penna.no" className="hover:text-white transition-colors">support@penna.no</a></li>
-                <li><a href="tel:+4792146050" className="hover:text-white transition-colors">+47 921 46 050</a></li>
-                <li className="pt-1 text-gray-500">Nexify CRM Systems AS</li>
-                <li className="text-gray-500">Nedre Sølen 5, 3913 Porsgrunn</li>
+                <li><a href={`mailto:${COMPANY.email}`} className="hover:text-white transition-colors">{COMPANY.email}</a></li>
+                <li><a href={COMPANY.phoneHref} className="hover:text-white transition-colors">{COMPANY.phone}</a></li>
+                <li className="pt-1 text-gray-500">{COMPANY.legalName}</li>
+                <li className="text-gray-500">{addressLine()}</li>
                 <li><a href="/about-us" className="hover:text-white transition-colors">Om oss</a></li>
                 <li><a href="/faq" className="hover:text-white transition-colors">FAQ</a></li>
               </ul>
@@ -626,7 +637,7 @@ export default function Home() {
               <a href="https://x.com/Penna0no" target="_blank" rel="noopener noreferrer" aria-label="X" className="inline-flex items-center justify-center p-1.5 text-gray-400 hover:text-white transition-colors"><Twitter className="h-5 w-5" /></a>
               <a href="https://www.linkedin.com/company/penna-no/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" className="inline-flex items-center justify-center p-1.5 text-gray-400 hover:text-white transition-colors"><Linkedin className="h-5 w-5" /></a>
             </div>
-            <p className="text-xs text-gray-600">Nexify CRM Systems AS · Org.nr: 936 300 278</p>
+            <p className="text-xs text-gray-600">{COMPANY.legalName} · Org.nr: {COMPANY.orgNr}</p>
             <p className="text-xs text-gray-600 max-w-3xl mx-auto text-center">
               Varemerker tilhører sine respektive eiere. Penna er ikke tilknyttet OpenAI, Google eller LinkedIn.
             </p>

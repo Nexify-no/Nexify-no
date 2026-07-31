@@ -109,8 +109,13 @@ export default function DashboardNav() {
   // --- View mode (simple = essentials only; advanced = full nav) — per-account, saved server-side ---
   const utils = trpc.useUtils();
   const viewModeQuery = trpc.user.getViewMode.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
+  // Optimistic value while getViewMode is in flight. It must default to
+  // "simple" to match the server default (migration 0099) — defaulting to
+  // "advanced" made every first-time user see the full 24-item sidebar flash
+  // before the query resolved and collapsed it, which is the worst of both.
+  // Returning users have "advanced" in localStorage and see no flicker.
   const [viewMode, setViewMode] = useState<"simple" | "advanced">(() =>
-    localStorage.getItem("penna-view-mode") === "simple" ? "simple" : "advanced",
+    localStorage.getItem("penna-view-mode") === "advanced" ? "advanced" : "simple",
   );
   useEffect(() => {
     if (viewModeQuery.data) {

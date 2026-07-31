@@ -2243,14 +2243,25 @@ export async function updateUserViewMode(
   if (!db) throw new Error("Database not initialized");
   await db
     .update(userPreferences)
-    .set({ viewMode })
+    .set({
+      viewMode,
+      // Stamp the explicit choice so it is distinguishable from the column
+      // default. Without this we cannot safely change the default again.
+      viewModeChosenAt: new Date(),
+    })
     .where(eq(userPreferences.userId, userId));
 }
 
 /**
- * Read a user's UI view mode with a safe default of "advanced" (full nav).
+ * Read a user's UI view mode.
+ *
+ * Defaults to "simple" — a new account should meet the three things it came for
+ * (Dashboard / Generer / Mine innlegg), not a 24-item sidebar with Telegram Bot
+ * and A/B Testing in it. Users who picked "advanced" have it stored, and
+ * migration 0099 left every existing row untouched, so nobody is downgraded
+ * out from under a workflow they already built.
  */
 export async function getUserViewMode(userId: number): Promise<"simple" | "advanced"> {
   const pref = (await getUserPreference(userId)) as { viewMode?: "simple" | "advanced" } | undefined;
-  return pref?.viewMode === "simple" ? "simple" : "advanced";
+  return pref?.viewMode === "advanced" ? "advanced" : "simple";
 }

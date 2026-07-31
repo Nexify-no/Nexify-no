@@ -694,6 +694,13 @@
       "when": 1785888000000,
       "tag": "0098_platform_integrations_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "5",
+      "when": 1785974400000,
+      "tag": "0099_view_mode_default_simple",
+      "breakpoints": true
     }
   ]
 }
