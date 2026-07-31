@@ -11,7 +11,7 @@ import { nanoid } from "nanoid";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import viteConfig from "../../vite.config";
-import { classifyRoute, normalizePath } from "../../shared/routeManifest";
+import { classifyRoute, normalizePath, redirectTarget } from "../../shared/routeManifest";
 
 export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
@@ -125,6 +125,14 @@ export function serveStatic(app: Express) {
     // parse JSON and would choke on the SPA shell.
     if (normalizePath(pathname).startsWith("/api")) {
       res.status(404).json({ error: "Not found" });
+      return;
+    }
+
+    // Conventional aliases that were never implemented (/signup, /register, ...).
+    // 301 rather than 404: these are the URLs people type and partners link.
+    const redirect = redirectTarget(pathname);
+    if (redirect) {
+      res.redirect(301, redirect);
       return;
     }
 

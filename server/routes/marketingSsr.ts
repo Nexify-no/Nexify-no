@@ -184,7 +184,23 @@ function renderHome(): string {
     `<li><strong>Pro</strong> — 199 kr/mnd: 15 innlegg, AI-bilder, stemmetrening, trend, kalender, gjenbruk, AI coach.</li>` +
     `<li><strong>Premium</strong> — 399 kr/mnd: 30 innlegg, alt i Pro, automatisering og planlegging, månedlige rapporter.</li>` +
     `</ul>` +
-    `<p>Ingen bindingstid — avbryt når som helst. <a href="/pricing">Se priser</a> · <a href="/">Start gratis</a> · <a href="/blog">Les bloggen</a></p>` +
+    // Conversion path for clients that do NOT execute JavaScript.
+    //
+    // robots.txt explicitly invites GPTBot, ClaudeBot, PerplexityBot and
+    // Google-Extended, and none of them render JS — they read exactly this
+    // markup. Until now the only signup-ish link here was `href="/"`, a
+    // self-link: an answer engine could describe Penna accurately and still
+    // have no URL to send the reader to. The whole AEO investment stopped one
+    // step short of a conversion.
+    //
+    // /login is the real entry point (it carries the "kom i gang" flow), so
+    // that is what these point at.
+    `<h2>Kom i gang</h2>` +
+    `<p>Ingen bindingstid — avbryt når som helst, og 30 dagers pengene-tilbake-garanti på betalte planer.</p>` +
+    `<p><a href="/login">Start gratis — 2 innlegg, uten kredittkort</a> · ` +
+    `<a href="/pricing">Se priser</a> · ` +
+    `<a href="/blog">Les bloggen</a> · ` +
+    `<a href="/contact">Kontakt oss</a></p>` +
     `</main>`;
   // Homepage shell already has correct title/meta + SoftwareApplication LD.
   // Just add Organization LD and inject the body content.
