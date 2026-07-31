@@ -169,17 +169,35 @@ export function registerGoogleOAuthRoutes(app: Express) {
 
       const { sub: googleId, email, name } = payload;
 
-      // Use Google sub as openId (prefixed to avoid collision with Manus IDs)
-      const openId = `google_${googleId}`;
-
-      // Upsert user in database
-      await db.upsertUser({
-        openId,
-        name: name || email?.split("@")[0] || "User",
+      // Resolve to ONE account instead of upserting on the Google openId alone.
+      //
+      // The old code inserted a fresh row whenever `google_<sub>` was unseen —
+      // so a person who had signed up with a password got a second, empty
+      // account (three rows on one address in production). resolveOAuthLogin
+      // links to the existing account when Google vouches for the address, and
+      // refuses when it does not.
+      //
+      // `email_verified` is passed through as Google reports it. Never default
+      // it to true: that claim is the only thing standing between this flow and
+      // an account pre-hijacking attack.
+      const resolved = await db.resolveOAuthLogin({
+        provider: "google",
+        subject: googleId,
         email: email ?? null,
-        loginMethod: "google",
-        lastSignedIn: new Date(),
+        emailVerified: payload.email_verified === true,
+        name: name ?? null,
       });
+
+      if (!resolved.ok) {
+        const { refusalMessage } = await import("../services/identityLinking");
+        console.warn(`[Google OAuth] Refused link for ${email}: ${resolved.reason}`);
+        return res.redirect(302, `/login?error=${encodeURIComponent(refusalMessage(resolved.reason))}`);
+      }
+
+      const openId = resolved.openId;
+      if (resolved.linked) {
+        console.log(`[Google OAuth] Linked Google identity to existing account ${resolved.userId} (${email})`);
+      }
 
       // Create session token using existing SDK (same JWT structure)
       const sessionToken = await sdk.createSessionToken(openId, {

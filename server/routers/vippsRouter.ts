@@ -209,15 +209,27 @@ export const vippsRouter = router({
         // exactly like the Google flow — and NEVER return the raw Vipps
         // access/refresh tokens to the browser (they used to be stored in
         // localStorage, readable by any XSS). The Vipps tokens stay on the server.
-        const openId = `vipps_${userInfo.sub}`;
         const displayName = userInfo.name || userInfo.email?.split("@")[0] || "Vipps-bruker";
-        await db.upsertUser({
-          openId,
-          name: displayName,
+
+        // One account per email (see services/identityLinking.ts). Vipps does
+        // not assert that the address it returns has been verified, so this
+        // never auto-links into an existing account — it either recognises the
+        // Vipps identity from a previous login, creates a new account, or
+        // refuses and asks the person to sign in the way they registered.
+        const resolved = await db.resolveOAuthLogin({
+          provider: "vipps",
+          subject: userInfo.sub,
           email: userInfo.email ?? null,
-          loginMethod: "vipps",
-          lastSignedIn: new Date(),
+          emailVerified: false,
+          name: displayName,
         });
+
+        if (!resolved.ok) {
+          const { refusalMessage } = await import("../services/identityLinking");
+          throw new TRPCError({ code: "CONFLICT", message: refusalMessage(resolved.reason) });
+        }
+
+        const openId = resolved.openId;
         const sessionToken = await sdk.createSessionToken(openId, {
           name: displayName,
           expiresInMs: ONE_YEAR_MS,
