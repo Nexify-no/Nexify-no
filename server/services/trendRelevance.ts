@@ -149,13 +149,36 @@ export function hasUsableBrandContext(brand: BrandContext | null | undefined): b
 }
 
 /**
+ * A bare hashtag carries no topic: "#waiting", "#WindowFriday", "#LetterboxdFriday".
+ * The Mastodon source emits these by the dozen. They are not post ideas.
+ */
+function isBareHashtag(keyword: string): boolean {
+  return /^#[\p{L}\p{N}_]+$/u.test(keyword.trim());
+}
+
+/**
  * Score one trend in 0..1.
  *   + direct overlap with the brand vocabulary (dominant term)
  *   + a smaller bonus for generic business relevance
  *   − a penalty for the low-value national-news categories
+ *   − a penalty for content-free hashtags
+ *
+ * Scoring reads the KEYWORD only, never `category`.
+ *
+ * Why that matters (regression shipped in #98, caught on the live site): the
+ * haystack used to include `category`, which on the RSS/Mastodon sources is the
+ * channel label "sosiale medier". A brand whose Merkehjerne mentions "sosiale
+ * medier" — i.e. every customer this product has — therefore matched EVERY item
+ * from those sources. The Generate sidebar filled with "#waiting",
+ * "#JukeboxFridayNight" and "#LetterboxdFriday", each labelled
+ * "Tilpasset <bransje>". That is worse than the unranked feed it replaced:
+ * same useless topics, now with a false claim of personalisation attached.
+ *
+ * `category` describes where a trend came from, not what it is about. It must
+ * never contribute to topical relevance.
  */
 export function scoreTrend(trend: AggregatedTrend, vocab: Map<string, number>): ScoredTrend {
-  const haystack = `${trend.keyword} ${trend.category ?? ""}`.toLowerCase();
+  const haystack = String(trend.keyword ?? "").toLowerCase();
   const matchedOn: string[] = [];
 
   let brandScore = 0;
@@ -172,6 +195,7 @@ export function scoreTrend(trend: AggregatedTrend, vocab: Map<string, number>): 
   let score = brandScore;
   if (businessHit) score += 0.35;
   if (lowValueHit) score -= 0.5;
+  if (isBareHashtag(trend.keyword)) score -= 0.6;
 
   return {
     ...trend,
